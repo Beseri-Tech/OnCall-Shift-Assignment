@@ -29,6 +29,8 @@
         private void InitializeComponent()
         {
             this.panel1 = new System.Windows.Forms.Panel();
+            this.label6 = new System.Windows.Forms.Label();
+            this.label5 = new System.Windows.Forms.Label();
             this.btn_clear = new CustomControls.RJControls.RJButton();
             this.checkBox1 = new System.Windows.Forms.CheckBox();
             this.tx_preferred = new System.Windows.Forms.TextBox();
@@ -46,8 +48,6 @@
             this.panel_titlebar = new System.Windows.Forms.Panel();
             this.label4 = new System.Windows.Forms.Label();
             this.titleBar1 = new Button_Control.TitleBar();
-            this.label5 = new System.Windows.Forms.Label();
-            this.label6 = new System.Windows.Forms.Label();
             this.panel1.SuspendLayout();
             this.panel_titlebar.SuspendLayout();
             this.SuspendLayout();
@@ -78,6 +78,28 @@
             this.panel1.Size = new System.Drawing.Size(631, 453);
             this.panel1.TabIndex = 0;
             this.panel1.Paint += new System.Windows.Forms.PaintEventHandler(this.panel1_Paint);
+            // 
+            // label6
+            // 
+            this.label6.AutoSize = true;
+            this.label6.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label6.Location = new System.Drawing.Point(26, 213);
+            this.label6.Name = "label6";
+            this.label6.Size = new System.Drawing.Size(71, 13);
+            this.label6.TabIndex = 30;
+            this.label6.Text = "Single  : Date";
+            this.label6.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
+            // label5
+            // 
+            this.label5.AutoSize = true;
+            this.label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label5.Location = new System.Drawing.Point(26, 228);
+            this.label5.Name = "label5";
+            this.label5.Size = new System.Drawing.Size(109, 13);
+            this.label5.TabIndex = 29;
+            this.label5.Text = "Range : Date to Date";
+            this.label5.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // btn_clear
             // 
@@ -165,6 +187,7 @@
             this.tx_leavedate.Name = "tx_leavedate";
             this.tx_leavedate.Size = new System.Drawing.Size(150, 26);
             this.tx_leavedate.TabIndex = 22;
+            this.tx_leavedate.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.tx_leavedate_KeyPress);
             // 
             // btn_add
             // 
@@ -315,28 +338,6 @@
             this.titleBar1.ShowMinimizeButton = false;
             this.titleBar1.Size = new System.Drawing.Size(104, 30);
             this.titleBar1.TabIndex = 0;
-            // 
-            // label5
-            // 
-            this.label5.AutoSize = true;
-            this.label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label5.Location = new System.Drawing.Point(26, 228);
-            this.label5.Name = "label5";
-            this.label5.Size = new System.Drawing.Size(109, 13);
-            this.label5.TabIndex = 29;
-            this.label5.Text = "Range : Date to Date";
-            this.label5.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
-            // label6
-            // 
-            this.label6.AutoSize = true;
-            this.label6.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label6.Location = new System.Drawing.Point(26, 213);
-            this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(71, 13);
-            this.label6.TabIndex = 30;
-            this.label6.Text = "Single  : Date";
-            this.label6.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // frmAddPersonDetails
             // 

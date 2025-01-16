@@ -247,5 +247,13 @@ namespace TimeTable_Generator
                 }
             }
         }
+
+        private void tx_leavedate_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar == (char)Keys.Enter) 
+            { 
+                btn_add_Click(btn_add, null);
+            }
+        }
     }   
 }
