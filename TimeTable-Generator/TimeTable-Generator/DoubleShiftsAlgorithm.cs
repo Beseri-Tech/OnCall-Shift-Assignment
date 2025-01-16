@@ -88,10 +88,13 @@ namespace TimeTable_Generator
             bool shiftAssigned = false;
             int month = date.Month;
             List<Person> assignedPeople = new List<Person>();
+            Random rng = new Random();
 
-            var preferredPeople = people.Where(p => p.PreferredDates.Contains(date.Date)).ToList();
-            var nonPreferredPeople = people.Where(p => !p.PreferredDates.Contains(date.Date)).ToList();
+            // Shuffle preferred and non-preferred people before sorting
+            var preferredPeople = people.Where(p => p.PreferredDates.Contains(date.Date)).OrderBy(_ => rng.Next()).ToList();
+            var nonPreferredPeople = people.Where(p => !p.PreferredDates.Contains(date.Date)).OrderBy(_ => rng.Next()).ToList();
 
+            // Sort the shuffled lists
             var sortedPeople = preferredPeople.Any()
                 ? preferredPeople.OrderBy(p => p.WeekendShifts + p.WeekdayShifts).ToList()
                 : isWeekend

@@ -108,7 +108,16 @@ namespace TimeTable_Generator
             var preferredPeople = people.Where(p => p.PreferredDates.Contains(date.Date)).ToList();
             var nonPreferredPeople = people.Where(p => !p.PreferredDates.Contains(date.Date)).ToList();
 
-            // If there are preferred people for this date, prioritize them
+            // Shuffle the list of people before sorting
+            Random rng = new Random();
+
+            // Shuffle preferred people
+            preferredPeople = preferredPeople.OrderBy(_ => rng.Next()).ToList();
+
+            // Shuffle non-preferred people
+            nonPreferredPeople = nonPreferredPeople.OrderBy(_ => rng.Next()).ToList();
+
+            // Sort the shuffled lists
             var sortedPeople = preferredPeople.Any()
                 ? preferredPeople.OrderBy(p => p.WeekendShifts + p.WeekdayShifts).ToList()
                 : isWeekend
@@ -130,14 +139,6 @@ namespace TimeTable_Generator
                     reason = $"{currentPerson.Name} is on leave for {date.ToShortDateString()}.";
                 }
                 else if (currentPerson.AssignedShifts.Any(existingShift => Math.Abs((date - existingShift).Days) == 1))
-                {
-                    reason = $"{currentPerson.Name} has a consecutive shift issue for {date.ToShortDateString()}.";
-                }
-                else if (currentPerson.AssignedShifts.Any(existingShift => Math.Abs((date - existingShift).Days) == 2))
-                {
-                    reason = $"{currentPerson.Name} has a consecutive shift issue for {date.ToShortDateString()}.";
-                }
-                else if (currentPerson.AssignedShifts.Any(existingShift => Math.Abs((date - existingShift).Days) == 3))
                 {
                     reason = $"{currentPerson.Name} has a consecutive shift issue for {date.ToShortDateString()}.";
                 }
