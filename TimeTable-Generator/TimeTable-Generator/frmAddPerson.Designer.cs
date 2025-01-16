@@ -101,6 +101,7 @@
             this.chk_double.TabIndex = 26;
             this.chk_double.Text = "Double Shift (Tagger)";
             this.chk_double.UseVisualStyleBackColor = true;
+            this.chk_double.CheckedChanged += new System.EventHandler(this.chk_double_CheckedChanged);
             // 
             // btn_clear
             // 
@@ -152,6 +153,7 @@
             this.label_shift_total.Size = new System.Drawing.Size(99, 17);
             this.label_shift_total.TabIndex = 22;
             this.label_shift_total.Text = "Total Shifts : 0";
+            this.label_shift_total.Click += new System.EventHandler(this.label_shift_total_Click);
             // 
             // label_shift_assign
             // 

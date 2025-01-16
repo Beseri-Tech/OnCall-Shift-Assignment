@@ -178,7 +178,16 @@ namespace TimeTable_Generator
 
             List<DateTime> allDates = GetAllDates(StartDate, EndDate);
 
-            int shiftcounts = allDates.Count;
+            int shiftcounts = 0;
+            if(chk_double.Checked)
+            {
+                shiftcounts = allDates.Count*2;
+            }
+            else
+            {
+                shiftcounts = allDates.Count;
+            }
+
             label_shift_total.Text = $"Total Shifts : {shiftcounts.ToString()}";
 
             int shiftassigned = 0;
@@ -356,6 +365,16 @@ namespace TimeTable_Generator
                 btn_clear.Visible = true;
             }
             else { btn_clear.Visible = false; }
+        }
+
+        private void label_shift_total_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void chk_double_CheckedChanged(object sender, EventArgs e)
+        {
+            RefreshDGV();
         }
     }
 }
