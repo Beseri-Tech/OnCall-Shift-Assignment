@@ -7,6 +7,7 @@ using TimeTable_Generator;
 
 namespace TimeTable_Generator
 {
+    #region Algorithm 1
     public class ShiftsAlgorithm
     {
         public void AssignShifts(List<Person> people, DateTime startDate, DateTime endDate, List<DateTime> publicHolidays, Action<int> reportProgress)
@@ -295,4 +296,8 @@ namespace TimeTable_Generator
 
 
     }
+    #endregion
+
+
+
 }

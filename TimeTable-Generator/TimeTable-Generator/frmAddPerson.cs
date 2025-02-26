@@ -150,6 +150,7 @@ namespace TimeTable_Generator
 
             // Refresh the DataGridView or perform other tasks
             RefreshDGV();
+            ShiftCount();
         }
 
         private void btn_continue_Click(object sender, EventArgs e)
@@ -197,6 +198,7 @@ namespace TimeTable_Generator
             }
 
             label_shift_assign.Text = $"Total Shifts Assigned: {shiftassigned.ToString()}";
+            ShiftCount();
         }
 
         private List<DateTime> GetAllDates(DateTime startDate, DateTime endDate)
@@ -375,6 +377,22 @@ namespace TimeTable_Generator
         private void chk_double_CheckedChanged(object sender, EventArgs e)
         {
             RefreshDGV();
+        }
+
+        private void ShiftCount()
+        {
+            foreach (DataGridViewRow row in dataGridView1.Rows)
+            {
+                var count = 0;
+               
+
+                var weekdays = Convert.ToInt32(row.Cells["WeekdayShifts"].Value);
+                var weekends = Convert.ToInt32(row.Cells["WeekendShifts"].Value);
+
+                count = weekdays + weekends;
+
+                row.Cells["TotalShift"].Value = count.ToString();
+            }
         }
     }
 }

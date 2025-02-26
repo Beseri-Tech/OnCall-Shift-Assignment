@@ -57,6 +57,7 @@
             this.AssignedShifts = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.WeekdayShifts = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.WeekendShifts = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.TotalShift = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.panel1.SuspendLayout();
             this.panel_titlebar.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
@@ -114,7 +115,7 @@
             this.btn_clear.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btn_clear.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.btn_clear.ForeColor = System.Drawing.Color.Black;
-            this.btn_clear.Location = new System.Drawing.Point(173, 212);
+            this.btn_clear.Location = new System.Drawing.Point(104, 212);
             this.btn_clear.Name = "btn_clear";
             this.btn_clear.Size = new System.Drawing.Size(150, 26);
             this.btn_clear.TabIndex = 25;
@@ -389,7 +390,8 @@
             this.LeaveDates,
             this.AssignedShifts,
             this.WeekdayShifts,
-            this.WeekendShifts});
+            this.WeekendShifts,
+            this.TotalShift});
             this.dataGridView1.Location = new System.Drawing.Point(11, 207);
             this.dataGridView1.Name = "dataGridView1";
             this.dataGridView1.Size = new System.Drawing.Size(776, 380);
@@ -412,7 +414,7 @@
             this.LeaveDatesString.HeaderText = "Leave Dates";
             this.LeaveDatesString.Name = "LeaveDatesString";
             this.LeaveDatesString.ReadOnly = true;
-            this.LeaveDatesString.Width = 86;
+            this.LeaveDatesString.Width = 93;
             // 
             // TotalLeaveDays
             // 
@@ -435,6 +437,7 @@
             this.LeaveDates.Name = "LeaveDates";
             this.LeaveDates.ReadOnly = true;
             this.LeaveDates.Visible = false;
+            this.LeaveDates.Width = 90;
             // 
             // AssignedShifts
             // 
@@ -443,6 +446,7 @@
             this.AssignedShifts.Name = "AssignedShifts";
             this.AssignedShifts.ReadOnly = true;
             this.AssignedShifts.Visible = false;
+            this.AssignedShifts.Width = 101;
             // 
             // WeekdayShifts
             // 
@@ -459,6 +463,14 @@
             this.WeekendShifts.Name = "WeekendShifts";
             this.WeekendShifts.ReadOnly = true;
             this.WeekendShifts.Width = 79;
+            // 
+            // TotalShift
+            // 
+            this.TotalShift.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.ColumnHeader;
+            this.TotalShift.HeaderText = "Shift Count";
+            this.TotalShift.Name = "TotalShift";
+            this.TotalShift.ReadOnly = true;
+            this.TotalShift.Width = 78;
             // 
             // frmAddPerson
             // 
@@ -494,14 +506,6 @@
         private CustomControls.RJControls.RJButton btn_download;
         private CustomControls.RJControls.RJButton btn_reset;
         private CustomControls.RJControls.RJButton rjButton2;
-        private System.Windows.Forms.DataGridViewTextBoxColumn PersonName;
-        private System.Windows.Forms.DataGridViewTextBoxColumn LeaveDatesString;
-        private System.Windows.Forms.DataGridViewTextBoxColumn TotalLeaveDays;
-        private System.Windows.Forms.DataGridViewTextBoxColumn AssignedShiftsString;
-        private System.Windows.Forms.DataGridViewTextBoxColumn LeaveDates;
-        private System.Windows.Forms.DataGridViewTextBoxColumn AssignedShifts;
-        private System.Windows.Forms.DataGridViewTextBoxColumn WeekdayShifts;
-        private System.Windows.Forms.DataGridViewTextBoxColumn WeekendShifts;
         private System.Windows.Forms.ProgressBar progressBar1;
         private CustomControls.RJControls.RJButton btn_holidays;
         private System.Windows.Forms.Label label_holidays;
@@ -510,5 +514,14 @@
         private CustomControls.RJControls.RJButton btn_date;
         private CustomControls.RJControls.RJButton btn_clear;
         private System.Windows.Forms.CheckBox chk_double;
+        private System.Windows.Forms.DataGridViewTextBoxColumn PersonName;
+        private System.Windows.Forms.DataGridViewTextBoxColumn LeaveDatesString;
+        private System.Windows.Forms.DataGridViewTextBoxColumn TotalLeaveDays;
+        private System.Windows.Forms.DataGridViewTextBoxColumn AssignedShiftsString;
+        private System.Windows.Forms.DataGridViewTextBoxColumn LeaveDates;
+        private System.Windows.Forms.DataGridViewTextBoxColumn AssignedShifts;
+        private System.Windows.Forms.DataGridViewTextBoxColumn WeekdayShifts;
+        private System.Windows.Forms.DataGridViewTextBoxColumn WeekendShifts;
+        private System.Windows.Forms.DataGridViewTextBoxColumn TotalShift;
     }
 }
