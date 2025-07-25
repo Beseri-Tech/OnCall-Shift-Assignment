@@ -221,7 +221,7 @@ namespace TimeTable_Generator
 
                 // Prioritize people with ExtraShift flag, maintaining balance of total shifts
                 var extraShiftPeople = people
-                    .Where(p => p.ExtraShift && monthlyShiftTargets[p][month] > 0)  // Only consider people eligible for extra shifts and who need shifts in this month
+                    .Where(p => p.ExtraShift /*&& monthlyShiftTargets[p][month] > 0*/)  // Only consider people eligible for extra shifts and who need shifts in this month
                     .OrderBy(p => p.WeekendShifts + p.WeekdayShifts)  // Prioritize people with fewer total shifts (weekday + weekend)
                     .ThenBy(p => Math.Abs(p.WeekendShifts - p.WeekdayShifts))  // Prioritize balancing weekday and weekend shifts
                     .ToList();
