@@ -255,5 +255,30 @@ namespace TimeTable_Generator
                 btn_add_Click(btn_add, null);
             }
         }
+
+        private void buttonAddRange_Click(object sender, EventArgs e)
+        {
+            DateTime start = monthCalendar1.SelectionStart;
+            DateTime end = monthCalendar1.SelectionEnd;
+
+            // Ensure start <= end (just in case)
+            if (start > end)
+            {
+                var temp = start;
+                start = end;
+                end = temp;
+            }
+
+            for (DateTime d = start; d <= end; d = d.AddDays(1))
+            {
+                string formatted = d.ToString("dd/MM/yy"); // your 15/12/25 style
+
+                // avoid duplicates in ListBox
+                if (!list_leavedates.Items.Contains(formatted))
+                {
+                    list_leavedates.Items.Add(formatted);
+                }
+            }
+        }
     }   
 }

@@ -16,10 +16,12 @@ namespace TimeTable_Generator
 {
     public class GenerateClass
     {
+        
         public void GenerateTimetableExcel(List<Person> people, string filePath, DateTime startDate, DateTime endDate, List<DateTime> publicHolidays)
         {
             // Initialize the Excel package
-            ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial; // For non-commercial use
+            ExcelPackage.License.SetNonCommercialOrganization("My Noncommercial organization"); //This will also set the Company property to the organization name provided in the argument.
+
             using (ExcelPackage package = new ExcelPackage())
             {
                 // Get all the dates between the start and end date

@@ -48,6 +48,8 @@
             this.panel_titlebar = new System.Windows.Forms.Panel();
             this.label4 = new System.Windows.Forms.Label();
             this.titleBar1 = new Button_Control.TitleBar();
+            this.monthCalendar1 = new System.Windows.Forms.MonthCalendar();
+            this.buttonAddRange = new CustomControls.RJControls.RJButton();
             this.panel1.SuspendLayout();
             this.panel_titlebar.SuspendLayout();
             this.SuspendLayout();
@@ -56,6 +58,8 @@
             // 
             this.panel1.BackColor = System.Drawing.Color.AntiqueWhite;
             this.panel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panel1.Controls.Add(this.buttonAddRange);
+            this.panel1.Controls.Add(this.monthCalendar1);
             this.panel1.Controls.Add(this.label6);
             this.panel1.Controls.Add(this.label5);
             this.panel1.Controls.Add(this.btn_clear);
@@ -75,7 +79,7 @@
             this.panel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.panel1.Location = new System.Drawing.Point(0, 0);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(631, 453);
+            this.panel1.Size = new System.Drawing.Size(893, 448);
             this.panel1.TabIndex = 0;
             this.panel1.Paint += new System.Windows.Forms.PaintEventHandler(this.panel1_Paint);
             // 
@@ -312,7 +316,7 @@
             this.panel_titlebar.Dock = System.Windows.Forms.DockStyle.Top;
             this.panel_titlebar.Location = new System.Drawing.Point(0, 0);
             this.panel_titlebar.Name = "panel_titlebar";
-            this.panel_titlebar.Size = new System.Drawing.Size(631, 30);
+            this.panel_titlebar.Size = new System.Drawing.Size(893, 30);
             this.panel_titlebar.TabIndex = 11;
             // 
             // label4
@@ -333,23 +337,49 @@
             this.titleBar1.CloseTitle = "Exit";
             this.titleBar1.Dock = System.Windows.Forms.DockStyle.Right;
             this.titleBar1.EnableDialog = false;
-            this.titleBar1.Location = new System.Drawing.Point(527, 0);
+            this.titleBar1.Location = new System.Drawing.Point(789, 0);
             this.titleBar1.Name = "titleBar1";
             this.titleBar1.ShowMinimizeButton = false;
             this.titleBar1.Size = new System.Drawing.Size(104, 30);
             this.titleBar1.TabIndex = 0;
             // 
+            // monthCalendar1
+            // 
+            this.monthCalendar1.Location = new System.Drawing.Point(647, 79);
+            this.monthCalendar1.Name = "monthCalendar1";
+            this.monthCalendar1.TabIndex = 31;
+            // 
+            // buttonAddRange
+            // 
+            this.buttonAddRange.BackColor = System.Drawing.Color.Thistle;
+            this.buttonAddRange.BackgroundColor = System.Drawing.Color.Thistle;
+            this.buttonAddRange.BorderColor = System.Drawing.Color.Black;
+            this.buttonAddRange.BorderRadius = 0;
+            this.buttonAddRange.BorderSize = 1;
+            this.buttonAddRange.FlatAppearance.BorderSize = 0;
+            this.buttonAddRange.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.buttonAddRange.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.buttonAddRange.ForeColor = System.Drawing.Color.Black;
+            this.buttonAddRange.Location = new System.Drawing.Point(688, 248);
+            this.buttonAddRange.Name = "buttonAddRange";
+            this.buttonAddRange.Size = new System.Drawing.Size(150, 25);
+            this.buttonAddRange.TabIndex = 32;
+            this.buttonAddRange.Text = "Add Selected Dates";
+            this.buttonAddRange.TextColor = System.Drawing.Color.Black;
+            this.buttonAddRange.UseVisualStyleBackColor = false;
+            this.buttonAddRange.Click += new System.EventHandler(this.buttonAddRange_Click);
+            // 
             // frmAddPersonDetails
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(631, 453);
+            this.ClientSize = new System.Drawing.Size(893, 448);
             this.Controls.Add(this.panel_titlebar);
             this.Controls.Add(this.panel1);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.Name = "frmAddPersonDetails";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "frmAddPersonDetails";
+            this.Text = "t";
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
             this.panel_titlebar.ResumeLayout(false);
@@ -380,5 +410,7 @@
         private CustomControls.RJControls.RJButton btn_clear;
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.Label label5;
+        private CustomControls.RJControls.RJButton buttonAddRange;
+        private System.Windows.Forms.MonthCalendar monthCalendar1;
     }
 }

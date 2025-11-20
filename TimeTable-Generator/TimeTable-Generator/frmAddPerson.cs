@@ -394,5 +394,12 @@ namespace TimeTable_Generator
                 row.Cells["TotalShift"].Value = count.ToString();
             }
         }
+
+        private void btn_batch_Click(object sender, EventArgs e)
+        {
+            frmAddPeople addPeople = new frmAddPeople(people);
+            addPeople.FormClosed += Refresh_DGV_On_FormClosed;
+            addPeople.ShowDialog();
+        }
     }
 }

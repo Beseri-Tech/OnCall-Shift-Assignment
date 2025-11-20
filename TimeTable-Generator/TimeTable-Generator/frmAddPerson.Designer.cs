@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             this.panel1 = new System.Windows.Forms.Panel();
+            this.btn_batch = new CustomControls.RJControls.RJButton();
             this.chk_double = new System.Windows.Forms.CheckBox();
             this.btn_clear = new CustomControls.RJControls.RJButton();
             this.btn_date = new CustomControls.RJControls.RJButton();
@@ -67,6 +68,7 @@
             // 
             this.panel1.BackColor = System.Drawing.Color.AntiqueWhite;
             this.panel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panel1.Controls.Add(this.btn_batch);
             this.panel1.Controls.Add(this.chk_double);
             this.panel1.Controls.Add(this.btn_clear);
             this.panel1.Controls.Add(this.btn_date);
@@ -90,6 +92,26 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(800, 606);
             this.panel1.TabIndex = 0;
+            // 
+            // btn_batch
+            // 
+            this.btn_batch.BackColor = System.Drawing.Color.MediumTurquoise;
+            this.btn_batch.BackgroundColor = System.Drawing.Color.MediumTurquoise;
+            this.btn_batch.BorderColor = System.Drawing.Color.Black;
+            this.btn_batch.BorderRadius = 0;
+            this.btn_batch.BorderSize = 1;
+            this.btn_batch.FlatAppearance.BorderSize = 0;
+            this.btn_batch.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btn_batch.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btn_batch.ForeColor = System.Drawing.Color.Black;
+            this.btn_batch.Location = new System.Drawing.Point(11, 126);
+            this.btn_batch.Name = "btn_batch";
+            this.btn_batch.Size = new System.Drawing.Size(150, 32);
+            this.btn_batch.TabIndex = 27;
+            this.btn_batch.Text = "Add People";
+            this.btn_batch.TextColor = System.Drawing.Color.Black;
+            this.btn_batch.UseVisualStyleBackColor = false;
+            this.btn_batch.Click += new System.EventHandler(this.btn_batch_Click);
             // 
             // chk_double
             // 
@@ -136,7 +158,7 @@
             this.btn_date.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btn_date.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.btn_date.ForeColor = System.Drawing.Color.White;
-            this.btn_date.Location = new System.Drawing.Point(173, 156);
+            this.btn_date.Location = new System.Drawing.Point(173, 164);
             this.btn_date.Name = "btn_date";
             this.btn_date.Size = new System.Drawing.Size(150, 30);
             this.btn_date.TabIndex = 24;
@@ -170,7 +192,7 @@
             // 
             this.label_holidays.AutoSize = true;
             this.label_holidays.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
-            this.label_holidays.Location = new System.Drawing.Point(170, 86);
+            this.label_holidays.Location = new System.Drawing.Point(170, 68);
             this.label_holidays.Name = "label_holidays";
             this.label_holidays.Size = new System.Drawing.Size(156, 17);
             this.label_holidays.TabIndex = 21;
@@ -187,9 +209,9 @@
             this.btn_holidays.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btn_holidays.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.btn_holidays.ForeColor = System.Drawing.Color.Black;
-            this.btn_holidays.Location = new System.Drawing.Point(173, 106);
+            this.btn_holidays.Location = new System.Drawing.Point(173, 88);
             this.btn_holidays.Name = "btn_holidays";
-            this.btn_holidays.Size = new System.Drawing.Size(150, 44);
+            this.btn_holidays.Size = new System.Drawing.Size(150, 70);
             this.btn_holidays.TabIndex = 20;
             this.btn_holidays.Text = "Add Public Holidays";
             this.btn_holidays.TextColor = System.Drawing.Color.Black;
@@ -295,7 +317,7 @@
             this.rjButton1.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.rjButton1.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.rjButton1.ForeColor = System.Drawing.Color.Black;
-            this.rjButton1.Location = new System.Drawing.Point(11, 156);
+            this.rjButton1.Location = new System.Drawing.Point(11, 164);
             this.rjButton1.Name = "rjButton1";
             this.rjButton1.Size = new System.Drawing.Size(150, 30);
             this.rjButton1.TabIndex = 14;
@@ -317,7 +339,7 @@
             // 
             this.label_total.AutoSize = true;
             this.label_total.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
-            this.label_total.Location = new System.Drawing.Point(11, 86);
+            this.label_total.Location = new System.Drawing.Point(11, 68);
             this.label_total.Name = "label_total";
             this.label_total.Size = new System.Drawing.Size(147, 17);
             this.label_total.TabIndex = 11;
@@ -334,9 +356,9 @@
             this.btn_continue.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btn_continue.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.btn_continue.ForeColor = System.Drawing.Color.Black;
-            this.btn_continue.Location = new System.Drawing.Point(11, 106);
+            this.btn_continue.Location = new System.Drawing.Point(11, 88);
             this.btn_continue.Name = "btn_continue";
-            this.btn_continue.Size = new System.Drawing.Size(150, 44);
+            this.btn_continue.Size = new System.Drawing.Size(150, 32);
             this.btn_continue.TabIndex = 6;
             this.btn_continue.Text = "Add New Person";
             this.btn_continue.TextColor = System.Drawing.Color.Black;
@@ -414,7 +436,7 @@
             this.LeaveDatesString.HeaderText = "Leave Dates";
             this.LeaveDatesString.Name = "LeaveDatesString";
             this.LeaveDatesString.ReadOnly = true;
-            this.LeaveDatesString.Width = 93;
+            this.LeaveDatesString.Width = 86;
             // 
             // TotalLeaveDays
             // 
@@ -437,7 +459,6 @@
             this.LeaveDates.Name = "LeaveDates";
             this.LeaveDates.ReadOnly = true;
             this.LeaveDates.Visible = false;
-            this.LeaveDates.Width = 90;
             // 
             // AssignedShifts
             // 
@@ -446,7 +467,6 @@
             this.AssignedShifts.Name = "AssignedShifts";
             this.AssignedShifts.ReadOnly = true;
             this.AssignedShifts.Visible = false;
-            this.AssignedShifts.Width = 101;
             // 
             // WeekdayShifts
             // 
@@ -523,5 +543,6 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn WeekdayShifts;
         private System.Windows.Forms.DataGridViewTextBoxColumn WeekendShifts;
         private System.Windows.Forms.DataGridViewTextBoxColumn TotalShift;
+        private CustomControls.RJControls.RJButton btn_batch;
     }
 }
