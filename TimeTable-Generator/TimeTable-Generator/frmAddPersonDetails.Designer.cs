@@ -94,9 +94,9 @@
             this.buttonAddRange.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.buttonAddRange.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.buttonAddRange.ForeColor = System.Drawing.Color.Black;
-            this.buttonAddRange.Location = new System.Drawing.Point(688, 248);
+            this.buttonAddRange.Location = new System.Drawing.Point(526, 319);
             this.buttonAddRange.Name = "buttonAddRange";
-            this.buttonAddRange.Size = new System.Drawing.Size(150, 25);
+            this.buttonAddRange.Size = new System.Drawing.Size(154, 35);
             this.buttonAddRange.TabIndex = 32;
             this.buttonAddRange.Text = "Add Selected Dates";
             this.buttonAddRange.TextColor = System.Drawing.Color.Black;
@@ -105,7 +105,7 @@
             // 
             // monthCalendar1
             // 
-            this.monthCalendar1.Location = new System.Drawing.Point(647, 79);
+            this.monthCalendar1.Location = new System.Drawing.Point(485, 150);
             this.monthCalendar1.Name = "monthCalendar1";
             this.monthCalendar1.TabIndex = 31;
             // 
@@ -142,7 +142,7 @@
             this.btn_clear.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btn_clear.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.btn_clear.ForeColor = System.Drawing.Color.White;
-            this.btn_clear.Location = new System.Drawing.Point(477, 240);
+            this.btn_clear.Location = new System.Drawing.Point(724, 205);
             this.btn_clear.Name = "btn_clear";
             this.btn_clear.Size = new System.Drawing.Size(141, 41);
             this.btn_clear.TabIndex = 28;
@@ -250,7 +250,7 @@
             this.rjButton1.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.rjButton1.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.rjButton1.ForeColor = System.Drawing.Color.Black;
-            this.rjButton1.Location = new System.Drawing.Point(477, 193);
+            this.rjButton1.Location = new System.Drawing.Point(724, 158);
             this.rjButton1.Name = "rjButton1";
             this.rjButton1.Size = new System.Drawing.Size(141, 41);
             this.rjButton1.TabIndex = 16;
@@ -270,7 +270,7 @@
             this.btn_save.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btn_save.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.btn_save.ForeColor = System.Drawing.Color.Black;
-            this.btn_save.Location = new System.Drawing.Point(477, 287);
+            this.btn_save.Location = new System.Drawing.Point(724, 252);
             this.btn_save.Name = "btn_save";
             this.btn_save.Size = new System.Drawing.Size(141, 52);
             this.btn_save.TabIndex = 15;

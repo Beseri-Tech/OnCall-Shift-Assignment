@@ -41,6 +41,7 @@
             this.label3 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
+            this.label5 = new System.Windows.Forms.Label();
             this.panel1.SuspendLayout();
             this.panel_titlebar.SuspendLayout();
             this.SuspendLayout();
@@ -85,6 +86,7 @@
             this.panel1.Controls.Add(this.label1);
             this.panel1.Controls.Add(this.date_start);
             this.panel1.Controls.Add(this.date_end);
+            this.panel1.Controls.Add(this.label5);
             this.panel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.panel1.Location = new System.Drawing.Point(0, 0);
             this.panel1.Name = "panel1";
@@ -161,9 +163,10 @@
             this.label4.Location = new System.Drawing.Point(0, 0);
             this.label4.Name = "label4";
             this.label4.Padding = new System.Windows.Forms.Padding(0, 2, 0, 0);
-            this.label4.Size = new System.Drawing.Size(190, 26);
+            this.label4.Size = new System.Drawing.Size(97, 26);
             this.label4.TabIndex = 3;
-            this.label4.Text = "TimeTable Generator";
+            this.label4.Text = "ROTA-OC";
+            this.label4.Click += new System.EventHandler(this.label4_Click);
             // 
             // titleBar1
             // 
@@ -201,11 +204,11 @@
             // 
             this.label3.AutoSize = true;
             this.label3.Font = new System.Drawing.Font("Verdana", 26.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label3.Location = new System.Drawing.Point(56, 46);
+            this.label3.Location = new System.Drawing.Point(239, 33);
             this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(584, 42);
+            this.label3.Size = new System.Drawing.Size(198, 42);
             this.label3.TabIndex = 4;
-            this.label3.Text = "On-Call TimeTable Generator";
+            this.label3.Text = "ROTA-OC";
             // 
             // label2
             // 
@@ -226,6 +229,18 @@
             this.label1.Size = new System.Drawing.Size(108, 25);
             this.label1.TabIndex = 2;
             this.label1.Text = "Start Date";
+            // 
+            // label5
+            // 
+            this.label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 11.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label5.Location = new System.Drawing.Point(137, 74);
+            this.label5.Name = "label5";
+            this.label5.Size = new System.Drawing.Size(396, 50);
+            this.label5.TabIndex = 10;
+            this.label5.Text = "Rotational Optimisation Tool for On-Callers";
+            this.label5.TextAlign = System.Drawing.ContentAlignment.TopCenter;
+            this.label5.Visible = false;
+            this.label5.Click += new System.EventHandler(this.label5_Click);
             // 
             // MainPage
             // 
@@ -260,6 +275,7 @@
         private CustomControls.RJControls.RJButton btn_import;
         private System.Windows.Forms.Label label_import;
         private CustomControls.RJControls.RJButton btn_reset;
+        private System.Windows.Forms.Label label5;
     }
 }
 

@@ -385,9 +385,9 @@
             this.label4.Location = new System.Drawing.Point(0, 0);
             this.label4.Name = "label4";
             this.label4.Padding = new System.Windows.Forms.Padding(0, 2, 0, 0);
-            this.label4.Size = new System.Drawing.Size(76, 26);
+            this.label4.Size = new System.Drawing.Size(97, 26);
             this.label4.TabIndex = 3;
-            this.label4.Text = "Staff List";
+            this.label4.Text = "ROTA-OC";
             // 
             // titleBar1
             // 
