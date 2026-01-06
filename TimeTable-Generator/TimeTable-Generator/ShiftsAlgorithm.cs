@@ -3,301 +3,487 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Windows.Forms;
-using TimeTable_Generator;
 
 namespace TimeTable_Generator
 {
-    #region Algorithm 1
+    #region Algorithm 2 (Improved + Global Cap + Zero-First Fair Fill)
     public class ShiftsAlgorithm
     {
-        public void AssignShifts(List<Person> people, DateTime startDate, DateTime endDate, List<DateTime> publicHolidays, Action<int> reportProgress)
+        // One RNG to avoid deterministic shuffles when called in quick succession
+        private static readonly Random _rng = new Random();
+
+        public void AssignShifts(
+            List<Person> people,
+            DateTime startDate,
+            DateTime endDate,
+            List<DateTime> publicHolidays,
+            Action<int> reportProgress)
         {
-            // Get all dates in the range
+            if (people == null || people.Count == 0)
+                throw new ArgumentException("People list is empty.");
+
+            // Normalize holiday dates to Date (no time component)
+            var holidayDates = new HashSet<DateTime>(publicHolidays.Select(d => d.Date));
+
+            // All calendar days
             List<DateTime> allDates = GetAllDates(startDate, endDate);
 
-            // Separate weekends and weekdays
-            List<DateTime> weekends = allDates.Where(date => date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday).ToList();
-            List<DateTime> weekdays = allDates.Except(weekends).ToList();
-
-            // Exclude public holidays from the list of weekdays
-            var weekdaysExcludingHolidays = weekdays
-                .Where(day => !publicHolidays.Any(holiday => holiday.Date == day.Date))
+            // Weekends
+            List<DateTime> weekends = allDates
+                .Where(date => date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday)
+                .Select(d => d.Date)
                 .ToList();
 
-            // Combine weekends and public holidays into one list for weekend shifts
-            var weekendAndHolidays = weekends.Union(publicHolidays).ToList();
+            // Weekdays (calendar weekdays only)
+            List<DateTime> weekdays = allDates
+                .Where(date => date.DayOfWeek != DayOfWeek.Saturday && date.DayOfWeek != DayOfWeek.Sunday)
+                .Select(d => d.Date)
+                .ToList();
 
-            // Initialize a HashSet to track assigned shifts
+            // Exclude public holidays from weekdays
+            var weekdaysExcludingHolidays = weekdays
+                .Where(day => !holidayDates.Contains(day))
+                .ToList();
+
+            // Weekend shifts pool = weekends ∪ public holidays
+            var weekendAndHolidays = weekends
+                .Union(holidayDates)
+                .OrderBy(d => d)
+                .ToList();
+
+            // Set of assigned dates (Date only)
             HashSet<DateTime> assignedShifts = new HashSet<DateTime>();
 
-            // Calculate total shifts (weekdays + weekends, excluding public holidays from weekdays)
+            // Total available shifts
             int totalAvailableShifts = weekdaysExcludingHolidays.Count + weekendAndHolidays.Count;
 
-            // Automatically calculate the total shifts for each person
-            foreach (var person in people)
-            {
-                person.TotalShifts = totalAvailableShifts / people.Count;
-            }
+            // Base share + leftovers to avoid starving anyone
+            DistributeTotalTargets(people, totalAvailableShifts);
 
-            // Monthly shift targets
-            var monthlyShiftTargets = CalculateMonthlyShiftTargets(people, allDates);
+            // Monthly targets proportional to *available* shifts in each month
+            var monthlyShiftTargets = CalculateMonthlyShiftTargets(
+                people,
+                weekdaysExcludingHolidays,
+                weekendAndHolidays);
 
             int progress = 0;
 
-            // First pass: Assign regular shifts (weekdays + weekend/public holidays)
-            AssignRegularShifts(people, weekdaysExcludingHolidays, weekendAndHolidays, assignedShifts, reportProgress, ref progress, totalAvailableShifts, monthlyShiftTargets);
+            // PASS 1: Assign across all available weekdays and weekend/holidays using fairness scoring (respect cap)
+            AssignRegularShifts(
+                people,
+                weekdaysExcludingHolidays,
+                weekendAndHolidays,
+                assignedShifts,
+                reportProgress,
+                ref progress,
+                totalAvailableShifts,
+                monthlyShiftTargets);
 
-            // Second pass: Assign remaining shifts to people with ExtraShift flag
-            AssignExtraShifts(people, weekdaysExcludingHolidays, weekendAndHolidays, assignedShifts, reportProgress, ref progress, totalAvailableShifts, monthlyShiftTargets);
+            // PASS 2A: Try to fill remaining dates fairly (prefer people with 0, still respect cap)
+            FillRemainingShiftsFair(
+                people,
+                weekdaysExcludingHolidays,
+                weekendAndHolidays,
+                assignedShifts,
+                reportProgress,
+                ref progress,
+                totalAvailableShifts,
+                monthlyShiftTargets);
 
-            // Validate that all shifts have been assigned
+            // PASS 2B: If still any left, give to ExtraShift folks (allow exceeding caps)
+            FillRemainingWithExtraShift(
+                people,
+                weekdaysExcludingHolidays,
+                weekendAndHolidays,
+                assignedShifts,
+                reportProgress,
+                ref progress,
+                totalAvailableShifts,
+                monthlyShiftTargets);
+
+            // Validate (adjacent day check)
             ValidateAssignedShifts(people, totalAvailableShifts);
         }
 
-        // Helper method to calculate the ideal number of shifts per person per month
-        private Dictionary<Person, Dictionary<int, int>> CalculateMonthlyShiftTargets(List<Person> people, List<DateTime> allDates)
+        // ---------- TARGET DISTRIBUTION ----------
+
+        private void DistributeTotalTargets(List<Person> people, int totalAvailableShifts)
         {
+            int n = people.Count;
+            int baseShare = totalAvailableShifts / n;
+            int leftovers = totalAvailableShifts % n;
+
+            foreach (var p in people)
+                p.TotalShifts = baseShare;
+
+            // Heuristic: give leftovers to people with fewer leave days, then by name for stability
+            foreach (var p in people
+                         .OrderBy(p => p.LeaveDates?.Count ?? 0)
+                         .ThenBy(p => p.Name))
+            {
+                if (leftovers == 0) break;
+                p.TotalShifts++;
+                leftovers--;
+            }
+        }
+
+        private static int MonthKey(DateTime d) => d.Year * 100 + d.Month;
+
+        private Dictionary<Person, Dictionary<int, int>> CalculateMonthlyShiftTargets(
+            List<Person> people,
+            List<DateTime> weekdaysExcludingHolidays,
+            List<DateTime> weekendAndHolidays)
+        {
+            // Available shifts by (Year,Month)
+            var byMonthAvail = weekdaysExcludingHolidays
+                .Concat(weekendAndHolidays)
+                .GroupBy(d => MonthKey(d))
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            int totalAvail = byMonthAvail.Values.Sum();
+            if (totalAvail == 0)
+                throw new InvalidOperationException("No available shifts in the selected period.");
+
             var targets = new Dictionary<Person, Dictionary<int, int>>();
 
-            // Group all dates by month
-            var monthGroups = allDates.GroupBy(date => date.Month).ToDictionary(g => g.Key, g => g.ToList());
-
-            foreach (var person in people)
+            foreach (var p in people)
             {
-                targets[person] = new Dictionary<int, int>();
-                int totalShiftsForPerson = person.TotalShifts;  // The total number of shifts this person should get
+                targets[p] = new Dictionary<int, int>();
 
-                foreach (var month in monthGroups.Keys)
+                // Initial proportional split by availability per month
+                foreach (KeyValuePair<int, int> kv in byMonthAvail)
                 {
-                    int totalDaysInMonth = monthGroups[month].Count;
-                    int monthProportion = (totalDaysInMonth * totalShiftsForPerson) / allDates.Count;  // Proportional distribution
-                    targets[person][month] = monthProportion;
+                    int monthKey = kv.Key;
+                    int monthAvail = kv.Value;
+                    int monthTarget = (int)Math.Floor((double)monthAvail * p.TotalShifts / totalAvail);
+                    targets[p][monthKey] = monthTarget;
+                }
+
+                // Distribute remainder so the sum equals p.TotalShifts
+                int assigned = targets[p].Values.Sum();
+                int remainder = p.TotalShifts - assigned;
+                if (remainder > 0)
+                {
+                    foreach (var month in byMonthAvail.OrderByDescending(kv => kv.Value).Select(kv => kv.Key))
+                    {
+                        if (remainder == 0) break;
+                        targets[p][month]++;
+                        remainder--;
+                    }
                 }
             }
 
             return targets;
         }
 
-        private void LogDebugMessage(string message)
+        // ---------- ASSIGNMENT PASSES ----------
+
+        private void AssignRegularShifts(
+            List<Person> people,
+            List<DateTime> weekdays,
+            List<DateTime> weekendAndHolidays,
+            HashSet<DateTime> assignedShifts,
+            Action<int> reportProgress,
+            ref int progress,
+            int totalShifts,
+            Dictionary<Person, Dictionary<int, int>> monthlyShiftTargets)
         {
-            Debug.WriteLine(message);
+            // Weekdays
+            foreach (var day in weekdays)
+            {
+                AssignShift(
+                    people,
+                    day,
+                    isWeekend: false,
+                    assignedShifts,
+                    reportProgress,
+                    ref progress,
+                    totalShifts,
+                    monthlyShiftTargets,
+                    softOnly: true,
+                    respectGlobalCap: true); // respect cap
+            }
+
+            // Weekend/Public Holidays
+            foreach (var day in weekendAndHolidays)
+            {
+                AssignShift(
+                    people,
+                    day,
+                    isWeekend: true,
+                    assignedShifts,
+                    reportProgress,
+                    ref progress,
+                    totalShifts,
+                    monthlyShiftTargets,
+                    softOnly: true,
+                    respectGlobalCap: true); // respect cap
+            }
         }
-        // Assign regular shifts (both weekdays and weekends) across months
-        private void AssignRegularShifts(List<Person> people, List<DateTime> weekdays, List<DateTime> weekendAndHolidays, HashSet<DateTime> assignedShifts, Action<int> reportProgress, ref int progress, int totalShifts, Dictionary<Person, Dictionary<int, int>> monthlyShiftTargets)
-        {
-            // Assign weekday shifts
-            foreach (DateTime weekday in weekdays)
-            {
-                AssignShift(people, weekday, isWeekend: false, ref progress, totalShifts, reportProgress, assignedShifts, monthlyShiftTargets);
-            }
 
-            // Assign weekend/public holiday shifts
-            foreach (DateTime weekend in weekendAndHolidays)
+        private void FillRemainingShiftsFair(
+            List<Person> people,
+            List<DateTime> weekdays,
+            List<DateTime> weekendAndHolidays,
+            HashSet<DateTime> assignedShifts,
+            Action<int> reportProgress,
+            ref int progress,
+            int totalShifts,
+            Dictionary<Person, Dictionary<int, int>> monthlyShiftTargets)
+        {
+            var remaining = weekdays.Concat(weekendAndHolidays)
+                                    .Select(d => d.Date)
+                                    .Where(d => !assignedShifts.Contains(d))
+                                    .OrderBy(d => d)
+                                    .ToList();
+
+            foreach (var day in remaining)
             {
-                AssignShift(people, weekend, isWeekend: true, ref progress, totalShifts, reportProgress, assignedShifts, monthlyShiftTargets);
+                bool isWeekend = IsWeekendOrHoliday(day, weekendAndHolidays);
+
+                // Try with zero-first bias & cap
+                bool assigned = AssignShift(
+                    people,
+                    day,
+                    isWeekend,
+                    assignedShifts,
+                    reportProgress,
+                    ref progress,
+                    totalShifts,
+                    monthlyShiftTargets,
+                    softOnly: true,
+                    respectGlobalCap: true); // respect cap
+
+                if (!assigned)
+                {
+                    // nothing; will be handled in ExtraShift pass
+                }
             }
         }
 
-        // Assign a single shift to an eligible person
-        private bool AssignShift(List<Person> people, DateTime date, bool isWeekend, ref int progress, int totalShifts, Action<int> reportProgress, HashSet<DateTime> assignedShifts, Dictionary<Person, Dictionary<int, int>> monthlyShiftTargets, bool allowRelaxation = false)
+        private void FillRemainingWithExtraShift(
+            List<Person> people,
+            List<DateTime> weekdays,
+            List<DateTime> weekendAndHolidays,
+            HashSet<DateTime> assignedShifts,
+            Action<int> reportProgress,
+            ref int progress,
+            int totalShifts,
+            Dictionary<Person, Dictionary<int, int>> monthlyShiftTargets)
         {
-            bool shiftAssigned = false;
-            string reason = "";  // Track the reason for skipping
-            int month = date.Month;
+            var remaining = weekdays.Concat(weekendAndHolidays)
+                                    .Select(d => d.Date)
+                                    .Where(d => !assignedShifts.Contains(d))
+                                    .OrderBy(d => d)
+                                    .ToList();
 
-            // Separate people with preferred dates and others
-            var preferredPeople = people.Where(p => p.PreferredDates.Contains(date.Date)).ToList();
-            var nonPreferredPeople = people.Where(p => !p.PreferredDates.Contains(date.Date)).ToList();
-
-            // Shuffle the list of people before sorting
-            Random rng = new Random();
-
-            // Shuffle preferred people
-            preferredPeople = preferredPeople.OrderBy(_ => rng.Next()).ToList();
-
-            // Shuffle non-preferred people
-            nonPreferredPeople = nonPreferredPeople.OrderBy(_ => rng.Next()).ToList();
-
-            // Sort the shuffled lists
-            var sortedPeople = preferredPeople.Any()
-                ? preferredPeople.OrderBy(p => p.WeekendShifts + p.WeekdayShifts).ToList()
-                : isWeekend
-                    ? nonPreferredPeople.OrderBy(p => p.WeekendShifts).ThenBy(p => p.WeekdayShifts).ToList()
-                    : nonPreferredPeople.OrderBy(p => p.WeekdayShifts).ThenBy(p => p.WeekendShifts).ToList();
-
-            foreach (var currentPerson in sortedPeople)
+            foreach (var day in remaining)
             {
-                // Relax the constraint for monthly shift target if necessary
-                if (!allowRelaxation && monthlyShiftTargets[currentPerson][month] <= 0)
-                {
-                    reason = $"{currentPerson.Name} has reached their monthly shift limit for {month}.";
-                    continue;  // Move to the next person
-                }
+                bool isWeekend = IsWeekendOrHoliday(day, weekendAndHolidays);
 
-                // Check if the person is on leave or has consecutive shift issues
-                if (currentPerson.LeaveDates.Contains(date.Date))
-                {
-                    reason = $"{currentPerson.Name} is on leave for {date.ToShortDateString()}.";
-                }
-                else if (currentPerson.AssignedShifts.Any(existingShift => Math.Abs((date - existingShift).Days) == 1))
-                {
-                    reason = $"{currentPerson.Name} has a consecutive shift issue for {date.ToShortDateString()}.";
-                }
-                else
-                {
-                    // Assign the shift to the person
-                    currentPerson.AssignedShifts.Add(date);
-                    if (isWeekend)
-                    {
-                        currentPerson.WeekendShifts++;
-                    }
-                    else
-                    {
-                        currentPerson.WeekdayShifts++;
-                    }
-                    currentPerson.LastAssignedShift = date;
-                    shiftAssigned = true;
+                // Prioritize ExtraShift folks, allow exceeding global caps if necessary
+                var extraPeople = people.Where(p => p.ExtraShift).ToList();
+                bool assigned = AssignShift(
+                                extraPeople,
+                                day,
+                                isWeekend,
+                                assignedShifts,
+                                reportProgress,
+                                ref progress,
+                                totalShifts,
+                                monthlyShiftTargets,
+                                softOnly: false,
+                                respectGlobalCap: false);
 
-                    // Add the assigned shift to the HashSet to track it
-                    assignedShifts.Add(date);
 
-                    // Decrease monthly shift target, unless we're relaxing the constraint
-                    if (!allowRelaxation)
-                    {
-                        monthlyShiftTargets[currentPerson][month]--;
-                    }
-
-                    break;  // Exit once a shift is assigned
+                if (!assigned)
+                {
+                    var reason = "No eligible person fits the criteria for this shift.";
+                    var caption = isWeekend ? "Skipped Weekend/Public Holiday" : "Skipped Shift";
+                    MessageBox.Show($"No eligible person found for {day:yyyy-MM-dd}.\nReason: {reason}", caption,
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
+        }
 
-            // Fallback: If no one fits under the strict constraints, relax the rules and try again
-            if (!shiftAssigned && !allowRelaxation)
+        // ---------- CORE ASSIGNMENT ----------
+
+        /// <summary>
+        /// Assign a single date to the fairest eligible person.
+        /// - Soft monthly caps (decrement if >0; allow exceed when softOnly=false)
+        /// - Optional global cap: don't assign if person already reached TotalShifts
+        /// - Zero-first bias: if any candidate has 0 total shifts, pick among those
+        /// </summary>
+        private bool AssignShift(
+            List<Person> people,
+            DateTime date,
+            bool isWeekend,
+            HashSet<DateTime> assignedShifts,
+            Action<int> reportProgress,
+            ref int progress,
+            int totalShifts,
+            Dictionary<Person, Dictionary<int, int>> monthlyShiftTargets,
+            bool softOnly,
+            bool respectGlobalCap)
+        {
+            // Already assigned elsewhere?
+            if (assignedShifts.Contains(date.Date))
+                return true;
+
+            int mKey = MonthKey(date);
+
+            // Candidates: not on leave, no adjacent-day conflict
+            var candidates = people
+                .Where(p => p.LeaveDates == null || !p.LeaveDates.Contains(date.Date))
+                .Where(p => !HasAdjacentConflict(p, date))
+                .ToList();
+
+            if (respectGlobalCap)
             {
-                // Try again with relaxed constraints (allow people to exceed their monthly targets)
-                return AssignShift(people, date, isWeekend, ref progress, totalShifts, reportProgress, assignedShifts, monthlyShiftTargets, allowRelaxation: true);
+                candidates = candidates
+                    .Where(p => (p.WeekdayShifts + p.WeekendShifts) < p.TotalShifts)
+                    .ToList();
             }
 
-            if (!shiftAssigned)
-            {
-                // If reason is still empty, ensure we have a default reason set
-                if (string.IsNullOrEmpty(reason))
-                {
-                    reason = "No eligible person fits the criteria for this shift.";
-                }
+            if (!candidates.Any())
+                return false;
 
-                // Log skipped weekends specifically
-                if (isWeekend)
-                {
-                    MessageBox.Show($"No eligible person found for weekend/public holiday {date.ToShortDateString()}.\nReason: {reason}", "Skipped Weekend", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-                else
-                {
-                    MessageBox.Show($"No eligible person found for {date.ToShortDateString()}.\nReason: {reason}", "Skipped Shift", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+            // Zero-first bias: if anyone has 0 total shifts, restrict to them
+            bool existsZero = candidates.Any(p => (p.WeekdayShifts + p.WeekendShifts) == 0);
+            if (existsZero)
+            {
+                candidates = candidates
+                    .Where(p => (p.WeekdayShifts + p.WeekendShifts) == 0)
+                    .ToList();
+            }
+
+            // Select person with lowest fairness score
+            var pick = candidates
+                .OrderBy(p => FairnessScore(p, mKey, date, isWeekend, monthlyShiftTargets))
+                .First();
+
+            // Assign
+            pick.AssignedShifts.Add(date.Date);
+            if (isWeekend) pick.WeekendShifts++; else pick.WeekdayShifts++;
+            pick.LastAssignedShift = date.Date;
+            assignedShifts.Add(date.Date);
+
+            // Decrement monthly target if still > 0 (soft cap)
+            if (monthlyShiftTargets.TryGetValue(pick, out var perMonth) &&
+                perMonth.TryGetValue(mKey, out var tgt) && tgt > 0)
+            {
+                perMonth[mKey] = tgt - 1;
+            }
+            else if (softOnly)
+            {
+                // In soft-only mode and target already 0, we still allow assignment to avoid starvation.
+                // No decrement needed.
+            }
+
+            // Progress
+            progress++;
+            reportProgress(Math.Min((progress * 100) / Math.Max(1, totalShifts), 100));
+            return true;
+        }
+
+        /// <summary>
+        /// Fairness score: lower is better.
+        /// - Base: totalAssigned / max(1, targetRemainingThisMonth)
+        /// - Preference bonus: -0.1 if prefers this date
+        /// - Balance nudges weekday/weekend (small)
+        /// - Tiny jitter for tie-breaks
+        /// </summary>
+        private double FairnessScore(
+            Person p,
+            int monthKey,
+            DateTime date,
+            bool isWeekend,
+            Dictionary<Person, Dictionary<int, int>> monthlyShiftTargets)
+        {
+            int totalAssigned = p.WeekdayShifts + p.WeekendShifts;
+
+            int remainingTarget = 1;
+            if (monthlyShiftTargets.TryGetValue(p, out var perMonth) &&
+                perMonth.TryGetValue(monthKey, out var tgt))
+            {
+                remainingTarget = Math.Max(1, tgt);
+            }
+
+            double baseScore = (double)totalAssigned / remainingTarget;
+
+            bool prefers = p.PreferredDates != null && p.PreferredDates.Contains(date.Date);
+            double prefBonus = prefers ? -0.10 : 0.0;
+
+            // Small balance nudges (keep subtle so it doesn’t dominate)
+            double balancePenalty = 0.0;
+            if (isWeekend)
+            {
+                // If p already has many more weekend shifts, nudge up a bit
+                balancePenalty = Math.Max(0, (p.WeekendShifts - p.WeekdayShifts)) * 0.02;
             }
             else
             {
-                progress++;
-                reportProgress((progress * 100) / totalShifts);
+                // If p already has many more weekdays, nudge up a bit
+                balancePenalty = Math.Max(0, (p.WeekdayShifts - p.WeekendShifts)) * 0.01;
             }
 
-            return shiftAssigned;  // Return whether the shift was assigned
+            double jitter = _rng.NextDouble() * 0.001;
+            return baseScore + prefBonus + balancePenalty + jitter;
         }
 
-        // Assign extra shifts after regular shifts are assigned
-        private void AssignExtraShifts(List<Person> people, List<DateTime> weekdays, List<DateTime> weekendAndHolidays, HashSet<DateTime> assignedShifts, Action<int> reportProgress, ref int progress, int totalShifts, Dictionary<Person, Dictionary<int, int>> monthlyShiftTargets)
+        private bool HasAdjacentConflict(Person p, DateTime date)
         {
-            // Calculate the remaining shifts (weekdays and weekends that were not assigned)
-            var remainingShifts = weekdays.Concat(weekendAndHolidays)
-                                          .Except(assignedShifts)
-                                          .ToList();  // Create the list of unassigned shifts
+            if (p.AssignedShifts == null || p.AssignedShifts.Count == 0)
+                return false;
 
-            // Sort people with ExtraShift flag and assign remaining shifts
-            foreach (var date in remainingShifts)
-            {
-                bool shiftAssigned = false;
-                int month = date.Month;
-
-                // Prioritize people with ExtraShift flag, maintaining balance of total shifts
-                var extraShiftPeople = people
-                    .Where(p => p.ExtraShift /*&& monthlyShiftTargets[p][month] > 0*/)  // Only consider people eligible for extra shifts and who need shifts in this month
-                    .OrderBy(p => p.WeekendShifts + p.WeekdayShifts)  // Prioritize people with fewer total shifts (weekday + weekend)
-                    .ThenBy(p => Math.Abs(p.WeekendShifts - p.WeekdayShifts))  // Prioritize balancing weekday and weekend shifts
-                    .ToList();
-
-                foreach (var currentPerson in extraShiftPeople)
-                {
-                    if (!currentPerson.LeaveDates.Contains(date.Date) &&
-                        (!currentPerson.LastAssignedShift.HasValue || (date - currentPerson.LastAssignedShift.Value).Days > 1))
-                    {
-                        // Assign the shift (weekend or weekday based on the day of the week)
-                        currentPerson.AssignedShifts.Add(date);
-                        if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday || weekendAndHolidays.Contains(date))
-                        {
-                            currentPerson.WeekendShifts++;
-                        }
-                        else
-                        {
-                            currentPerson.WeekdayShifts++;
-                        }
-                        currentPerson.LastAssignedShift = date;
-                        shiftAssigned = true;
-
-                        // Decrease the monthly shift target
-                        monthlyShiftTargets[currentPerson][month]--;
-                        break; // Exit the loop once a shift is assigned
-                    }
-                }
-
-                if (shiftAssigned)
-                {
-                    progress++;
-                    reportProgress(Math.Min((progress * 100) / totalShifts, 100));
-                }
-            }
+            // Only disallow exact adjacent day (±1)
+            return p.AssignedShifts.Any(s => Math.Abs((date.Date - s.Date).Days) == 1);
         }
 
-        // Validation for assigned shifts (not implemented yet)
+        private bool IsWeekendOrHoliday(DateTime date, List<DateTime> weekendAndHolidays)
+        {
+            if (weekendAndHolidays.Contains(date.Date)) return true;
+            var dow = date.DayOfWeek;
+            return dow == DayOfWeek.Saturday || dow == DayOfWeek.Sunday;
+        }
+
+        // ---------- VALIDATION ----------
+
         private void ValidateAssignedShifts(List<Person> people, int totalAvailableShifts)
         {
             ValidateNoConsecutiveShifts(people);
         }
 
-        private List<DateTime> GetAllDates(DateTime startDate, DateTime endDate)
-        {
-            List<DateTime> allDates = new List<DateTime>();
-            for (DateTime date = startDate; date <= endDate; date = date.AddDays(1))
-            {
-                allDates.Add(date);
-            }
-            return allDates;
-        }
         private void ValidateNoConsecutiveShifts(List<Person> people)
         {
             foreach (var person in people)
             {
-                // Ensure shifts are sorted
-                var shifts = person.AssignedShifts.OrderBy(d => d).ToList();
-
-                // Check for consecutive shifts
+                var shifts = person.AssignedShifts?.OrderBy(d => d).ToList() ?? new List<DateTime>();
                 for (int i = 1; i < shifts.Count; i++)
                 {
-                    if (((shifts[i] - shifts[i - 1]).Days >= 1) && ((shifts[i] - shifts[i - 1]).Days <= 2))
+                    if ((shifts[i] - shifts[i - 1]).Days == 1)
                     {
                         MessageBox.Show(
-                            $"Consecutive shifts detected for {person.Name} on {shifts[i - 1]:yyyy-MM-dd} and {shifts[i]:yyyy-MM-dd}."
-                        );
+                            $"Consecutive shifts detected for {person.Name} on {shifts[i - 1]:yyyy-MM-dd} and {shifts[i]:yyyy-MM-dd}.",
+                            "Consecutive Shifts",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
                     }
                 }
             }
         }
 
+        // ---------- UTIL ----------
 
+        private List<DateTime> GetAllDates(DateTime startDate, DateTime endDate)
+        {
+            List<DateTime> allDates = new List<DateTime>();
+            for (DateTime date = startDate.Date; date <= endDate.Date; date = date.AddDays(1))
+                allDates.Add(date);
+            return allDates;
+        }
 
+        private void LogDebugMessage(string message) => Debug.WriteLine(message);
     }
     #endregion
-
-
-
 }

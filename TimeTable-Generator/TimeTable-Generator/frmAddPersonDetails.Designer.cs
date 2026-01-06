@@ -29,6 +29,8 @@
         private void InitializeComponent()
         {
             this.panel1 = new System.Windows.Forms.Panel();
+            this.buttonAddRange = new CustomControls.RJControls.RJButton();
+            this.monthCalendar1 = new System.Windows.Forms.MonthCalendar();
             this.label6 = new System.Windows.Forms.Label();
             this.label5 = new System.Windows.Forms.Label();
             this.btn_clear = new CustomControls.RJControls.RJButton();
@@ -48,8 +50,6 @@
             this.panel_titlebar = new System.Windows.Forms.Panel();
             this.label4 = new System.Windows.Forms.Label();
             this.titleBar1 = new Button_Control.TitleBar();
-            this.monthCalendar1 = new System.Windows.Forms.MonthCalendar();
-            this.buttonAddRange = new CustomControls.RJControls.RJButton();
             this.panel1.SuspendLayout();
             this.panel_titlebar.SuspendLayout();
             this.SuspendLayout();
@@ -82,6 +82,32 @@
             this.panel1.Size = new System.Drawing.Size(893, 448);
             this.panel1.TabIndex = 0;
             this.panel1.Paint += new System.Windows.Forms.PaintEventHandler(this.panel1_Paint);
+            // 
+            // buttonAddRange
+            // 
+            this.buttonAddRange.BackColor = System.Drawing.Color.Thistle;
+            this.buttonAddRange.BackgroundColor = System.Drawing.Color.Thistle;
+            this.buttonAddRange.BorderColor = System.Drawing.Color.Black;
+            this.buttonAddRange.BorderRadius = 0;
+            this.buttonAddRange.BorderSize = 1;
+            this.buttonAddRange.FlatAppearance.BorderSize = 0;
+            this.buttonAddRange.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.buttonAddRange.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.buttonAddRange.ForeColor = System.Drawing.Color.Black;
+            this.buttonAddRange.Location = new System.Drawing.Point(688, 248);
+            this.buttonAddRange.Name = "buttonAddRange";
+            this.buttonAddRange.Size = new System.Drawing.Size(150, 25);
+            this.buttonAddRange.TabIndex = 32;
+            this.buttonAddRange.Text = "Add Selected Dates";
+            this.buttonAddRange.TextColor = System.Drawing.Color.Black;
+            this.buttonAddRange.UseVisualStyleBackColor = false;
+            this.buttonAddRange.Click += new System.EventHandler(this.buttonAddRange_Click);
+            // 
+            // monthCalendar1
+            // 
+            this.monthCalendar1.Location = new System.Drawing.Point(647, 79);
+            this.monthCalendar1.Name = "monthCalendar1";
+            this.monthCalendar1.TabIndex = 31;
             // 
             // label6
             // 
@@ -342,32 +368,6 @@
             this.titleBar1.ShowMinimizeButton = false;
             this.titleBar1.Size = new System.Drawing.Size(104, 30);
             this.titleBar1.TabIndex = 0;
-            // 
-            // monthCalendar1
-            // 
-            this.monthCalendar1.Location = new System.Drawing.Point(647, 79);
-            this.monthCalendar1.Name = "monthCalendar1";
-            this.monthCalendar1.TabIndex = 31;
-            // 
-            // buttonAddRange
-            // 
-            this.buttonAddRange.BackColor = System.Drawing.Color.Thistle;
-            this.buttonAddRange.BackgroundColor = System.Drawing.Color.Thistle;
-            this.buttonAddRange.BorderColor = System.Drawing.Color.Black;
-            this.buttonAddRange.BorderRadius = 0;
-            this.buttonAddRange.BorderSize = 1;
-            this.buttonAddRange.FlatAppearance.BorderSize = 0;
-            this.buttonAddRange.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.buttonAddRange.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.buttonAddRange.ForeColor = System.Drawing.Color.Black;
-            this.buttonAddRange.Location = new System.Drawing.Point(688, 248);
-            this.buttonAddRange.Name = "buttonAddRange";
-            this.buttonAddRange.Size = new System.Drawing.Size(150, 25);
-            this.buttonAddRange.TabIndex = 32;
-            this.buttonAddRange.Text = "Add Selected Dates";
-            this.buttonAddRange.TextColor = System.Drawing.Color.Black;
-            this.buttonAddRange.UseVisualStyleBackColor = false;
-            this.buttonAddRange.Click += new System.EventHandler(this.buttonAddRange_Click);
             // 
             // frmAddPersonDetails
             // 
