@@ -239,7 +239,6 @@
             this.label5.TabIndex = 10;
             this.label5.Text = "Rotational Optimisation Tool for On-Callers";
             this.label5.TextAlign = System.Drawing.ContentAlignment.TopCenter;
-            this.label5.Visible = false;
             this.label5.Click += new System.EventHandler(this.label5_Click);
             // 
             // MainPage
