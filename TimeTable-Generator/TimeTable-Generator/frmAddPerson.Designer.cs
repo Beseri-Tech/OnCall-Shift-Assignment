@@ -29,6 +29,8 @@
         private void InitializeComponent()
         {
             this.panel1 = new System.Windows.Forms.Panel();
+            this.label1 = new System.Windows.Forms.Label();
+            this.textBox1 = new System.Windows.Forms.TextBox();
             this.btn_batch = new CustomControls.RJControls.RJButton();
             this.chk_double = new System.Windows.Forms.CheckBox();
             this.btn_clear = new CustomControls.RJControls.RJButton();
@@ -68,6 +70,8 @@
             // 
             this.panel1.BackColor = System.Drawing.Color.AntiqueWhite;
             this.panel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panel1.Controls.Add(this.label1);
+            this.panel1.Controls.Add(this.textBox1);
             this.panel1.Controls.Add(this.btn_batch);
             this.panel1.Controls.Add(this.chk_double);
             this.panel1.Controls.Add(this.btn_clear);
@@ -92,6 +96,26 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(800, 606);
             this.panel1.TabIndex = 0;
+            // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
+            this.label1.Location = new System.Drawing.Point(350, 145);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(94, 17);
+            this.label1.TabIndex = 29;
+            this.label1.Text = "Search Name";
+            // 
+            // textBox1
+            // 
+            this.textBox1.Location = new System.Drawing.Point(330, 165);
+            this.textBox1.Multiline = true;
+            this.textBox1.Name = "textBox1";
+            this.textBox1.Size = new System.Drawing.Size(145, 29);
+            this.textBox1.TabIndex = 28;
+            this.textBox1.TextChanged += new System.EventHandler(this.textBox1_TextChanged);
+            this.textBox1.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.textBox1_KeyPress);
             // 
             // btn_batch
             // 
@@ -528,7 +552,6 @@
         private CustomControls.RJControls.RJButton rjButton2;
         private System.Windows.Forms.ProgressBar progressBar1;
         private CustomControls.RJControls.RJButton btn_holidays;
-        private System.Windows.Forms.Label label_holidays;
         private System.Windows.Forms.Label label_shift_total;
         private System.Windows.Forms.Label label_shift_assign;
         private CustomControls.RJControls.RJButton btn_date;
@@ -544,5 +567,8 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn WeekendShifts;
         private System.Windows.Forms.DataGridViewTextBoxColumn TotalShift;
         private CustomControls.RJControls.RJButton btn_batch;
+        private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.TextBox textBox1;
+        private System.Windows.Forms.Label label_holidays;
     }
 }

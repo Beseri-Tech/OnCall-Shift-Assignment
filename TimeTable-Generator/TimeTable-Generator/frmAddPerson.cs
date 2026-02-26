@@ -217,31 +217,42 @@ namespace TimeTable_Generator
 
         private void rjButton1_Click(object sender, EventArgs e)
         {
+
+
+//single cell
             if (dataGridView1.SelectedCells.Count > 0)
             {
-                DataGridViewCell cell = dataGridView1.SelectedCells[0];
-                if (cell != null)
+                List<DataGridViewCell> selectedCells = dataGridView1.SelectedCells.Cast<DataGridViewCell>().ToList();
+                List<string> namesToRemove = new List<string>();
+
+                foreach (DataGridViewCell cell in selectedCells)
                 {
-                    int rowIndex = cell.RowIndex;
-
-                    DataGridViewRow row = dataGridView1.Rows[rowIndex];
-
-                    string name = row.Cells["PersonName"].Value.ToString();
-
-                    Person personToRemove = people.FirstOrDefault(p => p.Name == name);
-
-                    if (personToRemove != null)
+                    if (cell != null)
                     {
-                        // Remove the person from the list
-                        people.Remove(personToRemove);
-                        MessageBox.Show($"{name} has been removed from the list.");
-                        
+                        int rowIndex = cell.RowIndex;
+
+                        DataGridViewRow row = dataGridView1.Rows[rowIndex];
+
+                        string name = row.Cells["PersonName"].Value.ToString();
+
+                        Person personToRemove = people.FirstOrDefault(p => p.Name == name);
+
+                        if (personToRemove != null)
+                        {
+                            // Remove the person from the list
+                            people.Remove(personToRemove);
+                            namesToRemove.Add(name);                            
+                        }
+
+                        else
+                        {
+                            MessageBox.Show($"{name} not found in the list.");
+                        }
                     }
-                    else
-                    {
-                        MessageBox.Show($"{name} not found in the list.");
-                    }                                      
+                                                 
                 }
+                string names = string.Join(", ", namesToRemove);
+                MessageBox.Show($"{names} has been removed from the list.");
             }
             else
             {
@@ -400,6 +411,55 @@ namespace TimeTable_Generator
             frmAddPeople addPeople = new frmAddPeople(people);
             addPeople.FormClosed += Refresh_DGV_On_FormClosed;
             addPeople.ShowDialog();
+        }
+
+   
+
+        private void textBox1_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar == (char)Keys.Enter)
+            {
+                dataGridView1.ClearSelection();
+
+                foreach (DataGridViewRow row in dataGridView1.Rows)
+                {
+                    if (!row.IsNewRow && row.Cells["PersonName"].Value != null)
+                    {
+                        string cellValue = row.Cells["PersonName"].Value.ToString();
+
+                        if (cellValue.ToLower().Contains(textBox1.Text.ToLower()))
+                        {
+                            row.Cells["PersonName"].Selected = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        private void textBox1_TextChanged(object sender, EventArgs e)
+        {
+            dataGridView1.ClearSelection();
+            if(!string.IsNullOrEmpty(textBox1.Text))
+            {
+                foreach (DataGridViewRow row in dataGridView1.Rows)
+                {
+                    if (!row.IsNewRow && row.Cells["PersonName"].Value != null)
+                    {
+                        string cellValue = row.Cells["PersonName"].Value.ToString();
+
+                        if (cellValue.ToLower().Contains(textBox1.Text.ToLower()))
+                        {
+                            row.Cells["PersonName"].Selected = true;
+                            dataGridView1.FirstDisplayedScrollingRowIndex = row.Index;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                dataGridView1.ClearSelection();
+            }
+           
         }
     }
 }
