@@ -97,40 +97,53 @@ namespace TimeTable_Generator
             dataGridView1.Columns["WeekendShifts"].DataPropertyName = "WeekendShifts";
             dataGridView1.Columns["WeekdayShifts"].DataPropertyName = "WeekdayShifts";
             dataGridView1.Columns["TotalLeaveDays"].DataPropertyName = "TotalLeaveDays";
+            dataGridView1.Columns["weekend"].DataPropertyName = "PreferWeekendHoliday";
 
             RefreshDGV();
         }
 
         private void rjButton2_Click(object sender, EventArgs e)
         {
-            progressBar1.Visible = true;
-            progressBar1.Value = 0; // Reset progress bar
-            btn_assign.Enabled = false;
-            // Start background worker
-            backgroundWorker.RunWorkerAsync();
+            string algorithmVersion = algo_version_toggle.Checked ? $"Algorithm V2?\n(Weekend and Holidays priority)" : "Algorithm V1?";
+
+            var result = MessageBox.Show($"Assign Shifts using {algorithmVersion}",
+                "Information", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+
+            if (result == DialogResult.OK)
+            {
+                progressBar1.Visible = true;
+                progressBar1.Value = 0; // Reset progress bar
+                btn_assign.Enabled = false;
+                // Start background worker
+                backgroundWorker.RunWorkerAsync();
+            }
+                
         }
 
         // Event handler for the BackgroundWorker's DoWork event
         private void BackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
         {
             ShiftsAlgorithm shiftsAlgorithm = new ShiftsAlgorithm();
-            DoubleShiftsAlgorithm doubleShiftsAlgorithm = new DoubleShiftsAlgorithm();
+            ShiftsAlgorithmV2 shiftsAlgorithmV2 = new ShiftsAlgorithmV2();
 
-            // Call the algorithm and pass a lambda function for progress reporting
-            if(chk_double.Checked)
+            if (!algo_version_toggle.Checked)
             {
-                doubleShiftsAlgorithm.AssignShifts(people, StartDate, EndDate, publicHolidays, progress =>
+               
+                shiftsAlgorithm.AssignShifts(people, StartDate, EndDate, publicHolidays, progress =>
                 {
                     backgroundWorker.ReportProgress(progress); // Report progress to UI
                 });
             }
             else
             {
-                shiftsAlgorithm.AssignShifts(people, StartDate, EndDate, publicHolidays, progress =>
+
+                shiftsAlgorithmV2.AssignShifts(people, StartDate, EndDate, publicHolidays, progress =>
                 {
                     backgroundWorker.ReportProgress(progress); // Report progress to UI
                 });
             }
+
+               
             
         }
 
@@ -180,14 +193,10 @@ namespace TimeTable_Generator
             List<DateTime> allDates = GetAllDates(StartDate, EndDate);
 
             int shiftcounts = 0;
-            if(chk_double.Checked)
-            {
-                shiftcounts = allDates.Count*2;
-            }
-            else
-            {
+            
+            
                 shiftcounts = allDates.Count;
-            }
+            
 
             label_shift_total.Text = $"Total Shifts : {shiftcounts.ToString()}";
 
@@ -195,6 +204,10 @@ namespace TimeTable_Generator
             foreach(DataGridViewRow row in dataGridView1.Rows)
             {
                 shiftassigned += (Convert.ToInt32(row.Cells["WeekdayShifts"].Value)) + (Convert.ToInt32(row.Cells["WeekendShifts"].Value));
+                if (Convert.ToBoolean(row.Cells["weekend"].Value) == true)
+                {
+                    row.DefaultCellStyle.BackColor = System.Drawing.Color.YellowGreen;
+                }
             }
 
             label_shift_assign.Text = $"Total Shifts Assigned: {shiftassigned.ToString()}";

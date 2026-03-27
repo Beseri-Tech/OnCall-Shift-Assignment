@@ -230,6 +230,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ShiftsAlgorithm.cs" />
+    <Compile Include="ShiftsAlgorithmV2.cs" />
     <Compile Include="TitleBarPanelStyler.cs" />
     <EmbeddedResource Include="frmAddPerson.resx">
       <DependentUpon>frmAddPerson.cs</DependentUpon>

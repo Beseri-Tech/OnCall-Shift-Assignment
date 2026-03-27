@@ -32,7 +32,6 @@
             this.label1 = new System.Windows.Forms.Label();
             this.textBox1 = new System.Windows.Forms.TextBox();
             this.btn_batch = new CustomControls.RJControls.RJButton();
-            this.chk_double = new System.Windows.Forms.CheckBox();
             this.btn_clear = new CustomControls.RJControls.RJButton();
             this.btn_date = new CustomControls.RJControls.RJButton();
             this.label_shift_total = new System.Windows.Forms.Label();
@@ -52,7 +51,12 @@
             this.label4 = new System.Windows.Forms.Label();
             this.titleBar1 = new Button_Control.TitleBar();
             this.dataGridView1 = new System.Windows.Forms.DataGridView();
+            this.label2 = new System.Windows.Forms.Label();
+            this.algo_version_toggle = new Button_Control.Buttons.RJToggleButton();
+            this.label3 = new System.Windows.Forms.Label();
+            this.label5 = new System.Windows.Forms.Label();
             this.PersonName = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.weekend = new System.Windows.Forms.DataGridViewCheckBoxColumn();
             this.LeaveDatesString = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.TotalLeaveDays = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.AssignedShiftsString = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -70,10 +74,13 @@
             // 
             this.panel1.BackColor = System.Drawing.Color.AntiqueWhite;
             this.panel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panel1.Controls.Add(this.label5);
+            this.panel1.Controls.Add(this.label3);
+            this.panel1.Controls.Add(this.algo_version_toggle);
+            this.panel1.Controls.Add(this.label2);
             this.panel1.Controls.Add(this.label1);
             this.panel1.Controls.Add(this.textBox1);
             this.panel1.Controls.Add(this.btn_batch);
-            this.panel1.Controls.Add(this.chk_double);
             this.panel1.Controls.Add(this.btn_clear);
             this.panel1.Controls.Add(this.btn_date);
             this.panel1.Controls.Add(this.label_shift_total);
@@ -136,19 +143,6 @@
             this.btn_batch.TextColor = System.Drawing.Color.Black;
             this.btn_batch.UseVisualStyleBackColor = false;
             this.btn_batch.Click += new System.EventHandler(this.btn_batch_Click);
-            // 
-            // chk_double
-            // 
-            this.chk_double.AutoSize = true;
-            this.chk_double.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.chk_double.Location = new System.Drawing.Point(638, 85);
-            this.chk_double.Name = "chk_double";
-            this.chk_double.RightToLeft = System.Windows.Forms.RightToLeft.No;
-            this.chk_double.Size = new System.Drawing.Size(154, 20);
-            this.chk_double.TabIndex = 26;
-            this.chk_double.Text = "Double Shift (Tagger)";
-            this.chk_double.UseVisualStyleBackColor = true;
-            this.chk_double.CheckedChanged += new System.EventHandler(this.chk_double_CheckedChanged);
             // 
             // btn_clear
             // 
@@ -244,9 +238,9 @@
             // 
             // progressBar1
             // 
-            this.progressBar1.Location = new System.Drawing.Point(677, 36);
+            this.progressBar1.Location = new System.Drawing.Point(757, 35);
             this.progressBar1.Name = "progressBar1";
-            this.progressBar1.Size = new System.Drawing.Size(118, 23);
+            this.progressBar1.Size = new System.Drawing.Size(38, 23);
             this.progressBar1.TabIndex = 19;
             this.progressBar1.Visible = false;
             // 
@@ -430,6 +424,7 @@
             this.dataGridView1.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dataGridView1.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
             this.PersonName,
+            this.weekend,
             this.LeaveDatesString,
             this.TotalLeaveDays,
             this.AssignedShiftsString,
@@ -447,6 +442,50 @@
             this.dataGridView1.DataBindingComplete += new System.Windows.Forms.DataGridViewBindingCompleteEventHandler(this.dataGridView1_DataBindingComplete);
             this.dataGridView1.Paint += new System.Windows.Forms.PaintEventHandler(this.dataGridView1_Paint);
             // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
+            this.label2.Location = new System.Drawing.Point(690, 61);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(67, 17);
+            this.label2.TabIndex = 30;
+            this.label2.Text = "Algorithm";
+            // 
+            // algo_version_toggle
+            // 
+            this.algo_version_toggle.AutoSize = true;
+            this.algo_version_toggle.Location = new System.Drawing.Point(698, 81);
+            this.algo_version_toggle.MinimumSize = new System.Drawing.Size(45, 22);
+            this.algo_version_toggle.Name = "algo_version_toggle";
+            this.algo_version_toggle.OffBackColor = System.Drawing.Color.LightSkyBlue;
+            this.algo_version_toggle.OffToggleColor = System.Drawing.Color.RoyalBlue;
+            this.algo_version_toggle.OnBackColor = System.Drawing.Color.Violet;
+            this.algo_version_toggle.OnToggleColor = System.Drawing.Color.MediumVioletRed;
+            this.algo_version_toggle.Size = new System.Drawing.Size(45, 22);
+            this.algo_version_toggle.TabIndex = 31;
+            this.algo_version_toggle.UseVisualStyleBackColor = true;
+            // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
+            this.label3.Location = new System.Drawing.Point(667, 84);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(25, 17);
+            this.label3.TabIndex = 32;
+            this.label3.Text = "V1";
+            // 
+            // label5
+            // 
+            this.label5.AutoSize = true;
+            this.label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
+            this.label5.Location = new System.Drawing.Point(749, 84);
+            this.label5.Name = "label5";
+            this.label5.Size = new System.Drawing.Size(25, 17);
+            this.label5.TabIndex = 33;
+            this.label5.Text = "V2";
+            // 
             // PersonName
             // 
             this.PersonName.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
@@ -454,13 +493,20 @@
             this.PersonName.Name = "PersonName";
             this.PersonName.ReadOnly = true;
             // 
+            // weekend
+            // 
+            this.weekend.HeaderText = "weekend";
+            this.weekend.Name = "weekend";
+            this.weekend.ReadOnly = true;
+            this.weekend.Visible = false;
+            // 
             // LeaveDatesString
             // 
             this.LeaveDatesString.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.ColumnHeader;
             this.LeaveDatesString.HeaderText = "Leave Dates";
             this.LeaveDatesString.Name = "LeaveDatesString";
             this.LeaveDatesString.ReadOnly = true;
-            this.LeaveDatesString.Width = 86;
+            this.LeaveDatesString.Width = 93;
             // 
             // TotalLeaveDays
             // 
@@ -483,6 +529,7 @@
             this.LeaveDates.Name = "LeaveDates";
             this.LeaveDates.ReadOnly = true;
             this.LeaveDates.Visible = false;
+            this.LeaveDates.Width = 90;
             // 
             // AssignedShifts
             // 
@@ -491,6 +538,7 @@
             this.AssignedShifts.Name = "AssignedShifts";
             this.AssignedShifts.ReadOnly = true;
             this.AssignedShifts.Visible = false;
+            this.AssignedShifts.Width = 101;
             // 
             // WeekdayShifts
             // 
@@ -556,8 +604,16 @@
         private System.Windows.Forms.Label label_shift_assign;
         private CustomControls.RJControls.RJButton btn_date;
         private CustomControls.RJControls.RJButton btn_clear;
-        private System.Windows.Forms.CheckBox chk_double;
+        private CustomControls.RJControls.RJButton btn_batch;
+        private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.TextBox textBox1;
+        private System.Windows.Forms.Label label_holidays;
+        private System.Windows.Forms.Label label5;
+        private System.Windows.Forms.Label label3;
+        private Button_Control.Buttons.RJToggleButton algo_version_toggle;
+        private System.Windows.Forms.Label label2;
         private System.Windows.Forms.DataGridViewTextBoxColumn PersonName;
+        private System.Windows.Forms.DataGridViewCheckBoxColumn weekend;
         private System.Windows.Forms.DataGridViewTextBoxColumn LeaveDatesString;
         private System.Windows.Forms.DataGridViewTextBoxColumn TotalLeaveDays;
         private System.Windows.Forms.DataGridViewTextBoxColumn AssignedShiftsString;
@@ -566,9 +622,5 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn WeekdayShifts;
         private System.Windows.Forms.DataGridViewTextBoxColumn WeekendShifts;
         private System.Windows.Forms.DataGridViewTextBoxColumn TotalShift;
-        private CustomControls.RJControls.RJButton btn_batch;
-        private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.TextBox textBox1;
-        private System.Windows.Forms.Label label_holidays;
     }
 }

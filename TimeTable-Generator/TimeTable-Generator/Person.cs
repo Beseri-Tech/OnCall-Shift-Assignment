@@ -53,5 +53,10 @@ namespace TimeTable_Generator
             { return LeaveDates.Count; }
 
         }
+        // ✅ NEW
+        public bool PreferWeekendHoliday { get; set; } = false;
+
+        // Optional fine control
+        public int WeekendPriorityWeight { get; set; } = 1;
     }
 }

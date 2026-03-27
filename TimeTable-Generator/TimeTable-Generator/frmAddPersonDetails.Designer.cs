@@ -50,6 +50,7 @@
             this.panel_titlebar = new System.Windows.Forms.Panel();
             this.label4 = new System.Windows.Forms.Label();
             this.titleBar1 = new Button_Control.TitleBar();
+            this.chk_weekend = new System.Windows.Forms.CheckBox();
             this.panel1.SuspendLayout();
             this.panel_titlebar.SuspendLayout();
             this.SuspendLayout();
@@ -58,6 +59,7 @@
             // 
             this.panel1.BackColor = System.Drawing.Color.AntiqueWhite;
             this.panel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panel1.Controls.Add(this.chk_weekend);
             this.panel1.Controls.Add(this.buttonAddRange);
             this.panel1.Controls.Add(this.monthCalendar1);
             this.panel1.Controls.Add(this.label6);
@@ -369,6 +371,17 @@
             this.titleBar1.Size = new System.Drawing.Size(104, 30);
             this.titleBar1.TabIndex = 0;
             // 
+            // chk_weekend
+            // 
+            this.chk_weekend.AutoSize = true;
+            this.chk_weekend.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.chk_weekend.Location = new System.Drawing.Point(485, 114);
+            this.chk_weekend.Name = "chk_weekend";
+            this.chk_weekend.Size = new System.Drawing.Size(194, 24);
+            this.chk_weekend.TabIndex = 33;
+            this.chk_weekend.Text = "Assign Weekend/Public";
+            this.chk_weekend.UseVisualStyleBackColor = true;
+            // 
             // frmAddPersonDetails
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -412,5 +425,6 @@
         private System.Windows.Forms.Label label5;
         private CustomControls.RJControls.RJButton buttonAddRange;
         private System.Windows.Forms.MonthCalendar monthCalendar1;
+        private System.Windows.Forms.CheckBox chk_weekend;
     }
 }

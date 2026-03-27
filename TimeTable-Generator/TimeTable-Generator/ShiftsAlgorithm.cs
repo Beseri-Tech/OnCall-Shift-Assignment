@@ -485,5 +485,7 @@ namespace TimeTable_Generator
 
         private void LogDebugMessage(string message) => Debug.WriteLine(message);
     }
+
+
     #endregion
 }

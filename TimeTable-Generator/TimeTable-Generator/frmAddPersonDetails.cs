@@ -74,6 +74,7 @@ namespace TimeTable_Generator
             }
 
             PersonToUpdate.ExtraShift = checkBox1.Checked;
+            PersonToUpdate.PreferWeekendHoliday = chk_weekend.Checked;
             this.Close();
         }
 
@@ -93,6 +94,7 @@ namespace TimeTable_Generator
             }
 
             checkBox1.Checked = PersonToUpdate.ExtraShift;
+            chk_weekend.Checked = PersonToUpdate.PreferWeekendHoliday;
         }
 
       
