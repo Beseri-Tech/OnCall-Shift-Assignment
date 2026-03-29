@@ -1,4 +1,5 @@
-﻿using DocumentFormat.OpenXml.Wordprocessing;
+﻿using DocumentFormat.OpenXml.Drawing.Charts;
+using DocumentFormat.OpenXml.Wordprocessing;
 using IMS_Project.Class.Styles;
 using System;
 using System.Collections.Generic;
@@ -98,13 +99,14 @@ namespace TimeTable_Generator
             dataGridView1.Columns["WeekdayShifts"].DataPropertyName = "WeekdayShifts";
             dataGridView1.Columns["TotalLeaveDays"].DataPropertyName = "TotalLeaveDays";
             dataGridView1.Columns["weekend"].DataPropertyName = "PreferWeekendHoliday";
+            dataGridView1.Columns["preferred_date"].DataPropertyName = "AssignPreferredDate";
 
             RefreshDGV();
         }
 
         private void rjButton2_Click(object sender, EventArgs e)
         {
-            string algorithmVersion = algo_version_toggle.Checked ? $"Algorithm V2?\n(Weekend and Holidays priority)" : "Algorithm V1?";
+            string algorithmVersion = !algo_version_toggle.Checked ? $"Algorithm V2?\n(Weekend and Holidays priority)" : "Algorithm V3\n(Still in Progress. Unstable Algorithm)?";
 
             var result = MessageBox.Show($"Assign Shifts using {algorithmVersion}",
                 "Information", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
@@ -123,13 +125,13 @@ namespace TimeTable_Generator
         // Event handler for the BackgroundWorker's DoWork event
         private void BackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
         {
-            ShiftsAlgorithm shiftsAlgorithm = new ShiftsAlgorithm();
+            ShiftsAlgorithmV3 shiftsAlgorithmV3 = new ShiftsAlgorithmV3();
             ShiftsAlgorithmV2 shiftsAlgorithmV2 = new ShiftsAlgorithmV2();
 
-            if (!algo_version_toggle.Checked)
+            if (algo_version_toggle.Checked)
             {
                
-                shiftsAlgorithm.AssignShifts(people, StartDate, EndDate, publicHolidays, progress =>
+                shiftsAlgorithmV3.AssignShifts(people, StartDate, EndDate, publicHolidays, progress =>
                 {
                     backgroundWorker.ReportProgress(progress); // Report progress to UI
                 });
@@ -208,6 +210,10 @@ namespace TimeTable_Generator
                 {
                     row.DefaultCellStyle.BackColor = System.Drawing.Color.YellowGreen;
                 }
+                if (Convert.ToBoolean(row.Cells["preferred_date"].Value) == true)
+                {
+                    row.DefaultCellStyle.BackColor = System.Drawing.Color.MediumSlateBlue;
+                }
             }
 
             label_shift_assign.Text = $"Total Shifts Assigned: {shiftassigned.ToString()}";
@@ -225,7 +231,7 @@ namespace TimeTable_Generator
         }
         private void Refresh_DGV_On_FormClosed(object sender, FormClosedEventArgs e)
         {
-            RefreshDGV();            
+            RefreshDGV();
         }
 
         private void rjButton1_Click(object sender, EventArgs e)
@@ -283,20 +289,26 @@ namespace TimeTable_Generator
                 if (cell != null)
                 {
                     int rowIndex = cell.RowIndex;
-
                     DataGridViewRow row = dataGridView1.Rows[rowIndex];
-
                     string name = row.Cells["PersonName"].Value.ToString();
 
                     Person personToUpdate = people.FirstOrDefault(p => p.Name == name);
 
                     if (personToUpdate != null)
                     {
-                        frmAddPersonDetails personDetails = new frmAddPersonDetails(people,personToUpdate);
-                        personDetails.FormClosed += Refresh_DGV_On_FormClosed;
+                        frmAddPersonDetails personDetails = new frmAddPersonDetails(people, personToUpdate);
+
+                        // Capture rowIndex in a separate variable for safety
+                        int indexToScroll = row.Index;
+
+                        personDetails.FormClosed += (s, args) =>
+                        {
+                            RefreshDGV(); // your existing method
+                            dataGridView1.FirstDisplayedScrollingRowIndex = indexToScroll;
+                        };
+
                         personDetails.ShowDialog();
                     }
-
                 }
             }
         }

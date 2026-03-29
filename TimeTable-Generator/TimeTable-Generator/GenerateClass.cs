@@ -44,10 +44,29 @@ namespace TimeTable_Generator
                                    .OrderBy(shift => shift.Date)  // Step 2: Sort the list by Date
                                    .ToList();
 
+                var unassignedPeople = people
+                .Where(person => person.AssignedShifts == null || person.AssignedShifts.Count == 0)
+                .ToList(); // <-- full Person objects, not just names
+
                 // Step 2: Group the shifts by month
                 var shiftsByMonth = shifts.GroupBy(shift => new { shift.Date.Year, shift.Date.Month }).ToList();
 
                 // Step 3: Create a worksheet for each month
+                if (unassignedPeople.Count > 0)
+                {
+                    ExcelWorksheet unassignedWorksheet = package.Workbook.Worksheets.Add("Unassigned People");
+                    unassignedWorksheet.Cells[1, 1].Value = "People with No Assigned Shifts";
+                    unassignedWorksheet.Cells[1, 2].Value = "Leave Dates";
+
+                    int unassignedRow = 3;
+
+                    foreach (var name in unassignedPeople)
+                    {
+                        unassignedWorksheet.Cells[unassignedRow, 1].Value = name.Name;
+                        unassignedWorksheet.Cells[unassignedRow, 2].Value = name.LeaveDatesString;
+                        unassignedRow++;
+                    }
+                }
                 foreach (var monthGroup in shiftsByMonth)
                 {
                     var year = monthGroup.Key.Year;
@@ -63,33 +82,44 @@ namespace TimeTable_Generator
                     worksheet.Cells[1, 3].Value = "WeekDayShift";
                     worksheet.Cells[1, 4].Value = "WeekEndShift";
 
-                    // Step 4: Populate the Excel worksheet with shifts for this month
+                    // Step 4: Get all dates of this month
+                    var firstOfMonth = new DateTime(year, month, 1);
+                    var lastOfMonth = firstOfMonth.AddMonths(1).AddDays(-1);
+                    var allDatesInMonth = GetAllDates(firstOfMonth, lastOfMonth);
+
                     int row = 2;
-                    foreach (var shift in monthGroup)
+                    foreach (var date in allDatesInMonth)
                     {
-                        worksheet.Cells[row, 1].Value = shift.Date.ToShortDateString();  // Date of the shift
-                        worksheet.Cells[row, 2].Value = shift.Date.DayOfWeek.ToString();  // Day of the shift
+                        worksheet.Cells[row, 1].Value = date.ToShortDateString();  // Date
+                        worksheet.Cells[row, 2].Value = date.DayOfWeek.ToString(); // Day
 
-                        if (weekendAndHolidays.Contains(shift.Date))
+                        // Check if the date is a weekend or public holiday
+                        bool isWeekendOrHoliday = weekendAndHolidays.Any(d => d.Date == date.Date);
+                        bool isPublicHoliday = publicHolidays.Any(d => d.Date == date.Date);
+
+                        if (isPublicHoliday)
                         {
+                            worksheet.Cells[row, 2].Value += " (Public Holiday)";
+                            worksheet.Cells[row, 2].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                            worksheet.Cells[row, 2].Style.Fill.BackgroundColor.SetColor(Color.PaleGreen);
+                        }
 
-                            if (publicHolidays.Contains(shift.Date))
-                            {
-                                worksheet.Cells[row, 2].Value = worksheet.Cells[row, 2].Value + " (Public Holiday)";
-                                worksheet.Cells[row, 2].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                                worksheet.Cells[row, 2].Style.Fill.BackgroundColor.SetColor(Color.PaleGreen);
-                            }
-                            worksheet.Cells[row, 4].Value = shift.Name;
+                        // Find people assigned on this date
+                        var assignedPeople = shifts.Where(s => s.Date.Date == date.Date).Select(s => s.Name).ToList();
+
+                        if (isWeekendOrHoliday)
+                        {
+                            worksheet.Cells[row, 4].Value = assignedPeople.Count > 0 ? string.Join(", ", assignedPeople) : "";
                         }
                         else
                         {
-                            worksheet.Cells[row, 3].Value = shift.Name;
+                            worksheet.Cells[row, 3].Value = assignedPeople.Count > 0 ? string.Join(", ", assignedPeople) : "";
                         }
-
 
                         row++;
                     }
-                }
+                
+            }
 
                 // Save the file
                 FileInfo fileInfo = new FileInfo(filePath);

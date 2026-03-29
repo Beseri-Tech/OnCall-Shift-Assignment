@@ -161,9 +161,9 @@ namespace TimeTable_Generator
         }
 
         private List<Person> GetCandidates(
-            List<Person> people,
-            DateTime date,
-            bool isWeekend)
+         List<Person> people,
+         DateTime date,
+         bool isWeekend)
         {
             var baseCandidates = people
                 .Where(p => p.LeaveDates == null || !p.LeaveDates.Any(ld => ld.Date == date.Date))
@@ -173,20 +173,28 @@ namespace TimeTable_Generator
             if (!baseCandidates.Any())
                 return baseCandidates;
 
-            // ✅ NEW FEATURE: prioritize weekend/holiday people
+            // ✅ PRIORITY 1: Preferred specific date
+            var preferredDatePeople = baseCandidates
+                .Where(p => p.PreferredDates != null && p.PreferredDates.Any(d => d.Date == date.Date))
+                .ToList();
+
+            if (preferredDatePeople.Any())
+                return preferredDatePeople;
+
+            // ✅ PRIORITY 2: Weekend/Holiday preference
             if (isWeekend)
             {
-                var preferred = baseCandidates
+                var weekendPreferred = baseCandidates
                     .Where(p => p.PreferWeekendHoliday)
                     .ToList();
 
-                if (preferred.Any())
-                    return preferred;
+                if (weekendPreferred.Any())
+                    return weekendPreferred;
             }
 
+            // ✅ FALLBACK
             return baseCandidates;
         }
-
         private void Assign(Person p, DateTime date, bool isWeekend, Dictionary<DateTime, Person> assigned)
         {
             assigned[date] = p;

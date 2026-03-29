@@ -29,6 +29,10 @@
         private void InitializeComponent()
         {
             this.panel1 = new System.Windows.Forms.Panel();
+            this.label5 = new System.Windows.Forms.Label();
+            this.label3 = new System.Windows.Forms.Label();
+            this.algo_version_toggle = new Button_Control.Buttons.RJToggleButton();
+            this.label2 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
             this.textBox1 = new System.Windows.Forms.TextBox();
             this.btn_batch = new CustomControls.RJControls.RJButton();
@@ -51,12 +55,9 @@
             this.label4 = new System.Windows.Forms.Label();
             this.titleBar1 = new Button_Control.TitleBar();
             this.dataGridView1 = new System.Windows.Forms.DataGridView();
-            this.label2 = new System.Windows.Forms.Label();
-            this.algo_version_toggle = new Button_Control.Buttons.RJToggleButton();
-            this.label3 = new System.Windows.Forms.Label();
-            this.label5 = new System.Windows.Forms.Label();
             this.PersonName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.weekend = new System.Windows.Forms.DataGridViewCheckBoxColumn();
+            this.preferred_date = new System.Windows.Forms.DataGridViewCheckBoxColumn();
             this.LeaveDatesString = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.TotalLeaveDays = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.AssignedShiftsString = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -103,6 +104,50 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(800, 606);
             this.panel1.TabIndex = 0;
+            // 
+            // label5
+            // 
+            this.label5.AutoSize = true;
+            this.label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
+            this.label5.Location = new System.Drawing.Point(749, 84);
+            this.label5.Name = "label5";
+            this.label5.Size = new System.Drawing.Size(25, 17);
+            this.label5.TabIndex = 33;
+            this.label5.Text = "V3";
+            // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
+            this.label3.Location = new System.Drawing.Point(667, 84);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(25, 17);
+            this.label3.TabIndex = 32;
+            this.label3.Text = "V2";
+            // 
+            // algo_version_toggle
+            // 
+            this.algo_version_toggle.AutoSize = true;
+            this.algo_version_toggle.Location = new System.Drawing.Point(698, 81);
+            this.algo_version_toggle.MinimumSize = new System.Drawing.Size(45, 22);
+            this.algo_version_toggle.Name = "algo_version_toggle";
+            this.algo_version_toggle.OffBackColor = System.Drawing.Color.LightSkyBlue;
+            this.algo_version_toggle.OffToggleColor = System.Drawing.Color.RoyalBlue;
+            this.algo_version_toggle.OnBackColor = System.Drawing.Color.Violet;
+            this.algo_version_toggle.OnToggleColor = System.Drawing.Color.MediumVioletRed;
+            this.algo_version_toggle.Size = new System.Drawing.Size(45, 22);
+            this.algo_version_toggle.TabIndex = 31;
+            this.algo_version_toggle.UseVisualStyleBackColor = true;
+            // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
+            this.label2.Location = new System.Drawing.Point(690, 61);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(67, 17);
+            this.label2.TabIndex = 30;
+            this.label2.Text = "Algorithm";
             // 
             // label1
             // 
@@ -425,6 +470,7 @@
             this.dataGridView1.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
             this.PersonName,
             this.weekend,
+            this.preferred_date,
             this.LeaveDatesString,
             this.TotalLeaveDays,
             this.AssignedShiftsString,
@@ -442,50 +488,6 @@
             this.dataGridView1.DataBindingComplete += new System.Windows.Forms.DataGridViewBindingCompleteEventHandler(this.dataGridView1_DataBindingComplete);
             this.dataGridView1.Paint += new System.Windows.Forms.PaintEventHandler(this.dataGridView1_Paint);
             // 
-            // label2
-            // 
-            this.label2.AutoSize = true;
-            this.label2.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
-            this.label2.Location = new System.Drawing.Point(690, 61);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(67, 17);
-            this.label2.TabIndex = 30;
-            this.label2.Text = "Algorithm";
-            // 
-            // algo_version_toggle
-            // 
-            this.algo_version_toggle.AutoSize = true;
-            this.algo_version_toggle.Location = new System.Drawing.Point(698, 81);
-            this.algo_version_toggle.MinimumSize = new System.Drawing.Size(45, 22);
-            this.algo_version_toggle.Name = "algo_version_toggle";
-            this.algo_version_toggle.OffBackColor = System.Drawing.Color.LightSkyBlue;
-            this.algo_version_toggle.OffToggleColor = System.Drawing.Color.RoyalBlue;
-            this.algo_version_toggle.OnBackColor = System.Drawing.Color.Violet;
-            this.algo_version_toggle.OnToggleColor = System.Drawing.Color.MediumVioletRed;
-            this.algo_version_toggle.Size = new System.Drawing.Size(45, 22);
-            this.algo_version_toggle.TabIndex = 31;
-            this.algo_version_toggle.UseVisualStyleBackColor = true;
-            // 
-            // label3
-            // 
-            this.label3.AutoSize = true;
-            this.label3.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
-            this.label3.Location = new System.Drawing.Point(667, 84);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(25, 17);
-            this.label3.TabIndex = 32;
-            this.label3.Text = "V1";
-            // 
-            // label5
-            // 
-            this.label5.AutoSize = true;
-            this.label5.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
-            this.label5.Location = new System.Drawing.Point(749, 84);
-            this.label5.Name = "label5";
-            this.label5.Size = new System.Drawing.Size(25, 17);
-            this.label5.TabIndex = 33;
-            this.label5.Text = "V2";
-            // 
             // PersonName
             // 
             this.PersonName.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
@@ -499,6 +501,13 @@
             this.weekend.Name = "weekend";
             this.weekend.ReadOnly = true;
             this.weekend.Visible = false;
+            // 
+            // preferred_date
+            // 
+            this.preferred_date.HeaderText = "preferred_date";
+            this.preferred_date.Name = "preferred_date";
+            this.preferred_date.ReadOnly = true;
+            this.preferred_date.Visible = false;
             // 
             // LeaveDatesString
             // 
@@ -614,6 +623,7 @@
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.DataGridViewTextBoxColumn PersonName;
         private System.Windows.Forms.DataGridViewCheckBoxColumn weekend;
+        private System.Windows.Forms.DataGridViewCheckBoxColumn preferred_date;
         private System.Windows.Forms.DataGridViewTextBoxColumn LeaveDatesString;
         private System.Windows.Forms.DataGridViewTextBoxColumn TotalLeaveDays;
         private System.Windows.Forms.DataGridViewTextBoxColumn AssignedShiftsString;

@@ -17,8 +17,14 @@ namespace TimeTable_Generator
         public bool ExtraShift {  get; set; } 
         public DateTime? LastAssignedShift { get; set; } // Track last assigned shift
         public int TotalShifts { get; set; }
+        public bool AssignPreferredDate => PreferredDates != null && PreferredDates.Count > 0;
 
 
+        // ✅ NEW
+        public bool PreferWeekendHoliday { get; set; } = false;
+
+        // Optional fine control
+        public int WeekendPriorityWeight { get; set; } = 1;
         public Person(string name)
         {
             Name = name;
@@ -53,10 +59,6 @@ namespace TimeTable_Generator
             { return LeaveDates.Count; }
 
         }
-        // ✅ NEW
-        public bool PreferWeekendHoliday { get; set; } = false;
-
-        // Optional fine control
-        public int WeekendPriorityWeight { get; set; } = 1;
+       
     }
 }
