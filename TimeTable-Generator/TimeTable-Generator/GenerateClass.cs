@@ -1,4 +1,5 @@
 ﻿using DocumentFormat.OpenXml.Office2010.Excel;
+using DocumentFormat.OpenXml.Wordprocessing;
 using OfficeOpenXml;
 using OfficeOpenXml.Style;
 using System;
@@ -17,7 +18,7 @@ namespace TimeTable_Generator
     public class GenerateClass
     {
         
-        public void GenerateTimetableExcel(List<Person> people, string filePath, DateTime startDate, DateTime endDate, List<DateTime> publicHolidays)
+        public void GenerateTimetableExcel(List<Person> people, string filePath, DateTime startDate, DateTime endDate, List<DateTime> publicHolidays, List<DateTime> unassignedDates)
         {
             // Initialize the Excel package
             ExcelPackage.License.SetNonCommercialOrganization("My Noncommercial organization"); //This will also set the Company property to the organization name provided in the argument.
@@ -54,18 +55,30 @@ namespace TimeTable_Generator
                 // Step 3: Create a worksheet for each month
                 if (unassignedPeople.Count > 0)
                 {
-                    ExcelWorksheet unassignedWorksheet = package.Workbook.Worksheets.Add("Unassigned People");
-                    unassignedWorksheet.Cells[1, 1].Value = "People with No Assigned Shifts";
-                    unassignedWorksheet.Cells[1, 2].Value = "Leave Dates";
+                    ExcelWorksheet unassignedWorksheet = package.Workbook.Worksheets.Add("Assignment Error");
+                    unassignedWorksheet.Cells[1, 1].Value = "Unassigned Dates";
 
-                    int unassignedRow = 3;
+                    int unassignedDatesRow = 2;
 
+                    foreach (var date in unassignedDates)
+                    {
+                        unassignedWorksheet.Cells[unassignedDatesRow, 1].Value = date.ToString("dd/MM/yyyy");
+                        unassignedDatesRow++;
+
+                    }
+
+                    unassignedWorksheet.Cells[unassignedDatesRow + 1, 1].Value = "People with No Assigned Shifts";
+                    unassignedWorksheet.Cells[unassignedDatesRow + 1, 2].Value = "Leave Dates";
+
+                    int unassignedRow = unassignedDatesRow + 2;
+                    
                     foreach (var name in unassignedPeople)
                     {
                         unassignedWorksheet.Cells[unassignedRow, 1].Value = name.Name;
                         unassignedWorksheet.Cells[unassignedRow, 2].Value = name.LeaveDatesString;
                         unassignedRow++;
                     }
+                    
                 }
                 foreach (var monthGroup in shiftsByMonth)
                 {

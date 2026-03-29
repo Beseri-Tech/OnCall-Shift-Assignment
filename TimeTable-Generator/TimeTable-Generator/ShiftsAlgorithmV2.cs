@@ -18,6 +18,7 @@ namespace TimeTable_Generator
             DateTime startDate,
             DateTime endDate,
             List<DateTime> publicHolidays,
+            List<DateTime> unassignedDates,
             Action<int> reportProgress)
         {
             if (people == null || people.Count == 0)
@@ -73,6 +74,7 @@ namespace TimeTable_Generator
                     BACKTRACK_DEPTH))
                 {
                     MessageBox.Show($"Failed to assign {day:yyyy-MM-dd}");
+                    unassignedDates.Add(day);
                 }
 
                 progress++;

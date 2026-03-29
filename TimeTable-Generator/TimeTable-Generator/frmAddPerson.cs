@@ -23,6 +23,7 @@ namespace TimeTable_Generator
         public List<Person> people;
 
         public List<DateTime> publicHolidays;
+        public List<DateTime> unassignedShifts;
 
         private BackgroundWorker backgroundWorker;
         public frmAddPerson(DateTime startDate, DateTime endDate)
@@ -39,7 +40,7 @@ namespace TimeTable_Generator
             dataGridView1.AutoGenerateColumns = false;
             this.Shown += FrmAddPerson_Shown;
         }
-        public frmAddPerson(DateTime startDate, DateTime endDate, List<Person> people, List<DateTime> publicHolidays)
+        public frmAddPerson(DateTime startDate, DateTime endDate, List<Person> people, List<DateTime> publicHolidays, List<DateTime> unassignedDates)
         {
             InitializeComponent();
             titleBar1.SetParentForm(this);
@@ -53,6 +54,7 @@ namespace TimeTable_Generator
             {
                 publicHolidays= new List<DateTime>();
             }
+            unassignedShifts = unassignedDates;
             this.publicHolidays = publicHolidays;
             dataGridView1.AutoGenerateColumns = false;
             this.Shown += FrmAddPerson_Shown;
@@ -127,6 +129,7 @@ namespace TimeTable_Generator
         {
             ShiftsAlgorithmV3 shiftsAlgorithmV3 = new ShiftsAlgorithmV3();
             ShiftsAlgorithmV2 shiftsAlgorithmV2 = new ShiftsAlgorithmV2();
+            unassignedShifts = new List<DateTime>();
 
             if (algo_version_toggle.Checked)
             {
@@ -139,7 +142,7 @@ namespace TimeTable_Generator
             else
             {
 
-                shiftsAlgorithmV2.AssignShifts(people, StartDate, EndDate, publicHolidays, progress =>
+                shiftsAlgorithmV2.AssignShifts(people, StartDate, EndDate, publicHolidays, unassignedShifts, progress =>
                 {
                     backgroundWorker.ReportProgress(progress); // Report progress to UI
                 });
@@ -330,7 +333,7 @@ namespace TimeTable_Generator
                     string filePath = saveFileDialog.FileName;
 
                     // Generate the Excel file
-                    generateClass.GenerateTimetableExcel(people, filePath, StartDate,EndDate, publicHolidays);
+                    generateClass.GenerateTimetableExcel(people, filePath, StartDate,EndDate, publicHolidays, unassignedShifts);
 
                     MessageBox.Show("Timetable has been exported to Excel!");
                 }
@@ -354,7 +357,7 @@ namespace TimeTable_Generator
         {
             DataTransferClass dataTransfer = new DataTransferClass();
 
-            dataTransfer.ExportDataToFile(people, StartDate, EndDate, publicHolidays);
+            dataTransfer.ExportDataToFile(people, StartDate, EndDate, publicHolidays, unassignedShifts);
         }
 
         private void btn_holidays_Click(object sender, EventArgs e)
