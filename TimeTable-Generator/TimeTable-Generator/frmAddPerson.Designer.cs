@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             this.panel1 = new System.Windows.Forms.Panel();
+            this.rjButton3 = new CustomControls.RJControls.RJButton();
             this.label5 = new System.Windows.Forms.Label();
             this.label3 = new System.Windows.Forms.Label();
             this.algo_version_toggle = new Button_Control.Buttons.RJToggleButton();
@@ -75,6 +76,7 @@
             // 
             this.panel1.BackColor = System.Drawing.Color.AntiqueWhite;
             this.panel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.panel1.Controls.Add(this.rjButton3);
             this.panel1.Controls.Add(this.label5);
             this.panel1.Controls.Add(this.label3);
             this.panel1.Controls.Add(this.algo_version_toggle);
@@ -104,6 +106,26 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(800, 606);
             this.panel1.TabIndex = 0;
+            // 
+            // rjButton3
+            // 
+            this.rjButton3.BackColor = System.Drawing.Color.YellowGreen;
+            this.rjButton3.BackgroundColor = System.Drawing.Color.YellowGreen;
+            this.rjButton3.BorderColor = System.Drawing.Color.Black;
+            this.rjButton3.BorderRadius = 0;
+            this.rjButton3.BorderSize = 1;
+            this.rjButton3.FlatAppearance.BorderSize = 0;
+            this.rjButton3.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.rjButton3.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.rjButton3.ForeColor = System.Drawing.Color.Black;
+            this.rjButton3.Location = new System.Drawing.Point(173, 127);
+            this.rjButton3.Name = "rjButton3";
+            this.rjButton3.Size = new System.Drawing.Size(163, 32);
+            this.rjButton3.TabIndex = 34;
+            this.rjButton3.Text = "Add Priority Dates";
+            this.rjButton3.TextColor = System.Drawing.Color.Black;
+            this.rjButton3.UseVisualStyleBackColor = false;
+            this.rjButton3.Click += new System.EventHandler(this.rjButton3_Click);
             // 
             // label5
             // 
@@ -274,7 +296,7 @@
             this.btn_holidays.ForeColor = System.Drawing.Color.Black;
             this.btn_holidays.Location = new System.Drawing.Point(173, 88);
             this.btn_holidays.Name = "btn_holidays";
-            this.btn_holidays.Size = new System.Drawing.Size(150, 70);
+            this.btn_holidays.Size = new System.Drawing.Size(163, 32);
             this.btn_holidays.TabIndex = 20;
             this.btn_holidays.Text = "Add Public Holidays";
             this.btn_holidays.TextColor = System.Drawing.Color.Black;
@@ -515,7 +537,7 @@
             this.LeaveDatesString.HeaderText = "Leave Dates";
             this.LeaveDatesString.Name = "LeaveDatesString";
             this.LeaveDatesString.ReadOnly = true;
-            this.LeaveDatesString.Width = 93;
+            this.LeaveDatesString.Width = 86;
             // 
             // TotalLeaveDays
             // 
@@ -538,7 +560,6 @@
             this.LeaveDates.Name = "LeaveDates";
             this.LeaveDates.ReadOnly = true;
             this.LeaveDates.Visible = false;
-            this.LeaveDates.Width = 90;
             // 
             // AssignedShifts
             // 
@@ -547,7 +568,6 @@
             this.AssignedShifts.Name = "AssignedShifts";
             this.AssignedShifts.ReadOnly = true;
             this.AssignedShifts.Visible = false;
-            this.AssignedShifts.Width = 101;
             // 
             // WeekdayShifts
             // 
@@ -632,5 +652,6 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn WeekdayShifts;
         private System.Windows.Forms.DataGridViewTextBoxColumn WeekendShifts;
         private System.Windows.Forms.DataGridViewTextBoxColumn TotalShift;
+        private CustomControls.RJControls.RJButton rjButton3;
     }
 }

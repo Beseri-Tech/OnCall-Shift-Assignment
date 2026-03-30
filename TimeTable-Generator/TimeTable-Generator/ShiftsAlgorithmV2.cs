@@ -19,8 +19,11 @@ namespace TimeTable_Generator
             DateTime endDate,
             List<DateTime> publicHolidays,
             List<DateTime> unassignedDates,
+            List<DateTime> priorityDates,            
             Action<int> reportProgress)
         {
+            
+
             if (people == null || people.Count == 0)
                 throw new ArgumentException("People list is empty.");
 
@@ -60,6 +63,33 @@ namespace TimeTable_Generator
                 allShiftDates);
 
             int progress = 0;
+
+            //if (priorityDates != null && priorityDates.Count > 0)
+            //{
+            //    var prioritySet = new HashSet<DateTime>(priorityDates.Select(d => d.Date));
+
+            //    foreach (var day in prioritySet)
+            //    {
+            //        bool isWeekend = IsWeekend(day, weekendAndHolidays);
+            //        if (!TryAssignWithBacktracking(
+            //            people,
+            //            day,
+            //            isWeekend,
+            //            assigned,
+            //            monthlyTargets,
+            //            BACKTRACK_DEPTH))
+            //        {
+            //            MessageBox.Show($"Failed to assign priority date {day:yyyy-MM-dd}");
+            //            unassignedDates.Add(day);
+            //        }
+            //        progress++;
+            //        reportProgress(progress * 100 / totalShifts);
+            //    }
+            //    progress = 0;
+            //    allShiftDates.RemoveAll(d => prioritySet.Contains(d.Date));
+            //}
+               
+            
 
             foreach (var day in allShiftDates)
             {

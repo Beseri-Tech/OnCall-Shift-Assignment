@@ -24,6 +24,7 @@ namespace TimeTable_Generator
 
         public List<DateTime> publicHolidays;
         public List<DateTime> unassignedShifts;
+        public List<DateTime> priorityDates;
 
         private BackgroundWorker backgroundWorker;
         public frmAddPerson(DateTime startDate, DateTime endDate)
@@ -37,10 +38,12 @@ namespace TimeTable_Generator
             this.Load += FrmAddPerson_Load;
             people = new List<Person>();
             publicHolidays = new List<DateTime>();
+            unassignedShifts = new List<DateTime>();
+            priorityDates = new List<DateTime>();
             dataGridView1.AutoGenerateColumns = false;
             this.Shown += FrmAddPerson_Shown;
         }
-        public frmAddPerson(DateTime startDate, DateTime endDate, List<Person> people, List<DateTime> publicHolidays, List<DateTime> unassignedDates)
+        public frmAddPerson(DateTime startDate, DateTime endDate, List<Person> people, List<DateTime> publicHolidays, List<DateTime> unassignedDates, List<DateTime> prioritydates)
         {
             InitializeComponent();
             titleBar1.SetParentForm(this);
@@ -49,13 +52,10 @@ namespace TimeTable_Generator
             StartDate = startDate;
             EndDate = endDate;
             this.Load += FrmAddPerson_Load;
-            this.people = people;
-            if(publicHolidays == null)
-            {
-                publicHolidays= new List<DateTime>();
-            }
-            unassignedShifts = unassignedDates;
-            this.publicHolidays = publicHolidays;
+            this.people = people;           
+            priorityDates = prioritydates ?? new List<DateTime>();
+            unassignedShifts = unassignedDates ?? new List<DateTime>();
+            this.publicHolidays = publicHolidays ?? new List<DateTime>();
             dataGridView1.AutoGenerateColumns = false;
             this.Shown += FrmAddPerson_Shown;
         }
@@ -142,7 +142,7 @@ namespace TimeTable_Generator
             else
             {
 
-                shiftsAlgorithmV2.AssignShifts(people, StartDate, EndDate, publicHolidays, unassignedShifts, progress =>
+                shiftsAlgorithmV2.AssignShifts(people, StartDate, EndDate, publicHolidays, unassignedShifts, priorityDates, progress =>
                 {
                     backgroundWorker.ReportProgress(progress); // Report progress to UI
                 });
@@ -357,7 +357,7 @@ namespace TimeTable_Generator
         {
             DataTransferClass dataTransfer = new DataTransferClass();
 
-            dataTransfer.ExportDataToFile(people, StartDate, EndDate, publicHolidays, unassignedShifts);
+            dataTransfer.ExportDataToFile(people, StartDate, EndDate, publicHolidays, unassignedShifts, priorityDates);
         }
 
         private void btn_holidays_Click(object sender, EventArgs e)
@@ -488,6 +488,13 @@ namespace TimeTable_Generator
                 dataGridView1.ClearSelection();
             }
            
+        }
+
+        private void rjButton3_Click(object sender, EventArgs e)
+        {
+            frmPriorityDates priorityDatesForm = new frmPriorityDates(priorityDates);
+            priorityDatesForm.FormClosed += Refresh_DGV_On_FormClosed;
+            priorityDatesForm.ShowDialog();
         }
     }
 }

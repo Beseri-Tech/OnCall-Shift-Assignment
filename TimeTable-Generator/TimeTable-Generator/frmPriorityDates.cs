@@ -12,28 +12,28 @@ using System.Windows.Forms;
 
 namespace TimeTable_Generator
 {
-    public partial class frmPublicHolidays : Form
+    public partial class frmPriorityDates : Form
     {
-        private List<DateTime> publicHolidays;
-        public frmPublicHolidays(List<DateTime> publicHolidays)
+        private List<DateTime> priorityDates;
+        public frmPriorityDates(List<DateTime> priorityDates)
         {
             InitializeComponent();
-            this.publicHolidays = publicHolidays ?? new List<DateTime>();
-            this.Load += FrmPublicHolidays_Load;
+            this.priorityDates = priorityDates ?? new List<DateTime>();
+            this.Load += FrmPriorityDates_Load;
             titleBar1.SetParentForm(this);
             TitleBarPanelStyler.ApplyTitleBarPanelStyle(panel_titlebar, this);
 
         }
 
-        private void FrmPublicHolidays_Load(object sender, EventArgs e)
+        private void FrmPriorityDates_Load(object sender, EventArgs e)
         {
-            list_publicholidays.Items.Clear();
+            list_prioritydates.Items.Clear();
 
-            if(publicHolidays!= null)
+            if(priorityDates != null)
             {
-                foreach (DateTime date in publicHolidays)
+                foreach (DateTime date in priorityDates)
                 {
-                    list_publicholidays.Items.Add(date.Date);
+                    list_prioritydates.Items.Add(date.Date);
                 }
             }
             
@@ -42,15 +42,15 @@ namespace TimeTable_Generator
 
         private void btn_close_Click(object sender, EventArgs e)
         {
-            if(publicHolidays != null)
+            if(priorityDates != null)
             {
-                publicHolidays.Clear();
+                priorityDates.Clear();
             }            
 
-            foreach (var item in list_publicholidays.Items)
+            foreach (var item in list_prioritydates.Items)
             {
                 DateTime preferred = DateTime.Parse(item.ToString());
-                publicHolidays.Add(preferred.Date);
+                priorityDates.Add(preferred.Date);
             }
             this.Close();
         }
@@ -79,7 +79,7 @@ namespace TimeTable_Generator
         {
             if(!string.IsNullOrEmpty(tx_date.Text))
             {
-                list_publicholidays.Items.Add(tx_date.Text);
+                list_prioritydates.Items.Add(tx_date.Text);
                 FocusAndSelectTextBeforeFirstSlash(tx_date);
             }
             
@@ -87,10 +87,10 @@ namespace TimeTable_Generator
 
         private void rjButton1_Click(object sender, EventArgs e)
         {
-            if (list_publicholidays.SelectedItem != null)
+            if (list_prioritydates.SelectedItem != null)
             {
                 // Remove the selected item
-                list_publicholidays.Items.Remove(list_publicholidays.SelectedItem);
+                list_prioritydates.Items.Remove(list_prioritydates.SelectedItem);
             }
             else
             {

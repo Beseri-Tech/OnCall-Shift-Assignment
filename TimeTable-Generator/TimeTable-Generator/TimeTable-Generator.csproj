@@ -213,6 +213,12 @@
     <Compile Include="frmChangeDates.Designer.cs">
       <DependentUpon>frmChangeDates.cs</DependentUpon>
     </Compile>
+    <Compile Include="frmPriorityDates.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmPriorityDates.Designer.cs">
+      <DependentUpon>frmPriorityDates.cs</DependentUpon>
+    </Compile>
     <Compile Include="frmPublicHolidays.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -243,6 +249,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="frmChangeDates.resx">
       <DependentUpon>frmChangeDates.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="frmPriorityDates.resx">
+      <DependentUpon>frmPriorityDates.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="frmPublicHolidays.resx">
       <DependentUpon>frmPublicHolidays.cs</DependentUpon>
