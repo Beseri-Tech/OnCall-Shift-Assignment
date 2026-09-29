@@ -52,6 +52,95 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Excluded_officers_drop_out_of_the_rota_and_clinics_can_be_removed()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        var (people, period) = await SeedAsync(admin, 4);
+
+        var clinicId = await Read<Guid>(await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("KP Beseri", "Kangar")));
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("kp beseri", "Kangar"))).StatusCode);
+
+        var target = people[0];
+        var url = $"/api/admin/people/{target.Id}";
+        // A reason is required when someone isn't on call.
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync(url,
+            new UpsertPersonRequest(target.Name, target.Code, OfficerStatus.Excluded), ApiFixture.Json)).StatusCode);
+        (await admin.PutAsJsonAsync(url, new UpsertPersonRequest(target.Name, target.Code, OfficerStatus.Excluded,
+            StatusReason: "CUTI BERSALIN", ExcludedUntil: new DateOnly(2027, 1, 1), ClinicId: clinicId, Phone: "012-3456789"),
+            ApiFixture.Json)).EnsureSuccessStatusCode();
+
+        var saved = (await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"))).Single(p => p.Id == target.Id);
+        Assert.Equal((OfficerStatus.Excluded, "CUTI BERSALIN", "KP Beseri", "Kangar", "012-3456789"),
+            (saved.Status, saved.StatusReason, saved.ClinicName, saved.Area, saved.Phone));
+
+        var anon = app.CreateClient();
+        Assert.DoesNotContain(await Read<List<PersonSummaryDto>>(await anon.GetAsync("/api/people")), p => p.Id == target.Id);
+
+        (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
+        var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(1)));
+        Assert.DoesNotContain(run.Days, d => d.PersonId == target.Id);
+
+        // Back on call clears the reason; deleting the clinic unsets it.
+        (await admin.PutAsJsonAsync(url, new UpsertPersonRequest(target.Name, target.Code, ClinicId: clinicId), ApiFixture.Json))
+            .EnsureSuccessStatusCode();
+        (await admin.DeleteAsync($"/api/admin/clinics/{clinicId}")).EnsureSuccessStatusCode();
+        saved = (await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"))).Single(p => p.Id == target.Id);
+        Assert.Equal((OfficerStatus.OnCall, null, null), (saved.Status, saved.StatusReason, saved.ClinicId));
+        Assert.Contains(await Read<List<PersonSummaryDto>>(await anon.GetAsync("/api/people")), p => p.Id == target.Id);
+    }
+
+    [Fact]
+    public async Task Leave_limits_points_top_ups_day_caps_and_peak_days()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        var (people, period) = await SeedAsync(admin, 10);   // Oct 2026: 9 weekend days -> 3 points; caps 3 (busy) / 5 (weekday)
+        var user = app.CreateClient();
+        Task<HttpResponseMessage> Save(int who, params int[] days) =>
+            user.PutAsJsonAsync($"/api/people/{people[who].Id}/entries?periodId={period.Id}",
+                new EntriesDto(days.Select(d => new LeaveEntryDto(new DateOnly(2026, 10, d), null)).ToList(), []), ApiFixture.Json);
+
+        // Four weekend days cost 4 points; only 3 are available until the admin tops up.
+        var refused = await Save(0, 3, 4, 10, 11);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("Not enough points: 4 needed, 3 available", await refused.Content.ReadAsStringAsync());
+        (await admin.PutAsJsonAsync($"/api/admin/periods/{period.Id}/points/{people[0].Id}", new PointGrantRequest(1, "Outstation")))
+            .EnsureSuccessStatusCode();
+        (await Save(0, 3, 4, 10, 11)).EnsureSuccessStatusCode();
+
+        // 17 Oct fills up after 3 officers; the 4th is refused, but the others can still re-save.
+        foreach (var who in new[] { 1, 2, 3 }) (await Save(who, 17)).EnsureSuccessStatusCode();
+        var full = await Save(4, 17);
+        Assert.Equal(HttpStatusCode.BadRequest, full.StatusCode);
+        Assert.Contains("Already full", await full.Content.ReadAsStringAsync());
+        (await Save(1, 17)).EnsureSuccessStatusCode();
+
+        // Two officers racing for the last spot on 24 Oct (2 already off, cap 3): exactly one gets it.
+        foreach (var who in new[] { 6, 7 }) (await Save(who, 24)).EnsureSuccessStatusCode();
+        var race = await Task.WhenAll(Save(8, 24), Save(9, 24));
+        Assert.Single(race, r => r.IsSuccessStatusCode);
+        Assert.Single(race, r => r.StatusCode == HttpStatusCode.BadRequest);
+
+        var rules = await Read<LeaveRulesDto>(await user.GetAsync($"/api/periods/{period.Id}/leave-rules?personId={people[4].Id}"));
+        Assert.Equal((3, 0, 3, 5, 10), (rules.Budget, rules.Extra, rules.BusyDayCap, rules.WeekdayCap, rules.OnCall));
+        Assert.Equal(3, rules.OthersOff[new DateOnly(2026, 10, 17)]);
+
+        // A peak weekday costs a point but is not a weekend shift for the rota.
+        (await admin.PutAsJsonAsync("/api/admin/peak-days", new UpsertHolidayRequest(new DateOnly(2026, 10, 7), "Eve of Deepavali")))
+            .EnsureSuccessStatusCode();
+        (await Save(5, 7)).EnsureSuccessStatusCode();
+        var points = await Read<List<PointsRowDto>>(await admin.GetAsync($"/api/admin/periods/{period.Id}/points"));
+        Assert.Equal((1, 0), (points.Single(p => p.PersonId == people[5].Id).PointsUsed, points.Single(p => p.PersonId == people[5].Id).WeekdaysUsed));
+        Assert.Equal((4, 3, 1, "Outstation"), points.Where(p => p.PersonId == people[0].Id).Select(p => (p.PointsUsed, p.Budget, p.Extra, p.Reason)).Single());
+
+        (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
+        var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(1)));
+        Assert.False(run.Days.Single(d => d.Date == new DateOnly(2026, 10, 7)).IsWeekendHoliday);
+    }
+
+    [Fact]
     public async Task Leave_can_be_saved_while_open_and_is_refused_after_lock_or_outside_the_period()
     {
         await using var app = fixture.CreateApp();

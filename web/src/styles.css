@@ -8,6 +8,7 @@
   --pref-text: #1e3a8a;
   --weekend-bg: #f1f5f9;
   --holiday-text: #15803d;
+  --peak-text: #c2410c;
   --grid-line: #e2e8f0;
 }
 
@@ -118,6 +119,26 @@ body {
   color: var(--holiday-text);
 }
 
+.day-peak .day-num {
+  color: var(--peak-text);
+}
+
+.day-peak::after {
+  content: 'PEAK';
+  position: absolute;
+  right: 4px;
+  top: 3px;
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--peak-text);
+}
+
+/* Leave cap reached: still clickable for preferred days, but leave can't be added. */
+.day-full {
+  background: repeating-linear-gradient(135deg, #f1f5f9 0 4px, #e2e8f0 4px 8px);
+  color: #94a3b8;
+}
+
 .day-leave {
   background: var(--leave-bg);
   border-color: var(--leave-border);
@@ -162,16 +183,31 @@ body {
 
 .sheet-wrap {
   overflow: auto;
-  max-height: calc(100vh - 220px);
+  max-height: calc(100vh - 230px);
   border: 1px solid var(--grid-line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: white;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
 }
 
 .sheet {
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 12px;
+  font-size: 13px;
+}
+
+/* Month view: stretch to the full width instead of scrolling sideways. */
+.sheet-fit {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.sheet col.name-w {
+  width: 210px;
+}
+
+.sheet col.off-w {
+  width: 56px;
 }
 
 .sheet th,
@@ -180,8 +216,8 @@ body {
   border-bottom: 1px solid var(--grid-line);
   padding: 0;
   text-align: center;
-  min-width: 26px;
-  height: 26px;
+  min-width: 32px;
+  height: 38px;
 }
 
 .sheet thead th {
@@ -193,8 +229,32 @@ body {
   color: #334155;
 }
 
+.sheet .month-head {
+  height: 32px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
 .sheet thead tr:nth-child(2) th {
-  top: 26px;
+  top: 32px;
+  height: 44px;
+}
+
+.sheet .day-head .dow,
+.sheet .day-head .dnum {
+  display: block;
+  line-height: 1.15;
+}
+
+.sheet .day-head .dow {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.sheet .day-head .dnum {
+  font-size: 14px;
 }
 
 .sheet .name-col {
@@ -203,17 +263,58 @@ body {
   z-index: 1;
   background: white;
   text-align: left;
-  padding: 0 10px;
-  min-width: 240px;
-  max-width: 280px;
+  padding: 0 12px;
+  min-width: 210px;
+  max-width: 210px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
+  box-shadow: 1px 0 0 var(--grid-line);
+}
+
+.sheet .name-col .pname,
+.sheet .name-col .pcode {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.sheet .name-col .pcode {
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.sheet .name-col.empty {
+  text-align: center;
+  color: #94a3b8;
+  font-weight: 500;
+  height: 64px;
 }
 
 .sheet thead .name-col {
   z-index: 3;
+  background: #f8fafc;
+}
+
+.sheet .off-col {
+  font-weight: 800;
+  color: var(--leave-text);
+  background: #fafafa;
+}
+
+.sheet .off-col.zero {
+  color: #cbd5e1;
+}
+
+.sheet thead .off-col {
+  color: #334155;
+  background: #f8fafc;
+}
+
+.sheet tbody tr:hover td:not(.cell-leave):not(.cell-pref) {
   background: #f8fafc;
 }
 
@@ -222,6 +323,8 @@ body {
   bottom: 0;
   background: #f8fafc;
   font-weight: 700;
+  height: 36px;
+  border-top: 2px solid var(--grid-line);
 }
 
 .sheet .wk {
@@ -232,7 +335,8 @@ body {
   background: #e2e8f0;
 }
 
-.sheet .ph {
+.sheet .ph,
+.sheet .ph .dow {
   color: var(--holiday-text);
 }
 

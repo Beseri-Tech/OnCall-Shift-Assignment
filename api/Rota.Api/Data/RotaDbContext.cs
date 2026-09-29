@@ -6,8 +6,11 @@ namespace Rota.Api.Data;
 public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbContext(options), IDataProtectionKeyContext
 {
     public DbSet<Person> People => Set<Person>();
+    public DbSet<Clinic> Clinics => Set<Clinic>();
     public DbSet<RotaPeriod> Periods => Set<RotaPeriod>();
     public DbSet<PublicHoliday> Holidays => Set<PublicHoliday>();
+    public DbSet<PeakDay> PeakDays => Set<PeakDay>();
+    public DbSet<PointGrant> PointGrants => Set<PointGrant>();
     public DbSet<LeaveDay> LeaveDays => Set<LeaveDay>();
     public DbSet<PreferredDate> PreferredDates => Set<PreferredDate>();
     public DbSet<RotaRun> Runs => Set<RotaRun>();
@@ -26,8 +29,20 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasIndex(p => p.Name).IsUnique();
             e.Property(p => p.Code).HasMaxLength(32);
             e.Property(p => p.Name).HasMaxLength(200);
+            e.Property(p => p.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(p => p.StatusReason).HasMaxLength(200);
+            e.Property(p => p.Phone).HasMaxLength(32);
+            e.HasOne(p => p.Clinic).WithMany().HasForeignKey(p => p.ClinicId).OnDelete(DeleteBehavior.SetNull);
             e.HasMany(p => p.Leave).WithOne().HasForeignKey(l => l.PersonId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(p => p.PreferredDates).WithOne().HasForeignKey(p => p.PersonId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Clinic>(e =>
+        {
+            e.ToTable("clinics");
+            e.HasIndex(c => c.Name).IsUnique();
+            e.Property(c => c.Name).HasMaxLength(100);
+            e.Property(c => c.Area).HasMaxLength(50);
         });
 
         b.Entity<RotaPeriod>(e =>
@@ -43,6 +58,22 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.ToTable("public_holidays");
             e.HasKey(h => h.Date);
             e.Property(h => h.Name).HasMaxLength(100);
+        });
+
+        b.Entity<PeakDay>(e =>
+        {
+            e.ToTable("peak_days");
+            e.HasKey(h => h.Date);
+            e.Property(h => h.Name).HasMaxLength(100);
+        });
+
+        b.Entity<PointGrant>(e =>
+        {
+            e.ToTable("point_grants");
+            e.HasKey(g => new { g.PeriodId, g.PersonId });
+            e.Property(g => g.Reason).HasMaxLength(200);
+            e.HasOne<RotaPeriod>().WithMany().HasForeignKey(g => g.PeriodId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Person>().WithMany().HasForeignKey(g => g.PersonId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<LeaveDay>(e =>

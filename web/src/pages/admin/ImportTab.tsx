@@ -29,7 +29,7 @@ export function ImportTab() {
 
 function usePeopleOptions() {
   const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people })
-  return useMemo(() => (people.data ?? []).filter(p => p.active).map(p => ({ value: p.id, label: `${p.name} (${p.code})` })), [people.data])
+  return useMemo(() => (people.data ?? []).filter(p => p.status === 'OnCall').map(p => ({ value: p.id, label: `${p.name} (${p.code})` })), [people.data])
 }
 
 function LeaveImport() {
@@ -192,7 +192,7 @@ function OpeningImport() {
       {preview && (
         <Stack gap="sm" mt="md">
           {preview.peopleWithoutRow.length > 0 && (
-            <Alert color="yellow" title={`${preview.peopleWithoutRow.length} active people are not in the sheet`}>
+            <Alert color="yellow" title={`${preview.peopleWithoutRow.length} on-call officers are not in the sheet`}>
               <Text size="sm">{preview.peopleWithoutRow.join(', ')}. They keep their current opening numbers.</Text>
             </Alert>
           )}

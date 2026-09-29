@@ -5,11 +5,12 @@ export type IsoDate = string
 export type PeriodStatus = 'Open' | 'Locked' | 'Published'
 export type NameMatchType = 'None' | 'Fuzzy' | 'Exact'
 export type ImportAction = 'Match' | 'New' | 'Skip'
+export type OfficerStatus = 'OnCall' | 'Excluded' | 'Left'
 
 export interface Totals { total: number; weekday: number; weekendHoliday: number }
 export interface Period {
   id: string; name: string; startDate: IsoDate; endDate: IsoDate; leaveDeadline: IsoDate | null
-  status: PeriodStatus; isEditable: boolean
+  status: PeriodStatus; isEditable: boolean; pointsBudget: number | null
 }
 export interface Holiday { date: IsoDate; name: string }
 export interface LeaveEntry { date: IsoDate; note: string | null }
@@ -28,16 +29,33 @@ export interface Overview { period: Period; days: OverviewDay[]; people: Overvie
 export interface PublishedRota { period: Period; runId: string; days: RotaDay[] }
 
 export interface AdminPerson {
-  id: string; code: string; name: string; active: boolean; sortOrder: number
+  id: string; code: string; name: string; status: OfficerStatus; statusReason: string | null; excludedUntil: IsoDate | null
+  clinicId: string | null; clinicName: string | null; area: string | null; phone: string | null; sortOrder: number
   extraShift: boolean; preferWeekendHoliday: boolean; weekendWeight: number
   openingTotal: number | null; openingWeekday: number | null; openingWeekendHoliday: number | null
   totals: Totals; totalsKnown: boolean
 }
 export interface UpsertPerson {
-  name: string; code: string | null; active: boolean; extraShift: boolean; preferWeekendHoliday: boolean
+  name: string; code: string | null; status: OfficerStatus; extraShift: boolean; preferWeekendHoliday: boolean
   weekendWeight: number; openingTotal: number | null; openingWeekday: number | null; openingWeekendHoliday: number | null
+  statusReason: string | null; excludedUntil: IsoDate | null; clinicId: string | null; phone: string | null
 }
-export interface UpsertPeriod { name: string; startDate: IsoDate; endDate: IsoDate; leaveDeadline: IsoDate | null }
+export interface Clinic { id: string; name: string; area: string; people: number }
+export interface UpsertClinic { name: string; area: string }
+export interface UpsertPeriod {
+  name: string; startDate: IsoDate; endDate: IsoDate; leaveDeadline: IsoDate | null; pointsBudget: number | null
+}
+/** Leave limits for one officer in one period; budget excludes the admin's extra points. */
+export interface LeaveRules {
+  budget: number; extra: number; extraReason: string | null; weekdayAllowance: number
+  busyDayCap: number; weekdayCap: number; onCall: number
+  weekendCost: number; holidayCost: number; peakCost: number
+  peaks: Holiday[]; othersOff: Record<IsoDate, number>
+}
+export interface PointsRow {
+  personId: string; code: string; name: string; pointsUsed: number; budget: number; extra: number; reason: string | null
+  weekdaysUsed: number; weekdayAllowance: number
+}
 
 export interface Run {
   id: string; periodId: string; createdAt: string; seed: number; isPublished: boolean
@@ -117,6 +135,7 @@ export const api = {
   parse: (text: string, reference: IsoDate) => post<ParseResponse>('/api/leave/parse', { text, reference }),
   overview: (periodId: string) => get<Overview>(`/api/periods/${periodId}/overview`),
   rota: (periodId: string) => get<PublishedRota>(`/api/periods/${periodId}/rota`),
+  leaveRules: (periodId: string, personId: string) => get<LeaveRules>(`/api/periods/${periodId}/leave-rules${q({ personId })}`),
 
   admin: {
     login: (password: string) => post<void>('/api/admin/login', { password }),
@@ -130,12 +149,24 @@ export const api = {
     deletePerson: (id: string) => del<void>(`/api/admin/people/${id}`),
     reorder: (ids: string[]) => post<void>('/api/admin/people/reorder', { ids }),
 
+    clinics: () => get<Clinic[]>('/api/admin/clinics'),
+    createClinic: (c: UpsertClinic) => post<string>('/api/admin/clinics', c),
+    updateClinic: (id: string, c: UpsertClinic) => put<void>(`/api/admin/clinics/${id}`, c),
+    deleteClinic: (id: string) => del<void>(`/api/admin/clinics/${id}`),
+
     periods: () => get<Period[]>('/api/admin/periods'),
     createPeriod: (p: UpsertPeriod) => post<Period>('/api/admin/periods', p),
     updatePeriod: (id: string, p: UpsertPeriod) => put<Period>(`/api/admin/periods/${id}`, p),
     deletePeriod: (id: string) => del<void>(`/api/admin/periods/${id}`),
     lock: (id: string) => post<Period>(`/api/admin/periods/${id}/lock`),
     unlock: (id: string) => post<Period>(`/api/admin/periods/${id}/unlock`),
+    points: (id: string) => get<PointsRow[]>(`/api/admin/periods/${id}/points`),
+    grantPoints: (id: string, personId: string, points: number, reason: string | null) =>
+      put<void>(`/api/admin/periods/${id}/points/${personId}`, { points, reason }),
+
+    peakDays: () => get<Holiday[]>('/api/admin/peak-days'),
+    upsertPeakDay: (h: Holiday) => put<void>('/api/admin/peak-days', h),
+    deletePeakDay: (date: IsoDate) => del<void>(`/api/admin/peak-days/${date}`),
 
     upsertHoliday: (h: Holiday) => put<void>('/api/admin/holidays', h),
     bulkHolidays: (text: string, reference: IsoDate, name: string) =>

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Rota.Api.Data;
@@ -12,9 +13,11 @@ using Rota.Api.Data;
 namespace Rota.Api.Data.Migrations
 {
     [DbContext(typeof(RotaDbContext))]
-    partial class RotaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260929155330_OfficerStatusAndClinics")]
+    partial class OfficerStatusAndClinics
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -120,21 +123,6 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("leave_days", (string)null);
                 });
 
-            modelBuilder.Entity("Rota.Api.Data.PeakDay", b =>
-                {
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.HasKey("Date");
-
-                    b.ToTable("peak_days", (string)null);
-                });
-
             modelBuilder.Entity("Rota.Api.Data.Person", b =>
                 {
                     b.Property<Guid>("Id")
@@ -210,28 +198,6 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("people", (string)null);
                 });
 
-            modelBuilder.Entity("Rota.Api.Data.PointGrant", b =>
-                {
-                    b.Property<Guid>("PeriodId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("PersonId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Points")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Reason")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("PeriodId", "PersonId");
-
-                    b.HasIndex("PersonId");
-
-                    b.ToTable("point_grants", (string)null);
-                });
-
             modelBuilder.Entity("Rota.Api.Data.PreferredDate", b =>
                 {
                     b.Property<Guid>("PersonId")
@@ -279,9 +245,6 @@ namespace Rota.Api.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<int?>("PointsBudget")
-                        .HasColumnType("integer");
 
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date");
@@ -375,21 +338,6 @@ namespace Rota.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Clinic");
-                });
-
-            modelBuilder.Entity("Rota.Api.Data.PointGrant", b =>
-                {
-                    b.HasOne("Rota.Api.Data.RotaPeriod", null)
-                        .WithMany()
-                        .HasForeignKey("PeriodId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Rota.Api.Data.Person", null)
-                        .WithMany()
-                        .HasForeignKey("PersonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Rota.Api.Data.PreferredDate", b =>

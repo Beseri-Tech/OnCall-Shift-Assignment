@@ -36,7 +36,7 @@ public static class AdminImportEndpoints
                 return Results.Problem($"Could not read the leave sheet: {ex.Message}", statusCode: StatusCodes.Status400BadRequest);
             }
 
-            var people = await db.People.Where(p => p.Active).ToListAsync(ct);
+            var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall).ToListAsync(ct);
             var matches = NameMatcher.MatchAll(sheet.Rows.Select(r => r.RawName).ToList(), people, p => p.Name);
 
             var rows = sheet.Rows.Select((r, i) =>
@@ -143,7 +143,7 @@ public static class AdminImportEndpoints
                 return Results.Problem($"Could not read the history sheet: {ex.Message}", statusCode: StatusCodes.Status400BadRequest);
             }
 
-            var people = await db.People.Where(p => p.Active).ToListAsync(ct);
+            var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall).ToListAsync(ct);
             var matches = NameMatcher.MatchAll(sheetRows.Select(r => r.Name).ToList(), people, p => p.Name);
             var rows = sheetRows.Select((r, i) =>
                 new OpeningImportRow(r.Name, r.WeekendHolidayShifts, matches[i].Match?.Id, matches[i].Match?.Name, matches[i].Type)).ToList();

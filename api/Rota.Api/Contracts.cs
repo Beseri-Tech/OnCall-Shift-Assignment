@@ -9,7 +9,7 @@ public sealed record TotalsDto(int Total, int Weekday, int WeekendHoliday);
 
 public sealed record PeriodDto(
     Guid Id, string Name, DateOnly StartDate, DateOnly EndDate, DateOnly? LeaveDeadline,
-    PeriodStatus Status, bool IsEditable);
+    PeriodStatus Status, bool IsEditable, int? PointsBudget);
 
 public sealed record HolidayDto(DateOnly Date, string Name);
 
@@ -44,20 +44,37 @@ public sealed record PublishedRotaDto(PeriodDto Period, Guid RunId, IReadOnlyLis
 public sealed record LoginRequest(string Password);
 
 public sealed record AdminPersonDto(
-    Guid Id, string Code, string Name, bool Active, int SortOrder,
+    Guid Id, string Code, string Name, OfficerStatus Status, string? StatusReason, DateOnly? ExcludedUntil,
+    Guid? ClinicId, string? ClinicName, string? Area, string? Phone, int SortOrder,
     bool ExtraShift, bool PreferWeekendHoliday, int WeekendWeight,
     int? OpeningTotal, int? OpeningWeekday, int? OpeningWeekendHoliday,
     TotalsDto Totals, bool TotalsKnown);
 
 public sealed record UpsertPersonRequest(
-    string Name, string? Code, bool Active = true, bool ExtraShift = false, bool PreferWeekendHoliday = false,
-    int WeekendWeight = 1, int? OpeningTotal = null, int? OpeningWeekday = null, int? OpeningWeekendHoliday = null);
+    string Name, string? Code, OfficerStatus Status = OfficerStatus.OnCall, bool ExtraShift = false, bool PreferWeekendHoliday = false,
+    int WeekendWeight = 1, int? OpeningTotal = null, int? OpeningWeekday = null, int? OpeningWeekendHoliday = null,
+    string? StatusReason = null, DateOnly? ExcludedUntil = null, Guid? ClinicId = null, string? Phone = null);
+
+public sealed record ClinicDto(Guid Id, string Name, string Area, int People);
+
+public sealed record UpsertClinicRequest(string Name, string Area);
 
 public sealed record BulkAddRequest(string Names);
 
 public sealed record ReorderRequest(IReadOnlyList<Guid> Ids);
 
-public sealed record UpsertPeriodRequest(string Name, DateOnly StartDate, DateOnly EndDate, DateOnly? LeaveDeadline);
+public sealed record UpsertPeriodRequest(string Name, DateOnly StartDate, DateOnly EndDate, DateOnly? LeaveDeadline, int? PointsBudget = null);
+
+/// <summary>Leave limits for one officer in one period. Budget excludes Extra (admin top-up).</summary>
+public sealed record LeaveRulesDto(
+    int Budget, int Extra, string? ExtraReason, int WeekdayAllowance, int BusyDayCap, int WeekdayCap, int OnCall,
+    int WeekendCost, int HolidayCost, int PeakCost, IReadOnlyList<HolidayDto> Peaks, IReadOnlyDictionary<DateOnly, int> OthersOff);
+
+public sealed record PointsRowDto(
+    Guid PersonId, string Code, string Name, int PointsUsed, int Budget, int Extra, string? Reason,
+    int WeekdaysUsed, int WeekdayAllowance);
+
+public sealed record PointGrantRequest(int Points, string? Reason);
 
 public sealed record UpsertHolidayRequest(DateOnly Date, string Name);
 

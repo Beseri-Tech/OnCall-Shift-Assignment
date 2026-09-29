@@ -15,7 +15,7 @@ public static class PublicEndpoints
         var api = app.MapGroup("/api").WithTags("Public");
 
         api.MapGet("/people", async (RotaDbContext db, CancellationToken ct) =>
-            await db.People.Where(p => p.Active)
+            await db.People.Where(p => p.Status == OfficerStatus.OnCall)
                 .OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
                 .Select(p => new PersonSummaryDto(p.Id, p.Code, p.Name))
                 .ToListAsync(ct));
@@ -53,12 +53,26 @@ public static class PublicEndpoints
             return Results.Ok(await LoadEntriesAsync(db, id, period, ct));
         });
 
+        api.MapGet("/periods/{id:guid}/leave-rules", async (Guid id, Guid personId, RotaDbContext db, LeaveLimits limits,
+            CancellationToken ct) =>
+        {
+            var period = await db.Periods.FindAsync([id], ct);
+            if (period is null) return Results.NotFound();
+
+            var rules = await LeaveRules.LoadAsync(db, limits, period, ct);
+            var grant = rules.Grants.GetValueOrDefault(personId);
+            return Results.Ok(new LeaveRulesDto(
+                rules.BaseBudget, grant?.Points ?? 0, grant?.Reason, rules.Policy.WeekdayAllowance,
+                rules.Policy.BusyDayCap(rules.OnCall), rules.Policy.WeekdayCap(rules.OnCall), rules.OnCall, limits.WeekendCost, limits.HolidayCost, limits.PeakCost,
+                rules.Peaks.Select(p => new HolidayDto(p.Date, p.Name)).ToList(), rules.OthersOff(personId)));
+        });
+
         api.MapPut("/people/{id:guid}/entries", async (Guid id, Guid periodId, EntriesDto body, RotaDbContext db,
-            LocalClock clock, HttpContext http, CancellationToken ct) =>
+            LocalClock clock, LeaveLimits limits, HttpContext http, CancellationToken ct) =>
         {
             var period = await db.Periods.FindAsync([periodId], ct);
             var person = await db.People.FindAsync([id], ct);
-            if (period is null || person is null || !person.Active) return Results.NotFound();
+            if (period is null || person is null || person.Status != OfficerStatus.OnCall) return Results.NotFound();
 
             if (!period.IsEditable(clock.Today))
                 return Results.Problem(
@@ -79,9 +93,17 @@ public static class PublicEndpoints
                     ["note"] = [$"Notes can be at most {MaxNoteLength} characters."],
                 });
 
-            var before = await LoadEntriesAsync(db, id, period, ct);
-
             await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+            // One save per period at a time (released on commit/rollback), so two officers can't both take the last spot on a day.
+            await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({period.Id.ToString()}, 0))", ct);
+
+            // Read after the lock so we see what the previous save just committed.
+            var before = await LoadEntriesAsync(db, id, period, ct);
+            var rules = await LeaveRules.LoadAsync(db, limits, period, ct);
+            var limitErrors = rules.Validate(id, before.Leave.Select(l => l.Date).ToList(), body.Leave.Select(l => l.Date).Distinct().ToList());
+            if (limitErrors.Count > 0)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["leave"] = [.. limitErrors] });
 
             await db.LeaveDays.Where(l => l.PersonId == id && l.Date >= period.StartDate && l.Date <= period.EndDate)
                 .ExecuteDeleteAsync(ct);
@@ -123,7 +145,7 @@ public static class PublicEndpoints
             if (period is null) return Results.NotFound();
 
             var holidays = await Mapping.HolidaysAsync(db, period.StartDate, period.EndDate, ct);
-            var people = await db.People.Where(p => p.Active)
+            var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall)
                 .OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
                 .Select(p => new
                 {
