@@ -25,7 +25,6 @@ namespace TimeTable_Generator
         public List<Person> people;
         public List<DateTime> publicHolidays;
         public List<DateTime> unassignedDates;
-        public List<DateTime> priorityDates;
         bool Imported = false;  
         public MainPage()
         {
@@ -48,7 +47,7 @@ namespace TimeTable_Generator
 
                 if (result == DialogResult.OK)
                 {
-                    frmAddPerson addPerson = new frmAddPerson(startdate, enddate, people, publicHolidays, unassignedDates, priorityDates);
+                    frmAddPerson addPerson = new frmAddPerson(startdate, enddate, people, publicHolidays, unassignedDates);
                     addPerson.ShowDialog();
                 }
 
@@ -79,7 +78,6 @@ namespace TimeTable_Generator
                 date_end.Value = importedData.EndDate;
                 publicHolidays = importedData.PublicHolidays;
                 unassignedDates = importedData.UnassignedDates;
-                priorityDates = importedData.PriorityDates;
 
 
                 date_start.Invalidate();

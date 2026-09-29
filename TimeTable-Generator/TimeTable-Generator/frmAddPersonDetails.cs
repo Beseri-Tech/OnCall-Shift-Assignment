@@ -137,6 +137,7 @@ namespace TimeTable_Generator
                 }
 
                 newPerson.ExtraShift = checkBox1.Checked;
+                newPerson.PreferWeekendHoliday = chk_weekend.Checked;
 
                 // Add the new person to the people list
                 people.Add(newPerson);

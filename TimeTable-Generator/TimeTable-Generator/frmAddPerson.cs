@@ -24,14 +24,20 @@ namespace TimeTable_Generator
 
         public List<DateTime> publicHolidays;
         public List<DateTime> unassignedShifts;
-        public List<DateTime> priorityDates;
+        private List<string> assignWarnings = new List<string>();
+        private string historySourcePath;
 
         private BackgroundWorker backgroundWorker;
+
+        // Bind through a BindingSource: binding the plain List<Person> while it is empty and adding
+        // people later leaves the grid's position at -1 ("Index -1 does not have a value" on click).
+        private readonly BindingSource peopleBinding = new BindingSource();
         public frmAddPerson(DateTime startDate, DateTime endDate)
         {
             InitializeComponent();
             titleBar1.SetParentForm(this);
             TitleBarPanelStyler.ApplyTitleBarPanelStyle(panel_titlebar, this);
+            TitleBarPanelStyler.EnableMaximize(panel_titlebar, this, new System.Drawing.Size(1280, 800));
 
             StartDate = startDate;
             EndDate = endDate;
@@ -39,21 +45,20 @@ namespace TimeTable_Generator
             people = new List<Person>();
             publicHolidays = new List<DateTime>();
             unassignedShifts = new List<DateTime>();
-            priorityDates = new List<DateTime>();
             dataGridView1.AutoGenerateColumns = false;
             this.Shown += FrmAddPerson_Shown;
         }
-        public frmAddPerson(DateTime startDate, DateTime endDate, List<Person> people, List<DateTime> publicHolidays, List<DateTime> unassignedDates, List<DateTime> prioritydates)
+        public frmAddPerson(DateTime startDate, DateTime endDate, List<Person> people, List<DateTime> publicHolidays, List<DateTime> unassignedDates)
         {
             InitializeComponent();
             titleBar1.SetParentForm(this);
             TitleBarPanelStyler.ApplyTitleBarPanelStyle(panel_titlebar, this);
+            TitleBarPanelStyler.EnableMaximize(panel_titlebar, this, new System.Drawing.Size(1280, 800));
 
             StartDate = startDate;
             EndDate = endDate;
             this.Load += FrmAddPerson_Load;
             this.people = people;           
-            priorityDates = prioritydates ?? new List<DateTime>();
             unassignedShifts = unassignedDates ?? new List<DateTime>();
             this.publicHolidays = publicHolidays ?? new List<DateTime>();
             dataGridView1.AutoGenerateColumns = false;
@@ -80,8 +85,30 @@ namespace TimeTable_Generator
             RefreshDGV();
         }
 
+        private const int EM_SETCUEBANNER = 0x1501;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
+
+        private void flow_toolbar_Resize(object sender, EventArgs e)
+        {
+            // A docked FlowLayoutPanel does not grow when its buttons wrap to a new line;
+            // fit its height to the wrapped content so the header shows every row.
+            int height = flow_toolbar.GetPreferredSize(new System.Drawing.Size(flow_toolbar.Width, 0)).Height;
+            if (flow_toolbar.Height != height)
+                flow_toolbar.Height = height;
+
+            // The header's AutoSize doesn't pick up the child's new height, so set it too.
+            int headerHeight = panel_header.Padding.Vertical + panel_info.Height + flow_toolbar.Height;
+            if (panel_header.Height != headerHeight)
+                panel_header.Height = headerHeight;
+        }
+
         private void FrmAddPerson_Load(object sender, EventArgs e)
         {
+            // Placeholder text in the search box (.NET Framework TextBox has no PlaceholderText).
+            SendMessage(textBox1.Handle, EM_SETCUEBANNER, (IntPtr)1, "Search name…");
+
             // Initialize BackgroundWorker
             backgroundWorker = new BackgroundWorker
             {
@@ -102,15 +129,18 @@ namespace TimeTable_Generator
             dataGridView1.Columns["TotalLeaveDays"].DataPropertyName = "TotalLeaveDays";
             dataGridView1.Columns["weekend"].DataPropertyName = "PreferWeekendHoliday";
             dataGridView1.Columns["preferred_date"].DataPropertyName = "AssignPreferredDate";
+            dataGridView1.Columns["PriorWeekendShifts"].DataPropertyName = "PriorWeekendShifts";
+            dataGridView1.Columns["ExtraShift"].DataPropertyName = "ExtraShift";
+            // Edited as text ("3/10-5/10, 12/10") via CellFormatting/CellParsing.
+            dataGridView1.Columns["LeaveDatesString"].DataPropertyName = "LeaveDates";
+            dataGridView1.Columns["AssignedShiftsString"].DataPropertyName = "AssignedShifts";
 
             RefreshDGV();
         }
 
         private void rjButton2_Click(object sender, EventArgs e)
         {
-            string algorithmVersion = !algo_version_toggle.Checked ? $"Algorithm V2?\n(Weekend and Holidays priority)" : "Algorithm V3\n(Still in Progress. Unstable Algorithm)?";
-
-            var result = MessageBox.Show($"Assign Shifts using {algorithmVersion}",
+            var result = MessageBox.Show("Assign shifts for this rota?",
                 "Information", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
 
             if (result == DialogResult.OK)
@@ -118,6 +148,8 @@ namespace TimeTable_Generator
                 progressBar1.Visible = true;
                 progressBar1.Value = 0; // Reset progress bar
                 btn_assign.Enabled = false;
+                dataGridView1.EndEdit();
+                dataGridView1.Enabled = false; // people are being rewritten on the worker thread
                 // Start background worker
                 backgroundWorker.RunWorkerAsync();
             }
@@ -127,36 +159,20 @@ namespace TimeTable_Generator
         // Event handler for the BackgroundWorker's DoWork event
         private void BackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
         {
-            ShiftsAlgorithmV3 shiftsAlgorithmV3 = new ShiftsAlgorithmV3();
             ShiftsAlgorithmV2 shiftsAlgorithmV2 = new ShiftsAlgorithmV2();
             unassignedShifts = new List<DateTime>();
+            assignWarnings = new List<string>();
 
-            if (algo_version_toggle.Checked)
+            shiftsAlgorithmV2.AssignShifts(people, StartDate, EndDate, publicHolidays, unassignedShifts, assignWarnings, progress =>
             {
-               
-                shiftsAlgorithmV3.AssignShifts(people, StartDate, EndDate, publicHolidays, progress =>
-                {
-                    backgroundWorker.ReportProgress(progress); // Report progress to UI
-                });
-            }
-            else
-            {
-
-                shiftsAlgorithmV2.AssignShifts(people, StartDate, EndDate, publicHolidays, unassignedShifts, priorityDates, progress =>
-                {
-                    backgroundWorker.ReportProgress(progress); // Report progress to UI
-                });
-            }
-
-               
-            
+                backgroundWorker.ReportProgress(progress); // Report progress to UI
+            });
         }
 
         // Event handler for reporting progress
         private void BackgroundWorker_ProgressChanged(object sender, ProgressChangedEventArgs e)
         {
             progressBar1.Value = e.ProgressPercentage;
-            RefreshDGV();
         }
 
         // Event handler for when the background worker completes
@@ -165,10 +181,28 @@ namespace TimeTable_Generator
             // Hide progress bar when work is done
             progressBar1.Visible = false;
             btn_assign.Enabled = true;
+            dataGridView1.Enabled = true;
 
             // Refresh the DataGridView or perform other tasks
             RefreshDGV();
             ShiftCount();
+
+            if (e.Error != null)
+            {
+                MessageBox.Show($"Shift assignment failed: {e.Error.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (assignWarnings.Count > 0)
+            {
+                const int maxLines = 25;
+                var lines = assignWarnings.Take(maxLines).ToList();
+                if (assignWarnings.Count > maxLines)
+                    lines.Add($"...and {assignWarnings.Count - maxLines} more.");
+
+                MessageBox.Show(string.Join(Environment.NewLine, lines), "Assignment Summary",
+                    MessageBoxButtons.OK, unassignedShifts.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            }
         }
 
         private void btn_continue_Click(object sender, EventArgs e)
@@ -180,10 +214,21 @@ namespace TimeTable_Generator
 
         private void RefreshDGV()
         {
-            label_date.Text = $"Creating Timetable From {StartDate.ToString("d")} to {EndDate.ToString("d")}";
+            label_date.Text = $"Rota  {StartDate:d MMM yyyy} – {EndDate:d MMM yyyy}";
 
-            dataGridView1.DataSource = null;
-            dataGridView1.DataSource = people;
+            if (dataGridView1.IsCurrentCellInEditMode)
+                dataGridView1.EndEdit();
+
+            if (!ReferenceEquals(peopleBinding.DataSource, people))
+            {
+                peopleBinding.DataSource = people;
+                dataGridView1.DataSource = peopleBinding;
+            }
+            else
+            {
+                peopleBinding.ResetBindings(false);
+            }
+
             int rowcount = dataGridView1.Rows.Count;
             int holidayscount = 0;
             if (publicHolidays != null)
@@ -192,8 +237,8 @@ namespace TimeTable_Generator
             }
             
 
-            label_total.Text = $"Total No of Person : {rowcount.ToString()}";
-            label_holidays.Text = $"Total No of Holidays : {holidayscount.ToString()}";
+            label_total.Text = $"People  {rowcount}";
+            label_holidays.Text = $"Holidays  {holidayscount}";
 
             List<DateTime> allDates = GetAllDates(StartDate, EndDate);
 
@@ -203,24 +248,128 @@ namespace TimeTable_Generator
                 shiftcounts = allDates.Count;
             
 
-            label_shift_total.Text = $"Total Shifts : {shiftcounts.ToString()}";
+            label_shift_total.Text = $"Shifts  {shiftcounts}";
 
             int shiftassigned = 0;
             foreach(DataGridViewRow row in dataGridView1.Rows)
             {
                 shiftassigned += (Convert.ToInt32(row.Cells["WeekdayShifts"].Value)) + (Convert.ToInt32(row.Cells["WeekendShifts"].Value));
-                if (Convert.ToBoolean(row.Cells["weekend"].Value) == true)
-                {
-                    row.DefaultCellStyle.BackColor = System.Drawing.Color.YellowGreen;
-                }
-                if (Convert.ToBoolean(row.Cells["preferred_date"].Value) == true)
-                {
-                    row.DefaultCellStyle.BackColor = System.Drawing.Color.MediumSlateBlue;
-                }
+                ColorRow(row);
             }
 
-            label_shift_assign.Text = $"Total Shifts Assigned: {shiftassigned.ToString()}";
+            label_shift_assign.Text = $"Assigned  {shiftassigned}";
             ShiftCount();
+        }
+
+        private void ColorRow(DataGridViewRow row)
+        {
+            var person = row.DataBoundItem as Person;
+            if (person == null) return;
+
+            if (person.AssignPreferredDate)
+                row.DefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(224, 231, 255); // preferred dates
+            else if (person.PreferWeekendHoliday)
+                row.DefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(220, 252, 231); // weekend preference
+            else
+                row.DefaultCellStyle.BackColor = System.Drawing.Color.Empty;
+        }
+
+        // ---------------- IN-PLACE EDITING ----------------
+
+        private string ColumnName(int columnIndex) => dataGridView1.Columns[columnIndex].Name;
+
+        private void dataGridView1_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            string column = ColumnName(e.ColumnIndex);
+            if (e.RowIndex < 0 || (column != "LeaveDatesString" && column != "AssignedShiftsString")) return;
+
+            e.Value = LeaveSheetParser.FormatDateList(e.Value as List<DateTime>, StartDate);
+            e.FormattingApplied = true;
+        }
+
+        private void dataGridView1_CellValidating(object sender, DataGridViewCellValidatingEventArgs e)
+        {
+            if (e.RowIndex < 0 || !dataGridView1.IsCurrentCellInEditMode) return;
+
+            var person = dataGridView1.Rows[e.RowIndex].DataBoundItem as Person;
+            string text = Convert.ToString(e.FormattedValue).Trim();
+            string error = null;
+
+            switch (ColumnName(e.ColumnIndex))
+            {
+                case "PersonName":
+                    if (text.Length == 0)
+                        error = "Name cannot be empty.";
+                    else if (people.Any(p => p != person && string.Equals(p.Name, text, StringComparison.OrdinalIgnoreCase)))
+                        error = $"{text} is already in the list.";
+                    break;
+
+                case "PriorWeekendShifts":
+                    if (text.Length > 0 && (!int.TryParse(text, out int prior) || prior < 0))
+                        error = "Prior weekend shifts must be a whole number (or blank to use the group average).";
+                    break;
+
+                case "LeaveDatesString":
+                    LeaveSheetParser.ParseDateList(text, StartDate, out error);
+                    break;
+            }
+
+            if (error != null)
+            {
+                e.Cancel = true;
+                MessageBox.Show(error, "Invalid value", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void dataGridView1_CellParsing(object sender, DataGridViewCellParsingEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            string text = Convert.ToString(e.Value).Trim();
+
+            switch (ColumnName(e.ColumnIndex))
+            {
+                case "PersonName":
+                    e.Value = text;
+                    e.ParsingApplied = true;
+                    break;
+
+                case "PriorWeekendShifts":
+                    e.Value = text.Length == 0 ? (int?)null : int.Parse(text);
+                    e.ParsingApplied = true;
+                    break;
+
+                case "LeaveDatesString":
+                    e.Value = LeaveSheetParser.ParseDateList(text, StartDate, out _) ?? new List<DateTime>();
+                    e.ParsingApplied = true;
+                    break;
+            }
+        }
+
+        private void dataGridView1_CurrentCellDirtyStateChanged(object sender, EventArgs e)
+        {
+            // Commit checkbox clicks immediately instead of when the cell loses focus.
+            if (dataGridView1.IsCurrentCellDirty && dataGridView1.CurrentCell is DataGridViewCheckBoxCell)
+                dataGridView1.CommitEdit(DataGridViewDataErrorContexts.Commit);
+        }
+
+        private void dataGridView1_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+        {
+            int rowIndex = e.RowIndex;
+            // Refresh derived cells (Total Leave, colours) once the edit has fully finished.
+            BeginInvoke((Action)(() =>
+            {
+                if (rowIndex < 0 || rowIndex >= dataGridView1.Rows.Count) return;
+                peopleBinding.ResetItem(rowIndex);
+                ColorRow(dataGridView1.Rows[rowIndex]);
+                ShiftCount();
+            }));
+        }
+
+        private void dataGridView1_DataError(object sender, DataGridViewDataErrorEventArgs e)
+        {
+            e.ThrowException = false;
+            MessageBox.Show($"Could not save that value: {e.Exception?.Message}", "Invalid value",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         private List<DateTime> GetAllDates(DateTime startDate, DateTime endDate)
@@ -286,34 +435,25 @@ namespace TimeTable_Generator
 
         private void dataGridView1_CellMouseDoubleClick(object sender, DataGridViewCellMouseEventArgs e)
         {
-            if (dataGridView1.SelectedCells.Count > 0)
+            // Editable cells are edited in place; double-click a read-only column (or the row header)
+            // to open the full details form.
+            if (e.RowIndex < 0 || (e.ColumnIndex >= 0 && !dataGridView1.Columns[e.ColumnIndex].ReadOnly))
+                return;
+
+            Person personToUpdate = dataGridView1.Rows[e.RowIndex].DataBoundItem as Person;
+            if (personToUpdate == null) return;
+
+            frmAddPersonDetails personDetails = new frmAddPersonDetails(people, personToUpdate);
+            int indexToScroll = e.RowIndex;
+
+            personDetails.FormClosed += (s, args) =>
             {
-                DataGridViewCell cell = dataGridView1.SelectedCells[0];
-                if (cell != null)
-                {
-                    int rowIndex = cell.RowIndex;
-                    DataGridViewRow row = dataGridView1.Rows[rowIndex];
-                    string name = row.Cells["PersonName"].Value.ToString();
+                RefreshDGV();
+                if (indexToScroll < dataGridView1.Rows.Count)
+                    dataGridView1.FirstDisplayedScrollingRowIndex = indexToScroll;
+            };
 
-                    Person personToUpdate = people.FirstOrDefault(p => p.Name == name);
-
-                    if (personToUpdate != null)
-                    {
-                        frmAddPersonDetails personDetails = new frmAddPersonDetails(people, personToUpdate);
-
-                        // Capture rowIndex in a separate variable for safety
-                        int indexToScroll = row.Index;
-
-                        personDetails.FormClosed += (s, args) =>
-                        {
-                            RefreshDGV(); // your existing method
-                            dataGridView1.FirstDisplayedScrollingRowIndex = indexToScroll;
-                        };
-
-                        personDetails.ShowDialog();
-                    }
-                }
-            }
+            personDetails.ShowDialog();
         }
 
 
@@ -357,7 +497,7 @@ namespace TimeTable_Generator
         {
             DataTransferClass dataTransfer = new DataTransferClass();
 
-            dataTransfer.ExportDataToFile(people, StartDate, EndDate, publicHolidays, unassignedShifts, priorityDates);
+            dataTransfer.ExportDataToFile(people, StartDate, EndDate, publicHolidays, unassignedShifts);
         }
 
         private void btn_holidays_Click(object sender, EventArgs e)
@@ -490,11 +630,134 @@ namespace TimeTable_Generator
            
         }
 
-        private void rjButton3_Click(object sender, EventArgs e)
+        private void btn_import_leave_Click(object sender, EventArgs e)
         {
-            frmPriorityDates priorityDatesForm = new frmPriorityDates(priorityDates);
-            priorityDatesForm.FormClosed += Refresh_DGV_On_FormClosed;
-            priorityDatesForm.ShowDialog();
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "Excel files (*.xlsx)|*.xlsx";
+                dialog.Title = "Select Leave Sheet";
+                if (dialog.ShowDialog() != DialogResult.OK) return;
+
+                LeaveSheet sheet;
+                try
+                {
+                    sheet = LeaveSheetParser.Parse(dialog.FileName, StartDate, EndDate);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not read the leave sheet: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                using (var review = new frmImportLeave(sheet, people, StartDate, EndDate, publicHolidays, unassignedShifts))
+                {
+                    review.ShowDialog();
+                }
+                RefreshDGV();
+            }
+        }
+
+        private void btn_import_history_Click(object sender, EventArgs e)
+        {
+            if (people.Count == 0)
+            {
+                MessageBox.Show("Add people (or import leave) before importing the weekend history.");
+                return;
+            }
+
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "Excel files (*.xlsx)|*.xlsx";
+                dialog.Title = "Select Weekend/Public Holiday History Sheet";
+                if (dialog.ShowDialog() != DialogResult.OK) return;
+
+                HistoryImportResult result;
+                try
+                {
+                    result = WeekendHistoryExcel.Import(dialog.FileName, people);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not read the history sheet: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                historySourcePath = dialog.FileName;
+                RefreshDGV();
+
+                var lines = new List<string>
+                {
+                    $"Matched {result.Matches.Count} of {people.Count} people " +
+                    $"(average used for the rest: {WeekendHistoryExcel.Average(people):0.#})."
+                };
+
+                var fuzzy = result.Matches.Where(m => m.Type == NameMatchType.Fuzzy).ToList();
+                if (fuzzy.Count > 0)
+                {
+                    lines.Add("");
+                    lines.Add("Fuzzy name matches (please check):");
+                    lines.AddRange(fuzzy.Select(m => $"  {m.RawName}  ->  {m.Person.Name}"));
+                }
+                if (result.WithoutHistory.Count > 0)
+                {
+                    lines.Add("");
+                    lines.Add("No history count (using average):");
+                    lines.AddRange(result.WithoutHistory.Select(n => "  " + n));
+                }
+                if (result.NotInRota.Count > 0)
+                {
+                    lines.Add("");
+                    lines.Add($"{result.NotInRota.Count} name(s) in the sheet are not in this rota.");
+                }
+
+                MessageBox.Show(string.Join(Environment.NewLine, lines), "Weekend History Imported",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void btn_export_history_Click(object sender, EventArgs e)
+        {
+            if (!people.Any(p => p.AssignedShifts != null && p.AssignedShifts.Count > 0))
+            {
+                MessageBox.Show("Assign shifts first - the updated history adds this rota's weekend/holiday shifts.");
+                return;
+            }
+
+            string source = historySourcePath;
+            if (string.IsNullOrEmpty(source) || !System.IO.File.Exists(source))
+            {
+                using (var open = new OpenFileDialog())
+                {
+                    open.Filter = "Excel files (*.xlsx)|*.xlsx";
+                    open.Title = "Select the Current Weekend History Sheet";
+                    if (open.ShowDialog() != DialogResult.OK) return;
+                    source = open.FileName;
+                }
+            }
+
+            using (var save = new SaveFileDialog())
+            {
+                save.Filter = "Excel files (*.xlsx)|*.xlsx";
+                save.Title = "Save Updated Weekend History";
+                save.FileName = $"Oncaller Total Weekend And Public Shift {EndDate:yyyy-MM}.xlsx";
+                if (save.ShowDialog() != DialogResult.OK) return;
+
+                if (string.Equals(System.IO.Path.GetFullPath(save.FileName), System.IO.Path.GetFullPath(source), StringComparison.OrdinalIgnoreCase))
+                {
+                    MessageBox.Show("Please save to a new file so the original history is kept.");
+                    return;
+                }
+
+                try
+                {
+                    WeekendHistoryExcel.ExportUpdated(source, save.FileName, people, EndDate);
+                    MessageBox.Show("Updated weekend history saved to " + save.FileName);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not save the history: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
         }
     }
 }
