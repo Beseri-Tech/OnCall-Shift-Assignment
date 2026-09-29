@@ -25,6 +25,10 @@ namespace TimeTable_Generator
 
         // Optional fine control
         public int WeekendPriorityWeight { get; set; } = 1;
+
+        // Weekend + public holiday shifts done before this rota (from the history sheet).
+        // null = unknown; the algorithm uses the group average instead.
+        public int? PriorWeekendShifts { get; set; }
         public Person(string name)
         {
             Name = name;
