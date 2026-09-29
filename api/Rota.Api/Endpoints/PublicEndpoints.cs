@@ -26,7 +26,7 @@ public static class PublicEndpoints
             if (p is null) return Results.NotFound();
 
             var totals = (await Totals.ForPeopleAsync(db, ct: ct)).GetValueOrDefault(id, PersonTotals.Unknown);
-            return Results.Ok(new PersonProfileDto(p.Id, p.Code, p.Name, totals.ToDto()));
+            return Results.Ok(new PersonProfileDto(p.Id, p.Code, p.Name, totals.ToDto(), totals.Known));
         });
 
         api.MapGet("/periods", async (PeriodStatus? status, RotaDbContext db, LocalClock clock, CancellationToken ct) =>

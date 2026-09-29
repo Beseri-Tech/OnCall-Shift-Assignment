@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Rota.Api.Auth;
@@ -31,6 +32,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<RotaDbContext>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("Rota")
                 ?? throw new InvalidOperationException("ConnectionStrings:Rota is not configured.")));
+
+builder.Services.AddDataProtection()
+    .SetApplicationName("OnCallRota")
+    .PersistKeysToDbContext<RotaDbContext>();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<LocalClock>();

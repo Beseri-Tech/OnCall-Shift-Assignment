@@ -14,7 +14,7 @@ public sealed class ApiFixture : IAsyncLifetime
 {
     public const string AdminPasswordText = "test-admin-password";
 
-    private readonly PostgreSqlContainer _db = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlContainer _db = new PostgreSqlBuilder("postgres:17-alpine").Build();
 
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {

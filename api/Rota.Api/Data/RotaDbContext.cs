@@ -1,8 +1,9 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Rota.Api.Data;
 
-public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbContext(options)
+public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbContext(options), IDataProtectionKeyContext
 {
     public DbSet<Person> People => Set<Person>();
     public DbSet<RotaPeriod> Periods => Set<RotaPeriod>();
@@ -12,6 +13,9 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
     public DbSet<RotaRun> Runs => Set<RotaRun>();
     public DbSet<ShiftAssignment> Assignments => Set<ShiftAssignment>();
     public DbSet<ChangeLog> ChangeLog => Set<ChangeLog>();
+
+    /// <summary>Keys that encrypt the admin cookie; stored here so logins survive redeploys.</summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -70,6 +74,8 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasIndex(a => a.PersonId);
             e.HasOne(a => a.Person).WithMany().HasForeignKey(a => a.PersonId).OnDelete(DeleteBehavior.Restrict);
         });
+
+        b.Entity<DataProtectionKey>().ToTable("data_protection_keys");
 
         b.Entity<ChangeLog>(e =>
         {

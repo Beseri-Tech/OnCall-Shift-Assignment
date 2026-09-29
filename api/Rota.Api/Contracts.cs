@@ -22,7 +22,7 @@ public sealed record RotaDayDto(
 
 public sealed record PersonSummaryDto(Guid Id, string Code, string Name);
 
-public sealed record PersonProfileDto(Guid Id, string Code, string Name, TotalsDto Totals);
+public sealed record PersonProfileDto(Guid Id, string Code, string Name, TotalsDto Totals, bool TotalsKnown);
 
 public sealed record EntriesDto(IReadOnlyList<LeaveEntryDto> Leave, IReadOnlyList<DateOnly> Preferred);
 
