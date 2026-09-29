@@ -1,115 +1,58 @@
 # OnCall Shift Assignment
 
-A powerful tool for creating a balanced on-call schedule, specifically designed for hospital environments. This application automates shift allocation based on the availability of staff, their leave dates, and predefined rules to ensure a fair workload distribution.
+A web app for building a fair on-call rota, designed for hospital teams. Staff enter their leave and preferred on-call days; an admin locks leave, generates a balanced rota, adjusts it and publishes it.
 
-## Features
+The original WinForms desktop app lives on the [`legacy`](../../tree/legacy) branch.
 
-- **Automated Shift Assignment**: Automatically generates shifts based on staff availability and leave schedules.
-- **Balanced Shift Distribution**: Ensures even workload distribution across weekdays, weekends, and public holidays.
-- **Custom Rules**: Customize shift assignments to avoid consecutive shifts, balance weekend work, and ensure fairness.
-- **Public Holiday Management**: Treats public holidays as weekend shifts and integrates them seamlessly into the schedule.
-- **Monthly Shift Balance**: Distributes shifts across months, ensuring no one is overloaded in a single period.
+## How it works
 
-## Installation
+1. **Staff** open the site, pick their name and mark leave (with a note) and preferred on-call days until the period's deadline. No login.
+2. **Admin** (single password) manages people, periods and public holidays, imports leave / opening shift totals from Excel, then locks leave and generates a draft rota. Weekend and public-holiday shifts are balanced, back-to-back shifts avoided.
+3. The admin overrides days if needed (warnings for leave clashes) and **publishes**. Everyone sees the rota, and published shifts count towards each person's running totals. Timetable, totals and leave can be exported to Excel.
 
-### Prerequisites
+## Run with Docker
 
-- [.NET Framework 4.8](https://dotnet.microsoft.com/download/dotnet-framework/net48)
-- No other dependencies required.
+Needs Docker with Compose.
 
-### Steps to Install
+```bash
+cp .env.example .env
+```
 
-1. Clone the repository:
+Generate the admin password hash and paste it into `.env` (keep the single quotes):
 
-    ```bash
-    git clone https://github.com/Beseri-Tech/OnCall-Shift-Assignment.git
-    ```
+```bash
+docker build -t oncall-rota .
+docker run --rm oncall-rota hash-password "your-admin-password"
+```
 
-2. Navigate to the project directory:
+Also set `POSTGRES_PASSWORD` in `.env`, then:
 
-    ```bash
-    cd OnCall-Shift-Assignment
-    ```
+```bash
+docker compose up -d --build
+```
 
-3. Build the project in your IDE (e.g., Visual Studio) or using the .NET CLI:
+The app is at <http://localhost:8080> and the admin page at `/admin`. Database migrations run on startup; data lives in the `pgdata` volume, so back it up. Put a reverse proxy with HTTPS in front for anything beyond a trusted network.
 
-    ```bash
-    dotnet build
-    ```
+| Variable | Purpose | Default |
+|---|---|---|
+| `POSTGRES_PASSWORD` | database password | required |
+| `ADMIN_PASSWORD_HASH` | admin password hash | required |
+| `APP_PORT` | published port | `8080` |
+| `TIME_ZONE` | used for "today" and deadlines | `Asia/Kuala_Lumpur` |
 
-4. Run the program:
+## Develop
 
-    ```bash
-    dotnet run
-    ```
+Needs the .NET 10 SDK, Node 22 and Docker (API tests start a throwaway Postgres via Testcontainers).
 
+```bash
+docker compose up -d db          # Postgres on 127.0.0.1:5432
+cd api && dotnet run --project Rota.Api   # set Database__MigrateOnStartup=true on first run
+cd web && npm ci && npm run dev  # Vite dev server
+dotnet test api/Rota.sln         # tests
+```
 
-### Steps to Install
-
-1. Clone the repository:
-
-    ```bash
-    git clone https://github.com/Beseri-Tech/OnCall-Shift-Assignment.git
-    ```
-
-2. Navigate to the project directory:
-
-    ```bash
-    cd OnCall-Shift-Assignment
-    ```
-
-3. Build the project in your IDE (e.g., Visual Studio) or via the .NET CLI:
-
-    ```bash
-    dotnet build
-    ```
-
-4. Run the program:
-
-    ```bash
-    dotnet run
-    ```
-
-## Usage
-
-1. Launch the application.
-2. Select the dates or import staff and scheduling data from a JSON file.
-3. Continue to the next page to:
-   - Enter person details, leave dates, preferred work dates, and extra shifts.
-   - Add public holidays.
-4. Use the **Assign Shift** or **Reset Shift** functions to generate or adjust the schedule.
-5. Download the timetable in Excel format.
-6. Export data to JSON for future use.
-7. You can also update the dates and reassign shifts as needed.
-
-
-## Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository.
-2. Create a new branch for your feature:
-
-    ```bash
-    git checkout -b feature/your-feature
-    ```
-
-3. Make your changes and commit them:
-
-    ```bash
-    git commit -m "Add feature description"
-    ```
-
-4. Push to your branch:
-
-    ```bash
-    git push origin feature/your-feature
-    ```
-
-5. Open a pull request for your changes.
+Layout: `api/Rota.Core` (rota algorithm, Excel, leave parsing), `api/Rota.Api` (endpoints, EF/Postgres), `web/` (React + Mantine). CI runs tests, lint, build and the Docker image build.
 
 ## License
 
-This project is licensed under the [AGPL-3.0 License](LICENSE.txt).
-
----
+[AGPL-3.0](LICENSE.txt)
