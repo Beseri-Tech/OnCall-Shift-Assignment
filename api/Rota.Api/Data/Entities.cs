@@ -9,7 +9,17 @@ public sealed class Person
     public string Code { get; set; } = "";
 
     public string Name { get; set; } = "";
-    public bool Active { get; set; } = true;
+    public OfficerStatus Status { get; set; } = OfficerStatus.OnCall;
+
+    /// <summary>Why they are excluded / left (e.g. CUTI BERSALIN, PINDAH).</summary>
+    public string? StatusReason { get; set; }
+
+    /// <summary>Expected return for an Excluded officer; informational only (no automatic re-inclusion).</summary>
+    public DateOnly? ExcludedUntil { get; set; }
+
+    public Guid? ClinicId { get; set; }
+    public Clinic? Clinic { get; set; }
+    public string? Phone { get; set; }
     public int SortOrder { get; set; }
 
     public bool ExtraShift { get; set; }
@@ -26,6 +36,25 @@ public sealed class Person
 
     public List<LeaveDay> Leave { get; set; } = [];
     public List<PreferredDate> PreferredDates { get; set; } = [];
+}
+
+public enum OfficerStatus
+{
+    /// <summary>In the rota.</summary>
+    OnCall,
+    /// <summary>Temporarily out of the rota (maternity leave etc.); stays in the list.</summary>
+    Excluded,
+    /// <summary>Moved out / resigned; hidden by default, history kept.</summary>
+    Left,
+}
+
+public sealed class Clinic
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public string Name { get; set; } = "";
+
+    /// <summary>Kawasan the clinic belongs to (e.g. Arau, Kangar).</summary>
+    public string Area { get; set; } = "";
 }
 
 public enum PeriodStatus
@@ -49,6 +78,9 @@ public sealed class RotaPeriod
     public DateOnly? LeaveDeadline { get; set; }
 
     public PeriodStatus Status { get; set; } = PeriodStatus.Open;
+
+    /// <summary>Leave points per officer; null = automatic (share of weekend/public holiday days).</summary>
+    public int? PointsBudget { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public List<RotaRun> Runs { get; set; } = [];
@@ -58,6 +90,22 @@ public sealed class PublicHoliday
 {
     public DateOnly Date { get; set; }
     public string Name { get; set; } = "";
+}
+
+/// <summary>A busy weekday (e.g. the eve of Raya): leave on it costs points. Not a holiday for the rota itself.</summary>
+public sealed class PeakDay
+{
+    public DateOnly Date { get; set; }
+    public string Name { get; set; } = "";
+}
+
+/// <summary>Extra leave points the admin gives one officer for one period (outstation, family matters, ...).</summary>
+public sealed class PointGrant
+{
+    public Guid PeriodId { get; set; }
+    public Guid PersonId { get; set; }
+    public int Points { get; set; }
+    public string? Reason { get; set; }
 }
 
 public sealed class LeaveDay

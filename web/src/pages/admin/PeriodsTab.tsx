@@ -1,14 +1,14 @@
 import {
-  ActionIcon, Button, Group, Menu, Modal, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title,
+  ActionIcon, Button, Group, Menu, Modal, NumberInput, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconCalendarPlus, IconDots, IconDownload, IconEdit, IconLock, IconLockOpen, IconPlus, IconTrash,
+  IconCalendarPlus, IconCoins, IconDeviceFloppy, IconDots, IconDownload, IconEdit, IconLock, IconLockOpen, IconPlus, IconTrash,
 } from '@tabler/icons-react'
 import { useState } from 'react'
-import { api, type IsoDate, type Period, type UpsertPeriod } from '../../api'
+import { api, type IsoDate, type Period, type PointsRow, type UpsertPeriod } from '../../api'
 import { ErrorBox, Loading, StatusBadge } from '../../components/common'
 import { notifyError, notifyOk } from '../../lib'
 import { formatLong, formatWeekday, todayIso } from '../../dates'
@@ -17,7 +17,10 @@ export function PeriodsTab() {
   return (
     <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
       <Periods />
-      <Holidays />
+      <Stack gap="lg">
+        <Holidays />
+        <PeakDays />
+      </Stack>
     </SimpleGrid>
   )
 }
@@ -26,6 +29,7 @@ function Periods() {
   const qc = useQueryClient()
   const periods = useQuery({ queryKey: ['admin', 'periods'], queryFn: api.admin.periods })
   const [editing, setEditing] = useState<{ id: string | null; value: UpsertPeriod } | null>(null)
+  const [pointsFor, setPointsFor] = useState<Period | null>(null)
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['admin', 'periods'] })
@@ -89,6 +93,7 @@ function Periods() {
                         Reopen for leave
                       </Menu.Item>
                     )}
+                    <Menu.Item leftSection={<IconCoins size={16} />} onClick={() => setPointsFor(p)}>Leave points</Menu.Item>
                     <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={api.admin.exports.leave(p.id)}>
                       Leave sheet (Excel)
                     </Menu.Item>
@@ -112,12 +117,80 @@ function Periods() {
       {periods.data!.length === 0 && <Text size="sm" c="dimmed" ta="center" py="md">No periods yet.</Text>}
 
       {editing && <PeriodModal editing={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
+      {pointsFor && <PointsModal period={pointsFor} onClose={() => setPointsFor(null)} />}
     </Paper>
   )
 }
 
 const toUpsert = (p: Period): UpsertPeriod =>
-  ({ name: p.name, startDate: p.startDate, endDate: p.endDate, leaveDeadline: p.leaveDeadline })
+  ({ name: p.name, startDate: p.startDate, endDate: p.endDate, leaveDeadline: p.leaveDeadline, pointsBudget: p.pointsBudget })
+
+/** Who used how many leave points, with per-officer top-ups for this period. */
+function PointsModal({ period, onClose }: { period: Period; onClose: () => void }) {
+  const rows = useQuery({ queryKey: ['admin', 'points', period.id], queryFn: () => api.admin.points(period.id) })
+  return (
+    <Modal opened onClose={onClose} title={`Leave points – ${period.name}`} size="xl">
+      {rows.isLoading && <Loading />}
+      {rows.error && <ErrorBox error={rows.error} />}
+      {rows.data && (
+        <Stack>
+          <Text size="sm" c="dimmed">
+            Everyone gets {rows.data[0]?.budget ?? 0} points (weekend 1, public holiday 2, peak day 1) and{' '}
+            {rows.data[0]?.weekdayAllowance ?? 0} free weekdays. Give extra points for outstation, family matters and similar.
+          </Text>
+          <Table.ScrollContainer minWidth={700}>
+            <Table striped verticalSpacing={4}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Officer</Table.Th>
+                  <Table.Th ta="center">Points used</Table.Th>
+                  <Table.Th ta="center">Weekdays</Table.Th>
+                  <Table.Th>Extra points</Table.Th>
+                  <Table.Th>Reason</Table.Th>
+                  <Table.Th />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {rows.data.map(r => <PointsRowEditor key={r.personId} periodId={period.id} row={r} />)}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        </Stack>
+      )}
+    </Modal>
+  )
+}
+
+function PointsRowEditor({ periodId, row }: { periodId: string; row: PointsRow }) {
+  const qc = useQueryClient()
+  const [extra, setExtra] = useState(row.extra)
+  const [reason, setReason] = useState(row.reason ?? '')
+  const save = useMutation({
+    mutationFn: () => api.admin.grantPoints(periodId, row.personId, extra, reason.trim() || null),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin', 'points', periodId] }); notifyOk(`${row.name}: extra points saved.`) },
+    onError: e => notifyError(e),
+  })
+  const total = row.budget + row.extra
+  const changed = extra !== row.extra || (reason.trim() || null) !== row.reason
+
+  return (
+    <Table.Tr>
+      <Table.Td fw={600}>{row.name} <Text span size="xs" c="dimmed">{row.code}</Text></Table.Td>
+      <Table.Td ta="center" c={row.pointsUsed > total ? 'red' : undefined}>{row.pointsUsed} / {total}</Table.Td>
+      <Table.Td ta="center" c={row.weekdaysUsed > row.weekdayAllowance ? 'red' : undefined}>
+        {row.weekdaysUsed} / {row.weekdayAllowance}
+      </Table.Td>
+      <Table.Td w={110}><NumberInput size="xs" min={0} max={100} value={extra} onChange={v => setExtra(Number(v) || 0)} /></Table.Td>
+      <Table.Td><TextInput size="xs" placeholder="e.g. outstation" value={reason} maxLength={200}
+        onChange={e => setReason(e.currentTarget.value)} /></Table.Td>
+      <Table.Td w={40}>
+        <ActionIcon variant="subtle" aria-label="Save extra points" disabled={!changed} loading={save.isPending} onClick={() => save.mutate()}>
+          <IconDeviceFloppy size={16} />
+        </ActionIcon>
+      </Table.Td>
+    </Table.Tr>
+  )
+}
 
 /** Suggest the quarter after the latest period. */
 function nextPeriod(periods: Period[]): UpsertPeriod {
@@ -128,7 +201,7 @@ function nextPeriod(periods: Period[]): UpsertPeriod {
   const e = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth() + 3, 0))
   const iso = (d: Date) => d.toISOString().slice(0, 10)
   const name = `${s.toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' })}–${e.toLocaleString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' })}`
-  return { name, startDate: iso(s), endDate: iso(e), leaveDeadline: null }
+  return { name, startDate: iso(s), endDate: iso(e), leaveDeadline: null, pointsBudget: null }
 }
 
 function PeriodModal({ editing, onClose, onSaved }: {
@@ -164,6 +237,15 @@ function PeriodModal({ editing, onClose, onSaved }: {
             onChange={d => setV({ ...v, leaveDeadline: (d as string | null) ?? null })}
             valueFormat="D MMM YYYY"
             clearable
+          />
+          <NumberInput
+            label="Leave points per officer"
+            description="Leave empty for automatic: 30% of the period's weekend and public holiday days."
+            placeholder="Automatic"
+            min={0}
+            max={100}
+            value={v.pointsBudget ?? ''}
+            onChange={x => setV({ ...v, pointsBudget: x === '' ? null : Number(x) })}
           />
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}
           <Group justify="flex-end">
@@ -228,6 +310,62 @@ function Holidays() {
       </Table>
       {holidays.data!.length === 0 && <Text size="sm" c="dimmed" ta="center" py="md">No holidays yet.</Text>}
       <BulkHolidays opened={bulkOpen} onClose={() => setBulkOpen(false)} onSaved={refresh} />
+    </Paper>
+  )
+}
+
+/** Busy weekdays (e.g. eve of Raya): leave costs a point, but they stay ordinary weekdays for the rota. */
+function PeakDays() {
+  const qc = useQueryClient()
+  const peaks = useQuery({ queryKey: ['admin', 'peakDays'], queryFn: api.admin.peakDays })
+  const [date, setDate] = useState<IsoDate | null>(null)
+  const [name, setName] = useState('')
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['admin', 'peakDays'] })
+    qc.invalidateQueries({ queryKey: ['leaveRules'] })
+  }
+  const add = useMutation({
+    mutationFn: () => api.admin.upsertPeakDay({ date: date!, name: name.trim() || 'Peak day' }),
+    onSuccess: () => { refresh(); setDate(null); setName('') },
+    onError: e => notifyError(e),
+  })
+  const remove = useMutation({
+    mutationFn: (d: IsoDate) => api.admin.deletePeakDay(d),
+    onSuccess: refresh,
+    onError: e => notifyError(e),
+  })
+
+  if (peaks.isLoading) return <Loading />
+  if (peaks.error) return <ErrorBox error={peaks.error} />
+
+  return (
+    <Paper withBorder p="md">
+      <Title order={4} mb="sm">Peak days</Title>
+      <Text size="sm" c="dimmed" mb="sm">
+        Weekdays many people want off, like the eve of Raya. Leave on them costs a point, like a weekend.
+      </Text>
+      <Group align="flex-end" mb="md" wrap="wrap">
+        <DatePickerInput label="Date" value={date} onChange={d => setDate(d as string | null)} valueFormat="D MMM YYYY" w={160} clearable />
+        <TextInput label="Name" placeholder="e.g. Eve of Raya" value={name} onChange={e => setName(e.currentTarget.value)} w={200} />
+        <Button onClick={() => add.mutate()} disabled={!date} loading={add.isPending}>Add</Button>
+      </Group>
+      <Table>
+        <Table.Tbody>
+          {peaks.data!.map(h => (
+            <Table.Tr key={h.date}>
+              <Table.Td w={170}>{formatWeekday(h.date)} {h.date.slice(0, 4)}</Table.Td>
+              <Table.Td>{h.name}</Table.Td>
+              <Table.Td w={40}>
+                <ActionIcon variant="subtle" color="red" aria-label="Delete" onClick={() => remove.mutate(h.date)}>
+                  <IconTrash size={16} />
+                </ActionIcon>
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+      {peaks.data!.length === 0 && <Text size="sm" c="dimmed" ta="center" py="md">No peak days yet.</Text>}
     </Paper>
   )
 }

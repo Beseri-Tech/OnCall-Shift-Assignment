@@ -8,6 +8,7 @@ using Rota.Api.Auth;
 using Rota.Api.Data;
 using Rota.Api.Endpoints;
 using Rota.Api.Services;
+using Rota.Core.Leave;
 
 // `dotnet Rota.Api.dll hash-password` prints a hash for Admin__PasswordHash.
 if (args.Length > 0 && args[0] == "hash-password")
@@ -39,6 +40,7 @@ builder.Services.AddDataProtection()
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<LocalClock>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("Leave").Get<LeaveLimits>() ?? new LeaveLimits());
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 

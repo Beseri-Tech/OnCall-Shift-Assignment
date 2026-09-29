@@ -15,6 +15,7 @@ import { ErrorBox, Loading, PeriodSelect } from '../components/common'
 import { defaultPeriod, notifyError, notifyOk, pick } from '../lib'
 import { MonthGrid } from '../components/MonthGrid'
 import { diffDays, eachDay, formatLong, formatRange, monthsBetween, todayIso, toRanges } from '../dates'
+import { dayCap, dayKind, usage } from '../leaveRules'
 
 type Mode = 'leave' | 'preferred'
 
@@ -111,9 +112,22 @@ function LeaveEditor({ personId, period, initial }: { personId: string; period: 
     queryKey: ['holidays', period.startDate, period.endDate],
     queryFn: () => api.holidays(period.startDate, period.endDate),
   })
+  const rules = useQuery({ queryKey: ['leaveRules', period.id, personId], queryFn: () => api.leaveRules(period.id, personId) })
 
   const [draft, setDraft] = useState<Draft>(() => toDraft(initial))
   const [saved, setSaved] = useState<Draft>(() => toDraft(initial))
+
+  const holidayMap = useMemo(() => new Map((holidays.data ?? []).map(h => [h.date, h.name])), [holidays.data])
+  const peakMap = useMemo(() => new Map((rules.data?.peaks ?? []).map(h => [h.date, h.name])), [rules.data])
+  const kindOf = useCallback((d: IsoDate) => dayKind(d, holidayMap, peakMap), [holidayMap, peakMap])
+
+  // Days where the leave cap is reached. Days you already saved stay yours (first come, first served).
+  const full = useMemo(() => {
+    const r = rules.data
+    if (!r) return new Set<IsoDate>()
+    return new Set(eachDay(period.startDate, period.endDate)
+      .filter(d => !saved.leave.has(d) && (r.othersOff[d] ?? 0) >= dayCap(kindOf(d), r)))
+  }, [rules.data, period.startDate, period.endDate, saved.leave, kindOf])
   const [mode, setMode] = useState<Mode>('leave')
   const [note, setNote] = useState<string | null>('Annual')
   const [customNote, setCustomNote] = useState('')
@@ -137,9 +151,14 @@ function LeaveEditor({ personId, period, initial }: { personId: string; period: 
       setSaved(toDraft(data))
       qc.setQueryData(['entries', personId, period.id], data)
       qc.invalidateQueries({ queryKey: ['overview', period.id] })
+      qc.invalidateQueries({ queryKey: ['leaveRules', period.id] })
       notifyOk(`${data.leave.length} leave day(s) and ${data.preferred.length} preferred day(s) saved.`)
     },
-    onError: e => notifyError(e, 'Could not save'),
+    onError: e => {
+      // Someone may have taken a day since this page loaded: refresh caps and "Full" days, keep the draft.
+      qc.invalidateQueries({ queryKey: ['leaveRules', period.id] })
+      notifyError(e, 'Could not save')
+    },
   })
 
   /** Apply add/remove for a set of days in the current mode. */
@@ -149,6 +168,7 @@ function LeaveEditor({ personId, period, initial }: { personId: string; period: 
       const preferred = new Set(d.preferred)
       for (const date of dates) {
         if (mode === 'leave') {
+          if (add && full.has(date)) continue
           if (add) { leave.set(date, effectiveNote); preferred.delete(date) } else leave.delete(date)
         } else {
           if (add) { preferred.add(date); leave.delete(date) } else preferred.delete(date)
@@ -156,7 +176,7 @@ function LeaveEditor({ personId, period, initial }: { personId: string; period: 
       }
       return { leave, preferred }
     })
-  }, [mode, effectiveNote])
+  }, [mode, effectiveNote, full])
 
   // Drag painting: the first day decides add vs remove; dragging across days (and months) continues.
   // Fast pointer moves can skip cells, so every day between the last painted day and the current one is filled.
@@ -185,11 +205,21 @@ function LeaveEditor({ personId, period, initial }: { personId: string; period: 
     dragLast.current = date
   }
 
-  const holidayMap = useMemo(() => new Map((holidays.data ?? []).map(h => [h.date, h.name])), [holidays.data])
   const months = monthsBetween(period.startDate, period.endDate)
   const today = todayIso()
 
   const totals = profile.data?.totalsKnown ? profile.data.totals : undefined
+
+  // Same "only refuse what gets worse" rule as the server, so lowering a budget never blocks edits.
+  const r = rules.data
+  const used = r && usage(draft.leave.keys(), r, kindOf)
+  const was = r && usage(saved.leave.keys(), r, kindOf)
+  const budget = r ? r.budget + r.extra : 0
+  const overPoints = !!used && !!was && used.points > budget && used.points > was.points
+  const overWeekdays = !!used && !!was && !!r && used.weekdays > r.weekdayAllowance && used.weekdays > was.weekdays
+  const limitError = overPoints
+    ? `Not enough points (${used!.points} needed, ${budget} available). Ask the admin for extra points.`
+    : overWeekdays ? `Too many weekdays (${used!.weekdays} marked, at most ${r!.weekdayAllowance}).` : null
 
   return (
     <Stack gap="md" pb={dirty ? 80 : 0}>
@@ -225,6 +255,28 @@ function LeaveEditor({ personId, period, initial }: { personId: string; period: 
         <Alert color="orange" icon={<IconLock />} title="Read only">
           Leave for this period can no longer be changed here. Contact the admin if something is wrong.
         </Alert>
+      )}
+
+      {!readOnly && r && used && (
+        <Paper withBorder p="md">
+          <Group gap="xl" wrap="wrap" align="flex-start">
+            <div>
+              <Text size="xs" c="dimmed" fw={700} tt="uppercase">Leave points</Text>
+              <Text fw={800} size="xl" c={overPoints ? 'red' : undefined}>{used.points} / {budget}</Text>
+              {r.extra > 0 && <Text size="xs" c="dimmed">Includes +{r.extra} extra{r.extraReason ? `: ${r.extraReason}` : ''}</Text>}
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" fw={700} tt="uppercase">Weekdays</Text>
+              <Text fw={800} size="xl" c={overWeekdays ? 'red' : undefined}>{used.weekdays} / {r.weekdayAllowance}</Text>
+              <Text size="xs" c="dimmed">free, no points</Text>
+            </div>
+            <Text size="sm" c="dimmed" maw={460}>
+              Leave on a weekend costs {r.weekendCost} point, a public holiday {r.holidayCost}, a peak day {r.peakCost}.
+              At most {r.busyDayCap} of {r.onCall} officers can be off on a weekend, public holiday or peak day, and {r.weekdayCap} on
+              other days – striped days are full. Need more? Ask the admin.
+            </Text>
+          </Group>
+        </Paper>
       )}
 
       {!readOnly && (
@@ -291,6 +343,8 @@ function LeaveEditor({ personId, period, initial }: { personId: string; period: 
               min={period.startDate}
               max={period.endDate}
               holidays={holidayMap}
+              peaks={peakMap}
+              full={readOnly || mode !== 'leave' ? undefined : full}
               today={today}
               readOnly={readOnly}
               stateOf={date => ({ leave: draft.leave.has(date), note: draft.leave.get(date), preferred: draft.preferred.has(date) })}
@@ -304,6 +358,7 @@ function LeaveEditor({ personId, period, initial }: { personId: string; period: 
           <Legend color="var(--pref-bg)" border="var(--pref-border)" label="Preferred on-call" />
           <Legend color="var(--weekend-bg)" border="#cbd5e1" label="Weekend" />
           <Text size="xs" c="var(--holiday-text)" fw={700}>PH = public holiday</Text>
+          <Text size="xs" c="var(--peak-text)" fw={700}>PEAK = peak day</Text>
         </Group>
       </Paper>
 
@@ -312,9 +367,10 @@ function LeaveEditor({ personId, period, initial }: { personId: string; period: 
       {dirty && !readOnly && (
         <Paper shadow="lg" p="sm" withBorder pos="fixed" bottom={16} left="50%" style={{ transform: 'translateX(-50%)', zIndex: 200 }}>
           <Group gap="sm" wrap="nowrap">
-            <Text fw={600} size="sm">You have unsaved changes</Text>
+            <Text fw={600} size="sm" c={limitError ? 'red' : undefined}>{limitError ?? 'You have unsaved changes'}</Text>
             <Button variant="default" onClick={() => setDraft(saved)}>Discard</Button>
-            <Button leftSection={<IconDeviceFloppy size={18} />} loading={save.isPending} onClick={() => save.mutate()}>
+            <Button leftSection={<IconDeviceFloppy size={18} />} loading={save.isPending} disabled={!!limitError}
+              onClick={() => save.mutate()}>
               Save
             </Button>
           </Group>

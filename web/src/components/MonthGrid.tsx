@@ -15,6 +15,8 @@ interface Props {
   min: IsoDate                         // days outside [min, max] are disabled
   max: IsoDate
   holidays: Map<IsoDate, string>
+  peaks?: Map<IsoDate, string>          // busy weekdays (e.g. eve of Raya)
+  full?: Set<IsoDate>                   // days where the leave cap is reached
   today: IsoDate
   readOnly?: boolean
   stateOf: (date: IsoDate) => DayState
@@ -23,7 +25,7 @@ interface Props {
 }
 
 /** One month as a Monday-first grid; the parent owns selection and drag painting. */
-export function MonthGrid({ month, min, max, holidays, today, readOnly, stateOf, onDayDown, onDayEnter }: Props) {
+export function MonthGrid({ month, min, max, holidays, peaks, full, today, readOnly, stateOf, onDayDown, onDayEnter }: Props) {
   const last = endOfMonth(month)
   const leadingBlanks = (dayOfWeek(month) + 6) % 7   // Monday = 0
 
@@ -40,10 +42,14 @@ export function MonthGrid({ month, min, max, holidays, today, readOnly, stateOf,
           const disabled = date < min || date > max
           const s = disabled ? {} : stateOf(date)
           const holiday = holidays.get(date)
+          const peak = !holiday && !isWeekend(date) ? peaks?.get(date) : undefined
+          const isFull = !disabled && !s.leave && full?.has(date)
           const cls = [
             'day',
             isWeekend(date) && 'day-weekend',
             holiday && 'day-holiday',
+            peak && 'day-peak',
+            isFull && 'day-full',
             s.leave && 'day-leave',
             s.preferred && 'day-preferred',
             date === today && 'day-today',
@@ -51,8 +57,10 @@ export function MonthGrid({ month, min, max, holidays, today, readOnly, stateOf,
             readOnly && 'day-readonly',
           ].filter(Boolean).join(' ')
 
-          const label = [holiday, s.leave ? `Leave${s.note ? `: ${s.note}` : ''}` : null, s.preferred ? 'Preferred on-call' : null]
-            .filter(Boolean).join(' · ')
+          const label = [
+            holiday, peak && `Peak day: ${peak}`, isFull ? 'Full – too many officers are already off' : null,
+            s.leave ? `Leave${s.note ? `: ${s.note}` : ''}` : null, s.preferred ? 'Preferred on-call' : null,
+          ].filter(Boolean).join(' · ')
 
           const cell = (
             <button

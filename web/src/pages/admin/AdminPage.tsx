@@ -50,7 +50,7 @@ function AdminTabs() {
     <Tabs value={tab} onChange={v => navigate(`/admin/${v}`)} keepMounted={false}>
       <Tabs.List mb="md">
         <Tabs.Tab value="rota" leftSection={<IconWand size={16} />}>Generate rota</Tabs.Tab>
-        <Tabs.Tab value="people" leftSection={<IconUsers size={16} />}>People</Tabs.Tab>
+        <Tabs.Tab value="people" leftSection={<IconUsers size={16} />}>Officers</Tabs.Tab>
         <Tabs.Tab value="periods" leftSection={<IconCalendarCog size={16} />}>Periods & holidays</Tabs.Tab>
         <Tabs.Tab value="import" leftSection={<IconFileImport size={16} />}>Import</Tabs.Tab>
       </Tabs.List>

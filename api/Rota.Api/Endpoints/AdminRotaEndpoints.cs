@@ -73,7 +73,7 @@ public static class AdminRotaEndpoints
             {
                 var person = await db.People.FindAsync([pid], ct);
                 if (person is null) return Results.NotFound();
-                if (!person.Active) warnings.Add($"{person.Name} is inactive.");
+                if (person.Status != OfficerStatus.OnCall) warnings.Add($"{person.Name} is not on call ({person.StatusReason ?? person.Status.ToString()}).");
                 if (await db.LeaveDays.AnyAsync(l => l.PersonId == pid && l.Date == date, ct))
                     warnings.Add($"{person.Name} is on leave on {LeaveText.Format(date)}.");
 
@@ -154,7 +154,7 @@ public static class AdminRotaEndpoints
         g.MapGet("/people/totals.xlsx", async (RotaDbContext db, LocalClock clock, CancellationToken ct) =>
         {
             var people = await AdminEndpoints.AdminPeopleAsync(db, ct);
-            var rows = people.Where(p => p.Active)
+            var rows = people.Where(p => p.Status == OfficerStatus.OnCall)
                 .Select(p => new PersonTotalsRow(p.Code, p.Name, p.Totals.Total, p.Totals.Weekday, p.Totals.WeekendHoliday))
                 .ToList();
             return Results.File(ExcelExports.Totals(rows, clock.Today), Xlsx, $"Shift totals {clock.Today:yyyy-MM-dd}.xlsx");
@@ -165,7 +165,7 @@ public static class AdminRotaEndpoints
             var period = await db.Periods.FindAsync([id], ct);
             if (period is null) return Results.NotFound();
 
-            var rows = await db.People.Where(p => p.Active).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
+            var rows = await db.People.Where(p => p.Status == OfficerStatus.OnCall).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
                 .Select(p => new LeaveExportRow(p.Name,
                     p.Leave.Where(l => l.Date >= period.StartDate && l.Date <= period.EndDate).Select(l => l.Date).ToList()))
                 .ToListAsync(ct);
@@ -179,7 +179,7 @@ public static class AdminRotaEndpoints
         var holidays = await db.Holidays.Where(h => h.Date >= period.StartDate && h.Date <= period.EndDate)
             .Select(h => h.Date).ToListAsync(ct);
 
-        var people = await db.People.Where(p => p.Active).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
+        var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
             .Select(p => new
             {
                 p.Id, p.Name, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight,
@@ -225,7 +225,7 @@ public static class AdminRotaEndpoints
         var byPerson = run.Assignments.Where(a => a.PersonId != null).GroupBy(a => a.PersonId!.Value)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var stats = people.Where(p => p.Active || byPerson.ContainsKey(p.Id))
+        var stats = people.Where(p => p.Status == OfficerStatus.OnCall || byPerson.ContainsKey(p.Id))
             .Select(p =>
             {
                 var mine = byPerson.GetValueOrDefault(p.Id, []);
