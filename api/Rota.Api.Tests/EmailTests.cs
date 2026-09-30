@@ -60,6 +60,30 @@ public class EmailTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task A_blank_sender_falls_back_and_a_malformed_recipient_does_not_block_the_queue()
+    {
+        string mail = Path.Combine(Path.GetTempPath(), "rota-mail-" + Guid.NewGuid().ToString("N"));
+        // Compose passes an unset ${SMTP_FROM} as an empty string.
+        await using var app = fixture.CreateApp(new()
+        {
+            ["Smtp:PickupDirectory"] = mail, ["Smtp:From"] = "", ["Smtp:MaxPerMinute"] = "600",
+        });
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<RotaDbContext>();
+            db.OutboxEmails.Add(new OutboxEmail { To = "not an address", Subject = "Bad", Body = "x" });
+            await db.SaveChangesAsync();
+        }
+        (await ForgotAsync(app)).EnsureSuccessStatusCode();
+
+        var rows = await WaitForAsync(app, r => r.Count == 2 && r.All(e => e.SentAt != null || e.FailedAt != null));
+        Assert.NotNull(rows.Single(e => e.Subject == "Bad").FailedAt);
+        Assert.NotNull(rows.Single(e => e.Subject != "Bad").SentAt);
+        Assert.Single(Directory.GetFiles(mail, "*.eml"));
+        Directory.Delete(mail, recursive: true);
+    }
+
+    [Fact]
     public async Task The_daily_cap_holds_the_rest_back()
     {
         string mail = Path.Combine(Path.GetTempPath(), "rota-mail-" + Guid.NewGuid().ToString("N"));

@@ -98,25 +98,34 @@ public sealed class Mailer(IConfiguration config, IHostEnvironment env, IService
         }
     }
 
+    // Blank counts as unset: Docker Compose passes an unset ${SMTP_FROM} as "".
+    private string FromAddress =>
+        new[] { config["Smtp:From"], config["Smtp:User"] }.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "rota@localhost";
+
     private async Task TrySendAsync(OutboxEmail email, CancellationToken ct)
     {
+        // A bad sender address is a config error, not this email's fault: throw and leave it queued until the config is fixed.
+        var from = new MailAddress(FromAddress);
         email.Attempts++;
         try
         {
-            using var message = new MailMessage(config["Smtp:From"] ?? config["Smtp:User"] ?? "rota@localhost", email.To,
-                email.Subject, email.Body.ReplaceLineEndings("\r\n"));   // email wants CRLF; bare LF gets encoded as =0A
+            using var message = new MailMessage(from, new MailAddress(email.To))
+            {
+                Subject = email.Subject,
+                Body = email.Body.ReplaceLineEndings("\r\n"),   // email wants CRLF; bare LF gets encoded as =0A
+            };
             using var client = CreateClient();
             await client.SendMailAsync(message, ct);
             email.SentAt = DateTimeOffset.UtcNow;
             email.LastError = null;
             log.LogInformation("Email \"{Subject}\" sent to {To}.", email.Subject, email.To);
         }
-        catch (Exception e) when (e is SmtpException or IOException or InvalidOperationException && !ct.IsCancellationRequested)
+        catch (Exception e) when (e is SmtpException or IOException or InvalidOperationException or FormatException && !ct.IsCancellationRequested)
         {
             email.LastError = e.Message.Length > 500 ? e.Message[..500] : e.Message;
 
-            // A 5xx for this recipient (no such mailbox, ...) won't get better; network trouble and 4xx "try later" might.
-            bool permanent = e is SmtpFailedRecipientException r && (int)r.StatusCode >= 500;
+            // A malformed recipient or a 5xx for it (no such mailbox, ...) won't get better; network trouble and 4xx "try later" might.
+            bool permanent = e is FormatException || e is SmtpFailedRecipientException r && (int)r.StatusCode >= 500;
             if (permanent || email.Attempts >= MaxAttempts)
             {
                 email.FailedAt = DateTimeOffset.UtcNow;
