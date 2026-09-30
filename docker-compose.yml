@@ -30,6 +30,7 @@ services:
       Admin__Email: ${ADMIN_EMAIL:?set ADMIN_EMAIL in .env}
       Admin__PasswordHash: ${ADMIN_PASSWORD_HASH:?set ADMIN_PASSWORD_HASH in .env}
       App__BaseUrl: ${APP_BASE_URL:-}
+      App__WebOrigin: ${WEB_ORIGIN:-}
       Smtp__Host: ${SMTP_HOST:-}
       Smtp__Port: ${SMTP_PORT:-587}
       Smtp__User: ${SMTP_USER:-}
