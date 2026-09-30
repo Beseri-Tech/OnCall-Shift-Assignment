@@ -87,15 +87,4 @@ public class LeaveTextTests
         Assert.True(LeaveText.TryParseDateList(LeaveText.FormatDateList(dates, reference), reference, out var again, out _));
         Assert.Equal(dates, again);
     }
-
-    [Theory]
-    [InlineData("OKTOBER", 2026, 10)]
-    [InlineData("Dis", 2026, 12)]
-    [InlineData("JANUARI", 2027, 1)]
-    [InlineData("Nov 2025", 2025, 11)]
-    public void Month_headers_resolve_to_the_year_nearest_the_rota(string header, int year, int month)
-    {
-        var m = LeaveText.ParseMonthHeader(header, new DateOnly(2026, 10, 1), new DateOnly(2027, 1, 31));
-        Assert.Equal(new DateOnly(year, month, 1), m);
-    }
 }

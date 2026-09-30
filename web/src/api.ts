@@ -2,15 +2,15 @@
 
 export type IsoDate = string
 
-export type PeriodStatus = 'Open' | 'Locked' | 'Published'
-export type NameMatchType = 'None' | 'Fuzzy' | 'Exact'
-export type ImportAction = 'Match' | 'New' | 'Skip'
+export type PeriodStatus = 'Open' | 'Locked' | 'Review' | 'Published'
+export type SwapStatus = 'Pending' | 'Accepted' | 'Declined' | 'Cancelled' | 'Expired'
 export type OfficerStatus = 'OnCall' | 'Excluded' | 'Left'
+export type AccountRole = 'Officer' | 'Admin' | 'Supervisor'
 
 export interface Totals { total: number; weekday: number; weekendHoliday: number }
 export interface Period {
   id: string; name: string; startDate: IsoDate; endDate: IsoDate; leaveDeadline: IsoDate | null
-  status: PeriodStatus; isEditable: boolean; pointsBudget: number | null
+  status: PeriodStatus; isEditable: boolean; pointsBudget: number | null; swapDeadline: IsoDate | null
 }
 export interface Holiday { date: IsoDate; name: string }
 export interface LeaveEntry { date: IsoDate; note: string | null }
@@ -21,24 +21,48 @@ export interface RotaDay {
 
 export interface PersonSummary { id: string; code: string; name: string }
 export interface PersonProfile { id: string; code: string; name: string; totals: Totals; totalsKnown: boolean }
+/** inReview: from a rota still in review (can change before it's published). */
+export interface Shift {
+  date: IsoDate; isWeekendHoliday: boolean; holidayName: string | null; periodId: string; periodName: string
+  inReview: boolean; runId: string
+}
+export interface Swap {
+  id: string; runId: string; periodName: string; fromPersonId: string; fromName: string; fromDate: IsoDate
+  toPersonId: string; toName: string; toDate: IsoDate; note: string | null; status: SwapStatus; createdAt: string
+  warnings: string[]
+}
+export interface AppNotification { id: number; kind: string; title: string; body: string | null; link: string | null; createdAt: string; read: boolean }
+export interface Notifications { items: AppNotification[]; unread: number }
 export interface Entries { leave: LeaveEntry[]; preferred: IsoDate[] }
 export interface ParseResponse { dates: IsoDate[]; error: string | null }
 export interface OverviewDay { date: IsoDate; isWeekendHoliday: boolean; holidayName: string | null; available: number }
 export interface OverviewPerson { id: string; code: string; name: string; leave: LeaveEntry[]; preferred: IsoDate[] }
 export interface Overview { period: Period; days: OverviewDay[]; people: OverviewPerson[] }
-export interface PublishedRota { period: Period; runId: string; days: RotaDay[] }
+export interface PublishedRota { period: Period; runId: string; days: RotaDay[]; inReview: boolean }
 
 export interface AdminPerson {
   id: string; code: string; name: string; status: OfficerStatus; statusReason: string | null; excludedUntil: IsoDate | null
   clinicId: string | null; clinicName: string | null; area: string | null; phone: string | null; sortOrder: number
   extraShift: boolean; preferWeekendHoliday: boolean; weekendWeight: number
-  openingTotal: number | null; openingWeekday: number | null; openingWeekendHoliday: number | null
-  totals: Totals; totalsKnown: boolean
 }
 export interface UpsertPerson {
   name: string; code: string | null; status: OfficerStatus; extraShift: boolean; preferWeekendHoliday: boolean
-  weekendWeight: number; openingTotal: number | null; openingWeekday: number | null; openingWeekendHoliday: number | null
-  statusReason: string | null; excludedUntil: IsoDate | null; clinicId: string | null; phone: string | null
+  weekendWeight: number; statusReason: string | null; excludedUntil: IsoDate | null; clinicId: string | null; phone: string | null
+}
+export interface Me {
+  accountId: string; email: string; role: AccountRole; personId: string | null; personName: string | null
+  mustChangePassword: boolean
+}
+export interface Account {
+  id: string; email: string; role: AccountRole; personId: string | null; personName: string | null; enabled: boolean
+  mustChangePassword: boolean; tempPasswordExpiresAt: string | null; lastLoginAt: string | null
+}
+/** tempPassword only comes back when the email could not be sent. */
+export interface InviteResult { accountId: string; emailSent: boolean; tempPassword: string | null }
+export interface TallyRow {
+  personId: string; code: string; name: string; status: OfficerStatus; clinicName: string | null; area: string | null
+  weekday: number; weekendHoliday: number; total: number; publishedWeekday: number; publishedWeekendHoliday: number
+  known: boolean
 }
 export interface Clinic { id: string; name: string; area: string; people: number }
 export interface UpsertClinic { name: string; area: string }
@@ -58,7 +82,7 @@ export interface PointsRow {
 }
 
 export interface Run {
-  id: string; periodId: string; createdAt: string; seed: number; isPublished: boolean
+  id: string; periodId: string; createdAt: string; seed: number; isPublished: boolean; isInReview: boolean
   warnings: string[]; unassigned: number; consecutivePairs: number; manualChanges: number
 }
 export interface RunStat {
@@ -68,17 +92,6 @@ export interface RunStat {
 export interface RunDetail { run: Run; days: RotaDay[]; stats: RunStat[] }
 export interface OverrideResponse { day: RotaDay; warnings: string[] }
 
-export interface LeaveImportRow {
-  rawName: string; personId: string | null; personName: string | null; matchType: NameMatchType
-  leave: LeaveEntry[]; warnings: string[]
-}
-export interface LeaveImportPreview { months: IsoDate[]; rows: LeaveImportRow[] }
-export interface LeaveImportCommitRow { rawName: string; action: ImportAction; personId: string | null; leave: LeaveEntry[] }
-export interface ImportResult { updated: number; added: number; skipped: number; warnings: string[] }
-export interface OpeningImportRow {
-  rawName: string; value: number | null; personId: string | null; personName: string | null; matchType: NameMatchType
-}
-export interface OpeningImportPreview { rows: OpeningImportRow[]; peopleWithoutRow: string[] }
 
 /** Error carrying the API's problem-details message. */
 export class ApiError extends Error {
@@ -127,6 +140,7 @@ const q = (params: Record<string, string | undefined>) => {
 export const api = {
   people: () => get<PersonSummary[]>('/api/people'),
   person: (id: string) => get<PersonProfile>(`/api/people/${id}`),
+  shifts: (personId: string) => get<Shift[]>(`/api/people/${personId}/shifts`),
   periods: (status?: PeriodStatus) => get<Period[]>(`/api/periods${q({ status })}`),
   holidays: (from?: IsoDate, to?: IsoDate) => get<Holiday[]>(`/api/holidays${q({ from, to })}`),
   entries: (personId: string, periodId: string) => get<Entries>(`/api/people/${personId}/entries${q({ periodId })}`),
@@ -135,12 +149,37 @@ export const api = {
   parse: (text: string, reference: IsoDate) => post<ParseResponse>('/api/leave/parse', { text, reference }),
   overview: (periodId: string) => get<Overview>(`/api/periods/${periodId}/overview`),
   rota: (periodId: string) => get<PublishedRota>(`/api/periods/${periodId}/rota`),
+  swaps: () => get<Swap[]>('/api/swaps'),
+  requestSwap: (runId: string, fromDate: IsoDate, toDate: IsoDate, note: string | null) =>
+    post<Swap>('/api/swaps', { runId, fromDate, toDate, note }),
+  acceptSwap: (id: string) => post<void>(`/api/swaps/${id}/accept`),
+  declineSwap: (id: string) => post<void>(`/api/swaps/${id}/decline`),
+  cancelSwap: (id: string) => post<void>(`/api/swaps/${id}/cancel`),
+  notifications: () => get<Notifications>('/api/notifications'),
+  readNotification: (id: number) => post<void>(`/api/notifications/${id}/read`),
+  readAllNotifications: () => post<void>('/api/notifications/read-all'),
   leaveRules: (periodId: string, personId: string) => get<LeaveRules>(`/api/periods/${periodId}/leave-rules${q({ personId })}`),
 
+  auth: {
+    me: () => get<Me>('/api/auth/me'),
+    login: (email: string, password: string) => post<Me>('/api/auth/login', { email, password }),
+    logout: () => post<void>('/api/auth/logout'),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      post<Me>('/api/auth/change-password', { currentPassword, newPassword }),
+    forgot: (email: string) => post<void>('/api/auth/forgot', { email }),
+    reset: (token: string, newPassword: string) => post<void>('/api/auth/reset', { token, newPassword }),
+  },
+
   admin: {
-    login: (password: string) => post<void>('/api/admin/login', { password }),
-    logout: () => post<void>('/api/admin/logout'),
-    me: () => get<{ admin: boolean }>('/api/admin/me'),
+    accounts: () => get<Account[]>('/api/admin/accounts'),
+    invite: (email: string, role: AccountRole, personId: string | null) =>
+      post<InviteResult>('/api/admin/accounts', { email, role, personId }),
+    resendInvite: (id: string) => post<InviteResult>(`/api/admin/accounts/${id}/resend`),
+    updateAccount: (id: string, a: { email: string; role: AccountRole; personId: string | null; enabled: boolean }) =>
+      put<void>(`/api/admin/accounts/${id}`, a),
+
+    tally: () => get<TallyRow[]>('/api/admin/tally'),
+    saveTally: (rows: { personId: string; weekday: number; weekendHoliday: number }[]) => put<TallyRow[]>('/api/admin/tally', rows),
 
     people: () => get<AdminPerson[]>('/api/admin/people'),
     createPerson: (p: UpsertPerson) => post<string>('/api/admin/people', p),
@@ -179,27 +218,15 @@ export const api = {
     override: (runId: string, date: IsoDate, personId: string | null) =>
       put<OverrideResponse>(`/api/admin/runs/${runId}/assignments/${date}`, { personId }),
     publish: (runId: string) => post<void>(`/api/admin/runs/${runId}/publish`),
+    sendForReview: (runId: string, swapDeadline: IsoDate | null) => post<void>(`/api/admin/runs/${runId}/review`, { swapDeadline }),
+    withdrawReview: (runId: string) => post<void>(`/api/admin/runs/${runId}/withdraw-review`),
     unpublish: (runId: string) => post<void>(`/api/admin/runs/${runId}/unpublish`),
     deleteRun: (runId: string) => del<void>(`/api/admin/runs/${runId}`),
 
-    importLeave: (periodId: string, file: File) => {
-      const form = new FormData()
-      form.append('file', file)
-      return request<LeaveImportPreview>('POST', `/api/admin/periods/${periodId}/import-leave`, form)
-    },
-    commitLeave: (periodId: string, rows: LeaveImportCommitRow[]) =>
-      post<ImportResult>(`/api/admin/periods/${periodId}/import-leave/commit`, { rows }),
-    importOpening: (file: File) => {
-      const form = new FormData()
-      form.append('file', file)
-      return request<OpeningImportPreview>('POST', '/api/admin/people/import-opening', form)
-    },
-    commitOpening: (rows: { personId: string; openingWeekendHoliday: number | null }[]) =>
-      post<ImportResult>('/api/admin/people/import-opening/commit', { rows }),
 
     exports: {
       timetable: (runId: string) => `/api/admin/runs/${runId}/timetable.xlsx`,
-      totals: () => '/api/admin/people/totals.xlsx',
+      tally: () => '/api/admin/tally/export.xlsx',
       leave: (periodId: string) => `/api/admin/periods/${periodId}/leave.xlsx`,
     },
   },

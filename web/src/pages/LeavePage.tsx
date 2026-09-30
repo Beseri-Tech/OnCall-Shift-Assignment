@@ -3,7 +3,6 @@ import {
   TextInput, Title, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
-import { useLocalStorage } from '@mantine/hooks'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -11,6 +10,7 @@ import {
 } from '@tabler/icons-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type Entries, type IsoDate, type Period } from '../api'
+import { isAdmin, useMe } from '../auth'
 import { ErrorBox, Loading, PeriodSelect } from '../components/common'
 import { defaultPeriod, notifyError, notifyOk, pick } from '../lib'
 import { MonthGrid } from '../components/MonthGrid'
@@ -39,18 +39,20 @@ const toEntries = (d: Draft): Entries => ({
 const sameDraft = (a: Draft, b: Draft) => JSON.stringify(toEntries(a)) === JSON.stringify(toEntries(b))
 
 export function LeavePage() {
-  const [storedPersonId, setPersonId] = useLocalStorage<string | null>({ key: 'rota.personId', defaultValue: null })
+  const me = useMe().data
+  const admin = isAdmin(me)
+  const [chosenPersonId, setPersonId] = useState<string | null>(null)
   const [chosenPeriodId, setPeriodId] = useState<string | null>(null)
 
-  const people = useQuery({ queryKey: ['people'], queryFn: api.people })
+  // Only admins pick someone; officers always see their own leave.
+  const people = useQuery({ queryKey: ['people'], queryFn: api.people, enabled: admin })
   const periods = useQuery({ queryKey: ['periods'], queryFn: () => api.periods() })
 
   const visiblePeriods = useMemo(() => (periods.data ?? []).filter(p => p.status !== 'Published'), [periods.data])
   const period = pick(visiblePeriods, chosenPeriodId, defaultPeriod(visiblePeriods))
   const periodId = period?.id ?? null
-
-  // Ignore a remembered person who was removed or deactivated.
-  const personId = people.data?.some(p => p.id === storedPersonId) ? storedPersonId : null
+  const personId = admin ? chosenPersonId ?? me?.personId ?? null : me?.personId ?? null
+  const editingOther = admin && personId !== null && personId !== me?.personId
 
   if (people.isLoading || periods.isLoading) return <Loading />
   if (people.error) return <ErrorBox error={people.error} />
@@ -60,24 +62,31 @@ export function LeavePage() {
     <Stack gap="lg">
       <Group justify="space-between" align="flex-end" wrap="wrap">
         <div>
-          <Title order={2}>My leave</Title>
-          <Text c="dimmed" size="sm">Pick your name, then mark your leave and preferred on-call days on the calendar.</Text>
+          <Title order={2}>{editingOther || !me?.personId ? 'Leave' : 'My leave'}</Title>
+          <Text c="dimmed" size="sm">Mark leave and preferred on-call days on the calendar.</Text>
         </div>
         <Group align="flex-end" wrap="wrap">
-          <Select
-            label="Your name"
-            placeholder="Search your name"
-            searchable
-            clearable
-            w={340}
-            data={(people.data ?? []).map(p => ({ value: p.id, label: `${p.name} (${p.code})` }))}
-            value={personId}
-            onChange={setPersonId}
-            nothingFoundMessage="No match – ask the admin to add you"
-          />
+          {admin && (
+            <Select
+              label="Officer"
+              placeholder="Pick an officer"
+              searchable
+              w={340}
+              data={(people.data ?? []).map(p => ({ value: p.id, label: `${p.name} (${p.code})${p.id === me?.personId ? ' – you' : ''}` }))}
+              value={personId}
+              onChange={setPersonId}
+              allowDeselect={false}
+            />
+          )}
           {visiblePeriods.length > 1 && <PeriodSelect periods={visiblePeriods} value={periodId} onChange={setPeriodId} />}
         </Group>
       </Group>
+
+      {editingOther && (
+        <Alert color="violet" icon={<IconInfoCircle />} title="Editing on someone's behalf">
+          As an admin, the leave limits and the deadline don't apply to changes you make here.
+        </Alert>
+      )}
 
       {!period && (
         <Alert icon={<IconInfoCircle />} color="blue" title="No rota period is open for leave">
@@ -86,26 +95,29 @@ export function LeavePage() {
       )}
 
       {!personId && period && (
-        <Alert icon={<IconInfoCircle />} color="blue" title="Who are you?">
-          Choose your name above to see and edit your leave for {period.name}.
+        <Alert icon={<IconInfoCircle />} color="blue" title="Pick an officer">
+          Choose an officer above to see and edit their leave for {period.name}.
         </Alert>
       )}
 
-      {personId && period && <PersonLeave key={`${personId}:${period.id}`} personId={personId} period={period} />}
+      {personId && period && (
+        <PersonLeave key={`${personId}:${period.id}`} personId={personId} period={period} byAdmin={admin} />
+      )}
     </Stack>
   )
 }
 
-function PersonLeave({ personId, period }: { personId: string; period: Period }) {
+function PersonLeave({ personId, period, byAdmin }: { personId: string; period: Period; byAdmin: boolean }) {
   const entries = useQuery({ queryKey: ['entries', personId, period.id], queryFn: () => api.entries(personId, period.id) })
 
   if (entries.isLoading) return <Loading />
   if (entries.error) return <ErrorBox error={entries.error} />
   // The editor owns the draft from here on; it starts from what was loaded.
-  return <LeaveEditor personId={personId} period={period} initial={entries.data!} />
+  return <LeaveEditor personId={personId} period={period} initial={entries.data!} byAdmin={byAdmin} />
 }
 
-function LeaveEditor({ personId, period, initial }: { personId: string; period: Period; initial: Entries }) {
+/** byAdmin: an admin editing (anyone's) leave – no limits and no deadline, like the server. */
+function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string; period: Period; initial: Entries; byAdmin: boolean }) {
   const qc = useQueryClient()
   const profile = useQuery({ queryKey: ['person', personId], queryFn: () => api.person(personId) })
   const holidays = useQuery({
@@ -124,16 +136,16 @@ function LeaveEditor({ personId, period, initial }: { personId: string; period: 
   // Days where the leave cap is reached. Days you already saved stay yours (first come, first served).
   const full = useMemo(() => {
     const r = rules.data
-    if (!r) return new Set<IsoDate>()
+    if (!r || byAdmin) return new Set<IsoDate>()
     return new Set(eachDay(period.startDate, period.endDate)
       .filter(d => !saved.leave.has(d) && (r.othersOff[d] ?? 0) >= dayCap(kindOf(d), r)))
-  }, [rules.data, period.startDate, period.endDate, saved.leave, kindOf])
+  }, [rules.data, byAdmin, period.startDate, period.endDate, saved.leave, kindOf])
   const [mode, setMode] = useState<Mode>('leave')
   const [note, setNote] = useState<string | null>('Annual')
   const [customNote, setCustomNote] = useState('')
 
   const dirty = !sameDraft(draft, saved)
-  const readOnly = !period.isEditable
+  const readOnly = !period.isEditable && !byAdmin
   const effectiveNote = note === 'Other' ? (customNote.trim() || null) : note
 
   // Warn before closing the tab with unsaved changes.
@@ -215,8 +227,8 @@ function LeaveEditor({ personId, period, initial }: { personId: string; period: 
   const used = r && usage(draft.leave.keys(), r, kindOf)
   const was = r && usage(saved.leave.keys(), r, kindOf)
   const budget = r ? r.budget + r.extra : 0
-  const overPoints = !!used && !!was && used.points > budget && used.points > was.points
-  const overWeekdays = !!used && !!was && !!r && used.weekdays > r.weekdayAllowance && used.weekdays > was.weekdays
+  const overPoints = !byAdmin && !!used && !!was && used.points > budget && used.points > was.points
+  const overWeekdays = !byAdmin && !!used && !!was && !!r && used.weekdays > r.weekdayAllowance && used.weekdays > was.weekdays
   const limitError = overPoints
     ? `Not enough points (${used!.points} needed, ${budget} available). Ask the admin for extra points.`
     : overWeekdays ? `Too many weekdays (${used!.weekdays} marked, at most ${r!.weekdayAllowance}).` : null

@@ -3,8 +3,9 @@ using Rota.Api.Data;
 
 namespace Rota.Api.Services;
 
-/// <summary>Shifts done so far = opening numbers + assignments in published runs.</summary>
-public sealed record PersonTotals(int Total, int Weekday, int WeekendHoliday, bool Known)
+/// <summary>Shifts done so far = the admin's tally adjustment + assignments in published runs.</summary>
+public sealed record PersonTotals(int Total, int Weekday, int WeekendHoliday, bool Known, int PublishedWeekday = 0,
+    int PublishedWeekendHoliday = 0)
 {
     public static readonly PersonTotals Unknown = new(0, 0, 0, false);
 }
@@ -33,25 +34,19 @@ public static class Totals
             .ToDictionaryAsync(x => x.PersonId, ct);
 
         var people = await db.People
-            .Select(p => new { p.Id, p.OpeningTotal, p.OpeningWeekday, p.OpeningWeekendHoliday })
+            .Select(p => new { p.Id, p.TallyWeekdayAdjust, p.TallyWeekendHolidayAdjust })
             .ToListAsync(ct);
 
         return people.ToDictionary(p => p.Id, p =>
         {
             published.TryGetValue(p.Id, out var pub);
-            int pubTotal = pub?.Total ?? 0;
             int pubWeekend = pub?.WeekendHoliday ?? 0;
+            int pubWeekday = (pub?.Total ?? 0) - pubWeekend;
 
-            bool known = p.OpeningTotal.HasValue || p.OpeningWeekday.HasValue || p.OpeningWeekendHoliday.HasValue || pubTotal > 0;
-            int openingWeekend = p.OpeningWeekendHoliday ?? 0;
-            int openingWeekday = p.OpeningWeekday ?? Math.Max(0, (p.OpeningTotal ?? 0) - openingWeekend);
-            int openingTotal = p.OpeningTotal ?? openingWeekday + openingWeekend;
-
-            return new PersonTotals(
-                openingTotal + pubTotal,
-                openingWeekday + (pubTotal - pubWeekend),
-                openingWeekend + pubWeekend,
-                known);
+            bool known = p.TallyWeekdayAdjust.HasValue || p.TallyWeekendHolidayAdjust.HasValue || pub is not null;
+            int weekday = (p.TallyWeekdayAdjust ?? 0) + pubWeekday;
+            int weekend = (p.TallyWeekendHolidayAdjust ?? 0) + pubWeekend;
+            return new PersonTotals(weekday + weekend, weekday, weekend, known, pubWeekday, pubWeekend);
         });
     }
 }

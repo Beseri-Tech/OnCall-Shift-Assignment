@@ -25,7 +25,14 @@ services:
     environment:
       ConnectionStrings__Rota: "Host=db;Port=5432;Database=rota;Username=rota;Password=${POSTGRES_PASSWORD}"
       Database__MigrateOnStartup: "true"
+      Admin__Email: ${ADMIN_EMAIL:?set ADMIN_EMAIL in .env}
       Admin__PasswordHash: ${ADMIN_PASSWORD_HASH:?set ADMIN_PASSWORD_HASH in .env}
+      App__BaseUrl: ${APP_BASE_URL:-}
+      Smtp__Host: ${SMTP_HOST:-}
+      Smtp__Port: ${SMTP_PORT:-587}
+      Smtp__User: ${SMTP_USER:-}
+      Smtp__Password: ${SMTP_PASSWORD:-}
+      Smtp__From: ${SMTP_FROM:-}
       App__TimeZone: ${TIME_ZONE:-Asia/Kuala_Lumpur}
     ports:
       - "${APP_PORT:-8080}:8080"

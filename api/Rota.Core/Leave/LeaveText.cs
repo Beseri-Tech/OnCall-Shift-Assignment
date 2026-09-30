@@ -17,50 +17,7 @@ public sealed class CellParseResult
 /// </summary>
 public static class LeaveText
 {
-    private static readonly Dictionary<string, int> MonthNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["JAN"] = 1, ["JANUARI"] = 1, ["JANUARY"] = 1,
-        ["FEB"] = 2, ["FEBRUARI"] = 2, ["FEBRUARY"] = 2,
-        ["MAC"] = 3, ["MAR"] = 3, ["MARCH"] = 3,
-        ["APR"] = 4, ["APRIL"] = 4,
-        ["MEI"] = 5, ["MAY"] = 5,
-        ["JUN"] = 6, ["JUNE"] = 6,
-        ["JUL"] = 7, ["JULAI"] = 7, ["JULY"] = 7,
-        ["OGO"] = 8, ["OGOS"] = 8, ["AUG"] = 8, ["AUGUST"] = 8,
-        ["SEP"] = 9, ["SEPT"] = 9, ["SEPTEMBER"] = 9,
-        ["OKT"] = 10, ["OCT"] = 10, ["OKTOBER"] = 10, ["OCTOBER"] = 10,
-        ["NOV"] = 11, ["NOVEMBER"] = 11,
-        ["DIS"] = 12, ["DEC"] = 12, ["DISEMBER"] = 12, ["DECEMBER"] = 12,
-    };
-
     private const string DatePart = @"\d{1,2}[/.]\d{1,2}(?:[/.]\d{2,4})?";
-
-    /// <summary>"OKTOBER", "Nov 2026", "DIS" -> first day of that month, year chosen nearest the range.</summary>
-    public static DateOnly? ParseMonthHeader(string? header, DateOnly rangeStart, DateOnly rangeEnd)
-    {
-        var m = Regex.Match(header?.Trim() ?? "", @"^([A-Za-z]+)\.?\s*(\d{4})?$");
-        if (!m.Success || !MonthNames.TryGetValue(m.Groups[1].Value, out int month)) return null;
-
-        if (m.Groups[2].Success)
-            return new DateOnly(int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture), month, 1);
-
-        DateOnly best = default;
-        int bestDistance = int.MaxValue;
-        for (int y = rangeStart.Year - 1; y <= rangeEnd.Year + 1; y++)
-        {
-            var first = new DateOnly(y, month, 1);
-            var last = first.AddMonths(1).AddDays(-1);
-            int distance = last < rangeStart ? rangeStart.DayNumber - last.DayNumber
-                         : first > rangeEnd ? first.DayNumber - rangeEnd.DayNumber
-                         : 0;
-            if (distance < bestDistance)
-            {
-                bestDistance = distance;
-                best = first;
-            }
-        }
-        return best;
-    }
 
     /// <summary>Parses one free-typed leave cell for the given month.</summary>
     public static CellParseResult ParseCell(string? text, int year, int month)

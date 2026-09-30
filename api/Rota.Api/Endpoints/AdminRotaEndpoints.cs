@@ -60,9 +60,9 @@ public static class AdminRotaEndpoints
             await RunDetailAsync(db, id, ct) is { } detail ? Results.Ok(detail) : Results.NotFound());
 
         g.MapPut("/runs/{id:guid}/assignments/{date}", async (Guid id, DateOnly date, OverrideRequest req, RotaDbContext db,
-            HttpContext http, CancellationToken ct) =>
+            Notifier notify, HttpContext http, CancellationToken ct) =>
         {
-            var run = await db.Runs.Include(r => r.Assignments).FirstOrDefaultAsync(r => r.Id == id, ct);
+            var run = await db.Runs.Include(r => r.Assignments).Include(r => r.Period).FirstOrDefaultAsync(r => r.Id == id, ct);
             var slot = run?.Assignments.FirstOrDefault(a => a.Date == date);
             if (run is null || slot is null) return Results.NotFound();
             if (run.IsPublished)
@@ -81,8 +81,22 @@ public static class AdminRotaEndpoints
                 warnings.AddRange(neighbours.Select(a => $"{person.Name} also works {LeaveText.Format(a.Date)} (back-to-back)."));
             }
 
+            var previous = slot.PersonId;
             slot.PersonId = req.PersonId;
             slot.IsManual = true;
+
+            // Officers are looking at a rota in review, so tell them when the admin moves them.
+            if (run.IsInReview && previous != req.PersonId)
+            {
+                string day = SwapEndpoints.Day(date);
+                if (previous is { } off)
+                    await notify.ToPeopleAsync([off], Notifier.ShiftChanged, $"You're no longer on call on {day}",
+                        $"The admin changed the {run.Period!.Name} rota under review.", "/my-oncall", email: false, ct);
+                if (req.PersonId is { } on)
+                    await notify.ToPeopleAsync([on], Notifier.ShiftChanged, $"You're now on call on {day}",
+                        $"The admin changed the {run.Period!.Name} rota under review.", "/my-oncall", email: false, ct);
+                await SwapEndpoints.ExpireStaleAsync(db, run, notify, ct);
+            }
             Mapping.Log(db, http, "run.override", req.PersonId, new { run = id, date });
             await db.SaveChangesAsync(ct);
 
@@ -90,18 +104,77 @@ public static class AdminRotaEndpoints
             return Results.Ok(new OverrideResponse(detail!.Days.Single(d => d.Date == date), warnings));
         });
 
-        g.MapPost("/runs/{id:guid}/publish", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        // Show a draft to officers so they can check their dates and swap before it's published.
+        g.MapPost("/runs/{id:guid}/review", async (Guid id, ReviewRequest? req, RotaDbContext db, Notifier notify, HttpContext http,
+            CancellationToken ct) =>
         {
-            var run = await db.Runs.Include(r => r.Period).FirstOrDefaultAsync(r => r.Id == id, ct);
+            var run = await db.Runs.Include(r => r.Period).Include(r => r.Assignments).FirstOrDefaultAsync(r => r.Id == id, ct);
+            if (run?.Period is null) return Results.NotFound();
+            if (run.IsPublished || run.Period.Status == PeriodStatus.Published)
+                return Results.Problem("Unpublish the rota first.", statusCode: StatusCodes.Status409Conflict);
+            if (run.Period.Status == PeriodStatus.Open)
+                return Results.Problem("Lock the period first.", statusCode: StatusCodes.Status409Conflict);
+
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            // Only one rota in review per period: an earlier one goes back to draft and its requests close.
+            foreach (var other in await db.Runs.Include(r => r.Assignments)
+                         .Where(r => r.PeriodId == run.PeriodId && r.IsInReview && r.Id != id).ToListAsync(ct))
+            {
+                other.IsInReview = false;
+                await SwapEndpoints.ExpireStaleAsync(db, other, notify, ct, "A different version of the rota is now in review.");
+            }
+            await db.SaveChangesAsync(ct);
+
+            run.IsInReview = true;
+            run.Period.Status = PeriodStatus.Review;
+            run.Period.SwapDeadline = req?.SwapDeadline;
+            string until = req?.SwapDeadline is { } d ? $" until {SwapEndpoints.Day(d)}" : " until it is published";
+            await notify.ToOnCallOfficersAsync(Notifier.Review, $"{run.Period.Name} rota is ready for review",
+                $"Check your on-call dates. You can ask other officers to swap{until}.", "/my-oncall", email: false, ct);
+            Mapping.Log(db, http, "run.review", null, new { period = run.Period.Name, run = id, req?.SwapDeadline });
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return Results.NoContent();
+        });
+
+        g.MapPost("/runs/{id:guid}/withdraw-review", async (Guid id, RotaDbContext db, Notifier notify, HttpContext http,
+            CancellationToken ct) =>
+        {
+            var run = await db.Runs.Include(r => r.Period).Include(r => r.Assignments).FirstOrDefaultAsync(r => r.Id == id, ct);
+            if (run?.Period is null) return Results.NotFound();
+            if (!run.IsInReview) return Results.NoContent();
+
+            run.IsInReview = false;
+            run.Period.Status = PeriodStatus.Locked;
+            await SwapEndpoints.ExpireStaleAsync(db, run, notify, ct, "The admin took the rota back to draft.");
+            await notify.ToOnCallOfficersAsync(Notifier.Review, $"{run.Period.Name} rota withdrawn from review",
+                "The admin is reworking the rota. You will be told when it is ready again.", "/my-oncall", email: false, ct);
+            Mapping.Log(db, http, "run.withdraw-review", null, new { period = run.Period.Name, run = id });
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+
+        g.MapPost("/runs/{id:guid}/publish", async (Guid id, RotaDbContext db, Notifier notify, HttpContext http, CancellationToken ct) =>
+        {
+            var run = await db.Runs.Include(r => r.Period).Include(r => r.Assignments).FirstOrDefaultAsync(r => r.Id == id, ct);
             if (run?.Period is null) return Results.NotFound();
 
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             await db.Runs.Where(r => r.PeriodId == run.PeriodId && r.IsPublished && r.Id != id)
                 .ExecuteUpdateAsync(s => s.SetProperty(r => r.IsPublished, false).SetProperty(r => r.PublishedAt, (DateTimeOffset?)null), ct);
+            await db.Runs.Where(r => r.PeriodId == run.PeriodId && r.IsInReview && r.Id != id)
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.IsInReview, false), ct);
+            await db.SwapRequests.Where(s => s.Status == SwapStatus.Pending && s.RunId != id &&
+                                             db.Runs.Any(r => r.Id == s.RunId && r.PeriodId == run.PeriodId))
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, SwapStatus.Expired), ct);
 
             run.IsPublished = true;
+            run.IsInReview = false;
             run.PublishedAt = DateTimeOffset.UtcNow;
             run.Period.Status = PeriodStatus.Published;
+            await SwapEndpoints.ExpireStaleAsync(db, run, notify, ct, "The rota was published, so swap requests are closed.");
+            await notify.ToOnCallOfficersAsync(Notifier.Published, $"{run.Period.Name} rota is published",
+                "The final on-call rota is out. Check your dates.", "/my-oncall", email: true, ct);
             Mapping.Log(db, http, "run.publish", null, new { period = run.Period.Name, run = id });
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -128,6 +201,8 @@ public static class AdminRotaEndpoints
             if (run is null) return Results.NotFound();
             if (run.IsPublished)
                 return Results.Problem("Unpublish the rota before deleting it.", statusCode: StatusCodes.Status409Conflict);
+            if (run.IsInReview)
+                return Results.Problem("Take the rota back to draft before deleting it.", statusCode: StatusCodes.Status409Conflict);
 
             db.Runs.Remove(run);
             await db.SaveChangesAsync(ct);
@@ -149,15 +224,6 @@ public static class AdminRotaEndpoints
                 .ToList();
 
             return Results.File(ExcelExports.Timetable(days), Xlsx, $"Rota {run.Period.Name}.xlsx");
-        });
-
-        g.MapGet("/people/totals.xlsx", async (RotaDbContext db, LocalClock clock, CancellationToken ct) =>
-        {
-            var people = await AdminEndpoints.AdminPeopleAsync(db, ct);
-            var rows = people.Where(p => p.Status == OfficerStatus.OnCall)
-                .Select(p => new PersonTotalsRow(p.Code, p.Name, p.Totals.Total, p.Totals.Weekday, p.Totals.WeekendHoliday))
-                .ToList();
-            return Results.File(ExcelExports.Totals(rows, clock.Today), Xlsx, $"Shift totals {clock.Today:yyyy-MM-dd}.xlsx");
         });
 
         g.MapGet("/periods/{id:guid}/leave.xlsx", async (Guid id, RotaDbContext db, CancellationToken ct) =>
@@ -204,7 +270,7 @@ public static class AdminRotaEndpoints
         int consecutive = assigned.GroupBy(a => a.PersonId)
             .Sum(g => g.Zip(g.Skip(1)).Count(p => p.Second.Date.DayNumber - p.First.Date.DayNumber == 1));
 
-        return new RunDto(r.Id, r.PeriodId, r.CreatedAt, r.Seed, r.IsPublished, r.Warnings,
+        return new RunDto(r.Id, r.PeriodId, r.CreatedAt, r.Seed, r.IsPublished, r.IsInReview, r.Warnings,
             r.Assignments.Count(a => a.PersonId == null), consecutive, r.Assignments.Count(a => a.IsManual));
     }
 

@@ -1,9 +1,9 @@
 import { Alert, Group, SegmentedControl, Stack, Switch, Text, TextInput, Title } from '@mantine/core'
-import { useLocalStorage } from '@mantine/hooks'
 import { useQuery } from '@tanstack/react-query'
 import { IconInfoCircle, IconSearch } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api } from '../api'
+import { useMe } from '../auth'
 import { ErrorBox, Loading, PeriodSelect, StatusBadge } from '../components/common'
 import { defaultPeriod, pick } from '../lib'
 import { dayOfMonth, formatDow, formatLong, formatMonth, monthsBetween, todayIso } from '../dates'
@@ -16,7 +16,7 @@ export function OverviewPage() {
   const [search, setSearch] = useState('')
   const [onlyLeave, setOnlyLeave] = useState(false)
   const [chosenMonth, setMonth] = useState<string | null>(null)
-  const [myId] = useLocalStorage<string | null>({ key: 'rota.personId', defaultValue: null })
+  const myId = useMe().data?.personId ?? null
 
   const periods = useQuery({ queryKey: ['periods'], queryFn: () => api.periods() })
   const periodId = pick(periods.data, chosenId, defaultPeriod(periods.data))?.id ?? null

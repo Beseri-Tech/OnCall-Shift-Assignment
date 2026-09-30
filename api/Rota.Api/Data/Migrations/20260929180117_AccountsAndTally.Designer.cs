@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Rota.Api.Data;
@@ -12,9 +13,11 @@ using Rota.Api.Data;
 namespace Rota.Api.Data.Migrations
 {
     [DbContext(typeof(RotaDbContext))]
-    partial class RotaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260929180117_AccountsAndTally")]
+    partial class AccountsAndTally
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -182,99 +185,6 @@ namespace Rota.Api.Data.Migrations
                     b.HasIndex("Date");
 
                     b.ToTable("leave_days", (string)null);
-                });
-
-            modelBuilder.Entity("Rota.Api.Data.Notification", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<Guid>("AccountId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Body")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("Link")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTimeOffset?>("ReadAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AccountId", "CreatedAt");
-
-                    b.ToTable("notifications", (string)null);
-                });
-
-            modelBuilder.Entity("Rota.Api.Data.OutboxEmail", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<int>("Attempts")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("FailedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastError")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTimeOffset>("NextAttemptAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("SentAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Subject")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("To")
-                        .IsRequired()
-                        .HasMaxLength(254)
-                        .HasColumnType("character varying(254)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NextAttemptAt")
-                        .HasFilter("\"SentAt\" IS NULL AND \"FailedAt\" IS NULL");
-
-                    b.HasIndex("SentAt");
-
-                    b.ToTable("outbox_emails", (string)null);
                 });
 
             modelBuilder.Entity("Rota.Api.Data.PeakDay", b =>
@@ -445,9 +355,6 @@ namespace Rota.Api.Data.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
-                    b.Property<DateOnly?>("SwapDeadline")
-                        .HasColumnType("date");
-
                     b.HasKey("Id");
 
                     b.ToTable("rota_periods", (string)null);
@@ -461,9 +368,6 @@ namespace Rota.Api.Data.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsInReview")
-                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsPublished")
                         .HasColumnType("boolean");
@@ -486,12 +390,9 @@ namespace Rota.Api.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex(new[] { "PeriodId" }, "ix_rota_runs_one_in_review_per_period")
+                    b.HasIndex("PeriodId")
                         .IsUnique()
-                        .HasFilter("\"IsInReview\"");
-
-                    b.HasIndex(new[] { "PeriodId" }, "ix_rota_runs_one_published_per_period")
-                        .IsUnique()
+                        .HasDatabaseName("ix_rota_runs_one_published_per_period")
                         .HasFilter("\"IsPublished\"");
 
                     b.ToTable("rota_runs", (string)null);
@@ -521,53 +422,6 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("shift_assignments", (string)null);
                 });
 
-            modelBuilder.Entity("Rota.Api.Data.SwapRequest", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateOnly>("FromDate")
-                        .HasColumnType("date");
-
-                    b.Property<Guid>("FromPersonId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTimeOffset?>("RespondedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("RunId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<DateOnly>("ToDate")
-                        .HasColumnType("date");
-
-                    b.Property<Guid>("ToPersonId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FromPersonId");
-
-                    b.HasIndex("ToPersonId");
-
-                    b.HasIndex("RunId", "Status");
-
-                    b.ToTable("swap_requests", (string)null);
-                });
-
             modelBuilder.Entity("Rota.Api.Data.Account", b =>
                 {
                     b.HasOne("Rota.Api.Data.Person", "Person")
@@ -583,15 +437,6 @@ namespace Rota.Api.Data.Migrations
                     b.HasOne("Rota.Api.Data.Person", null)
                         .WithMany("Leave")
                         .HasForeignKey("PersonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Rota.Api.Data.Notification", b =>
-                {
-                    b.HasOne("Rota.Api.Data.Account", null)
-                        .WithMany()
-                        .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -655,27 +500,6 @@ namespace Rota.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Person");
-                });
-
-            modelBuilder.Entity("Rota.Api.Data.SwapRequest", b =>
-                {
-                    b.HasOne("Rota.Api.Data.Person", null)
-                        .WithMany()
-                        .HasForeignKey("FromPersonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Rota.Api.Data.RotaRun", null)
-                        .WithMany()
-                        .HasForeignKey("RunId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Rota.Api.Data.Person", null)
-                        .WithMany()
-                        .HasForeignKey("ToPersonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Rota.Api.Data.Person", b =>
