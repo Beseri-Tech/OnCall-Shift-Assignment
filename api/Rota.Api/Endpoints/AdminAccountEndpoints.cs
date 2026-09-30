@@ -112,15 +112,18 @@ public static class AdminAccountEndpoints
     }
 
     private static bool QueueInvite(RotaDbContext db, Mailer mailer, HttpContext http, Account a, string temp) =>
-        mailer.Enqueue(db, a.Email, "Your On-Call Rota account",
-            $"""
-            You have an account on On-Call Rota, where you enter your leave and see the on-call rota.
-
-            Sign in: {mailer.BaseUrl(http)}/login
-            Email: {a.Email}
-            Temporary password: {temp}
-
-            You will be asked to choose your own password when you sign in.
-            The temporary password expires in {TempPasswordLifetime.TotalDays:0} days.
-            """);
+        mailer.Enqueue(db, a.Email, new EmailContent(
+            Subject: "You've been invited to On-Call Rota",
+            Heading: "You've been invited to On-Call Rota",
+            Paragraphs:
+            [
+                "You have been invited to On-Call Rota, the on-call roster and leave planner for dental officers in Perlis.",
+                "Use it to apply for leave, see your on-call dates and swap shifts with colleagues.",
+                "Sign in with the details below:",
+            ],
+            ButtonText: "Sign in to On-Call Rota",
+            ButtonUrl: $"{mailer.BaseUrl(http)}/login",
+            Details: [("Email", a.Email), ("Temporary password", temp)],
+            Note: $"You'll be asked to choose your own password when you first sign in. " +
+                  $"The temporary password expires in {TempPasswordLifetime.TotalDays:0} days."), http);
 }

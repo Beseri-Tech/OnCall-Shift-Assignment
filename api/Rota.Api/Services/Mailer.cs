@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Mail;
+using System.Net.Mime;
+using System.Text;
 using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using Rota.Api.Data;
@@ -34,15 +36,16 @@ public sealed class Mailer(IConfiguration config, IHostEnvironment env, IService
     /// Adds the email to <paramref name="db"/>; it goes out after the caller's SaveChanges. Returns false (and queues
     /// nothing) when email isn't configured, so callers can fall back, e.g. show the temporary password.
     /// </summary>
-    public bool Enqueue(RotaDbContext db, string to, string subject, string body)
+    public bool Enqueue(RotaDbContext db, string to, EmailContent content, HttpContext http)
     {
+        string body = content.Text();
         if (!IsConfigured)
         {
             log.LogWarning("Email to {To} not sent: SMTP is not configured.", to);
-            if (env.IsDevelopment()) log.LogInformation("Subject: {Subject}\n{Body}", subject, body);
+            if (env.IsDevelopment()) log.LogInformation("Subject: {Subject}\n{Body}", content.Subject, body);
             return false;
         }
-        db.OutboxEmails.Add(new OutboxEmail { To = to, Subject = subject, Body = body });
+        db.OutboxEmails.Add(new OutboxEmail { To = to, Subject = content.Subject, Body = body, Html = content.Html(BaseUrl(http)) });
         db.SavedChanges += (_, _) => _wake.Writer.TryWrite(true);
         return true;
     }
@@ -121,7 +124,15 @@ public sealed class Mailer(IConfiguration config, IHostEnvironment env, IService
             {
                 Subject = email.Subject,
                 Body = email.Body.ReplaceLineEndings("\r\n"),   // email wants CRLF; bare LF gets encoded as =0A
+                BodyEncoding = Encoding.UTF8,
+                BodyTransferEncoding = TransferEncoding.QuotedPrintable,
             };
+            if (email.Html is not null)
+            {
+                var html = AlternateView.CreateAlternateViewFromString(email.Html.ReplaceLineEndings("\r\n"), Encoding.UTF8, MediaTypeNames.Text.Html);
+                html.TransferEncoding = TransferEncoding.QuotedPrintable;
+                message.AlternateViews.Add(html);
+            }
             using var client = CreateClient();
             await client.SendMailAsync(message, ct);
             email.SentAt = DateTimeOffset.UtcNow;

@@ -76,15 +76,14 @@ public static class AuthEndpoints
             account.ResetTokenExpiresAt = DateTimeOffset.UtcNow + ResetTokenLifetime;
 
             string link = $"{mailer.BaseUrl(http)}/reset-password?token={token}";
-            mailer.Enqueue(db, account.Email, "Reset your On-Call Rota password",
-                $"""
-                Someone asked to reset the password for {account.Email} on On-Call Rota.
-
-                Set a new password here (the link works for {ResetTokenLifetime.TotalMinutes:0} minutes, once):
-                {link}
-
-                If this wasn't you, ignore this email - your password stays the same.
-                """);
+            mailer.Enqueue(db, account.Email, new EmailContent(
+                Subject: "Reset your On-Call Rota password",
+                Heading: "Reset your password",
+                Paragraphs: [$"We received a request to reset the password for {account.Email}."],
+                ButtonText: "Choose a new password",
+                ButtonUrl: link,
+                Note: $"This link works once and expires in {ResetTokenLifetime.TotalMinutes:0} minutes. " +
+                      "If you didn't ask for this, you can ignore this email; your password won't change."), http);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         }).AllowAnonymous().RequireRateLimiting(RateLimit);

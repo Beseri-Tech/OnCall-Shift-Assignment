@@ -87,6 +87,24 @@ public class EmailTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Emails_carry_a_plain_text_and_a_branded_html_version()
+    {
+        string mail = Path.Combine(Path.GetTempPath(), "rota-mail-" + Guid.NewGuid().ToString("N"));
+        await using var app = fixture.CreateApp(new() { ["Smtp:PickupDirectory"] = mail, ["App:BaseUrl"] = "https://rota.test" });
+        (await ForgotAsync(app)).EnsureSuccessStatusCode();
+
+        await WaitForAsync(app, r => r.Any(e => e.SentAt != null));
+        // Undo quoted-printable soft line breaks and escapes so the parts can be searched.
+        string eml = File.ReadAllText(Assert.Single(Directory.GetFiles(mail, "*.eml"))).Replace("=\r\n", "").Replace("=3D", "=");
+        Assert.Contains("multipart/alternative", eml);
+        Assert.Contains("text/plain", eml);
+        Assert.Contains("text/html", eml);
+        Assert.Contains("""<img src="https://rota.test/email-logo.png" """, eml);
+        Assert.Contains(">Choose a new password</a>", eml);
+        Directory.Delete(mail, recursive: true);
+    }
+
+    [Fact]
     public async Task The_daily_cap_holds_the_rest_back()
     {
         string mail = Path.Combine(Path.GetTempPath(), "rota-mail-" + Guid.NewGuid().ToString("N"));
