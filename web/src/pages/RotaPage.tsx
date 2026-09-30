@@ -1,10 +1,10 @@
 import { Alert, Badge, Group, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
-import { IconInfoCircle, IconSearch } from '@tabler/icons-react'
+import { IconCalendarEvent, IconInfoCircle, IconSearch, IconUserCheck } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api } from '../api'
 import { useMe } from '../auth'
-import { ErrorBox, Loading } from '../components/common'
+import { ErrorBox, Legend, Loading, PageHeader } from '../components/common'
 import { defaultPeriod, pick } from '../lib'
 import { RotaCalendar } from '../components/RotaCalendar'
 import { formatLong, formatWeekday } from '../dates'
@@ -45,11 +45,7 @@ export function RotaPage() {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-end" wrap="wrap">
-        <div>
-          <Title order={2}>On-call rota</Title>
-          <Text c="dimmed" size="sm">Who is on call each day. Your shifts are highlighted in green.</Text>
-        </div>
+      <PageHeader icon={IconCalendarEvent} title="On-call rota" description="Who is on call each day. Your shifts are highlighted.">
         <Select
           label="Period"
           data={periods.data.map(p => ({ value: p.id, label: p.status === 'Review' ? `${p.name} (in review)` : p.name }))}
@@ -58,7 +54,7 @@ export function RotaPage() {
           allowDeselect={false}
           w={240}
         />
-      </Group>
+      </PageHeader>
 
       {rota.isLoading && <Loading />}
       {rota.error && <ErrorBox error={rota.error} />}
@@ -73,23 +69,33 @@ export function RotaPage() {
       {rota.data && (
         <>
           {myId && (
-            <Paper withBorder p="md">
-              <Text fw={700} mb={4}>Your shifts</Text>
+            <Paper className="panel" p="md" bg="var(--brand-soft)">
+              <Group gap="xs" mb={8}>
+                <IconUserCheck size={20} color="var(--brand)" />
+                <Text fw={700} c="brand.9">Your shifts{mine.length ? ` · ${mine.length}` : ''}</Text>
+              </Group>
               {mine.length === 0
                 ? <Text size="sm" c="dimmed">You have no shifts in this rota.</Text>
                 : <Group gap={6}>{mine.map(d => (
-                    <Badge key={d.date} color={d.isWeekendHoliday ? 'orange' : 'green'} variant="light" size="lg">
+                    <Badge key={d.date} color={d.isWeekendHoliday ? 'orange' : 'brand'} variant={d.isWeekendHoliday ? 'light' : 'white'} size="lg"
+                      style={{ border: '1px solid var(--shift-border)' }}>
                       {formatWeekday(d.date)}
                     </Badge>
                   ))}</Group>}
             </Paper>
           )}
 
-          <Paper withBorder p="md">
+          <Paper className="panel" p="md">
             <RotaCalendar days={rota.data.days} highlightPersonId={myId} />
+            <Group gap="lg" mt="md">
+              {myId && <Legend bg="var(--shift-bg)" border="var(--shift-border)" label="Your shift" />}
+              <Legend bg="var(--weekend-bg)" border="#cbd5e1" label="Weekend / public holiday" />
+              <Legend bg="var(--leave-bg)" border="var(--leave-border)" label="Unassigned" />
+              <Legend bg="white" border="var(--warn-border)" label="Changed by the admin" />
+            </Group>
           </Paper>
 
-          <Paper withBorder p="md">
+          <Paper className="panel" p="md">
             <Group justify="space-between" mb="sm">
               <Title order={4}>By person</Title>
               <TextInput placeholder="Find a name" leftSection={<IconSearch size={16} />} value={search}
@@ -107,7 +113,7 @@ export function RotaPage() {
                 </Table.Thead>
                 <Table.Tbody>
                   {perPerson.map(([id, e]) => (
-                    <Table.Tr key={id} bg={id === myId ? 'green.0' : undefined}>
+                    <Table.Tr key={id} bg={id === myId ? 'brand.0' : undefined}>
                       <Table.Td fw={600}>{e.name}</Table.Td>
                       <Table.Td>{e.dates.length}</Table.Td>
                       <Table.Td>{e.weekend}</Table.Td>

@@ -1,5 +1,5 @@
 import {
-  Alert, Badge, Button, Group, List, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, Title, Tooltip,
+  Alert, Badge, Button, Group, List, Modal, NumberInput, Paper, Select, Stack, Table, Text, Title, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
@@ -105,7 +105,7 @@ export function RotaTab() {
               key={r.id}
               size="xs"
               variant={r.id === runId ? 'filled' : 'default'}
-              color={r.isPublished ? 'green' : r.isInReview ? 'violet' : 'blue'}
+              color={r.isPublished ? 'green' : r.isInReview ? 'violet' : 'gray'}
               onClick={() => setRunId(r.id)}
             >
               #{runs.data.length - i} {r.isPublished ? '· published' : r.isInReview ? '· in review' : ''} ({r.unassigned} gaps, {r.consecutivePairs} back-to-back)
@@ -116,7 +116,7 @@ export function RotaTab() {
 
       {period && runId && <RunView runId={runId} period={period} onChanged={refreshAll} onDeleted={() => setRunId(null)} />}
       {period && period.status !== 'Open' && runs.data?.length === 0 && (
-        <Alert color="blue" title="No drafts yet">Press “Generate draft” to create the rota for {period.name}.</Alert>
+        <Alert title="No drafts yet">Press “Generate draft” to create the rota for {period.name}.</Alert>
       )}
     </Stack>
   )
@@ -200,13 +200,13 @@ function RunView({ runId, period, onChanged, onDeleted }: {
           </Group>
         </Group>
         {run.warnings.length > 0 && (
-          <Alert mt="md" color={run.unassigned || run.consecutivePairs ? 'orange' : 'blue'} icon={<IconAlertTriangle />} title="Notes from the generator">
+          <Alert mt="md" color={run.unassigned || run.consecutivePairs ? 'orange' : 'brand'} icon={<IconAlertTriangle />} title="Notes from the generator">
             <List size="sm" spacing={2}>{run.warnings.map((w, i) => <List.Item key={i}>{w}</List.Item>)}</List>
           </Alert>
         )}
       </Paper>
 
-      <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
+      <Stack gap="md">
         <Paper withBorder p="md">
           <Group justify="space-between" mb="sm">
             <Title order={5}>Calendar</Title>
@@ -218,7 +218,7 @@ function RunView({ runId, period, onChanged, onDeleted }: {
           <RotaCalendar days={d.days} onDayClick={run.isPublished ? undefined : setEditing} />
         </Paper>
         <Stats detail={d} />
-      </SimpleGrid>
+      </Stack>
 
       {reviewOpen && <ReviewModal runId={runId} period={period} onClose={() => setReviewOpen(false)} onDone={() => {
         qc.invalidateQueries({ queryKey: ['admin', 'run', runId] })
@@ -250,7 +250,7 @@ function Stats({ detail }: { detail: RunDetail }) {
   }, [detail.stats, sort])
 
   const th = (k: typeof sort, label: string) => (
-    <Table.Th style={{ cursor: 'pointer' }} onClick={() => setSort(k)} c={sort === k ? 'blue' : undefined}>{label}</Table.Th>
+    <Table.Th style={{ cursor: 'pointer' }} onClick={() => setSort(k)} c={sort === k ? 'brand' : undefined}>{label}</Table.Th>
   )
 
   return (

@@ -2,12 +2,14 @@ import {
   Alert, Badge, Button, Card, Group, Modal, Paper, SegmentedControl, Select, SimpleGrid, Stack, Table, Text, Textarea, Title,
 } from '@mantine/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconArrowsExchange, IconCheck, IconInfoCircle, IconX } from '@tabler/icons-react'
+import {
+  IconArrowsExchange, IconBriefcase, IconCalendarCheck, IconCheck, IconInfoCircle, IconStethoscope, IconSum, IconSun, IconX,
+} from '@tabler/icons-react'
 import { useState } from 'react'
 import { Navigate } from 'react-router'
 import { api, type Period, type RotaDay, type Shift, type Swap, type SwapStatus } from '../api'
 import { useMe } from '../auth'
-import { ErrorBox, Loading } from '../components/common'
+import { ErrorBox, Loading, PageHeader, StatCard } from '../components/common'
 import { RotaCalendar } from '../components/RotaCalendar'
 import { diffDays, formatLong, formatWeekday, todayIso } from '../dates'
 import { notifyError, notifyOk } from '../lib'
@@ -68,12 +70,47 @@ export function MyOnCallPage() {
   const outgoing = pending.filter(s => s.fromPersonId === personId)
   const recent = (swaps.data ?? []).filter(s => s.status !== 'Pending').slice(0, 5)
 
+  const swapPanel = (incoming.length > 0 || outgoing.length > 0 || recent.length > 0) && (
+    <Paper className="panel" p="md">
+      <Group justify="space-between" mb="sm">
+        <Group gap="xs"><IconArrowsExchange size={20} color="var(--mantine-color-violet-6)" /><Title order={4}>Swap requests</Title></Group>
+        {incoming.length > 0 && <Badge color="violet">{incoming.length} waiting for you</Badge>}
+      </Group>
+      <Stack gap="sm">
+        {incoming.map(s => (
+          <SwapRow key={s.id} swap={s} text={<><b>{s.fromName}</b> asks for your <b>{formatWeekday(s.toDate)}</b> and gives you <b>{formatWeekday(s.fromDate)}</b></>}>
+            <Button size="xs" color="green" leftSection={<IconCheck size={14} />} loading={respond.isPending && respond.variables?.swap.id === s.id}
+              onClick={() => respond.mutate({ swap: s, action: 'accept' })}>Accept</Button>
+            <Button size="xs" variant="default" leftSection={<IconX size={14} />} disabled={respond.isPending}
+              onClick={() => respond.mutate({ swap: s, action: 'decline' })}>Decline</Button>
+          </SwapRow>
+        ))}
+        {outgoing.map(s => (
+          <SwapRow key={s.id} swap={s} text={<>You asked <b>{s.toName}</b> for their <b>{formatWeekday(s.toDate)}</b> in exchange for your <b>{formatWeekday(s.fromDate)}</b> – waiting</>}>
+            <Button size="xs" variant="default" disabled={respond.isPending} onClick={() => respond.mutate({ swap: s, action: 'cancel' })}>Withdraw</Button>
+          </SwapRow>
+        ))}
+        {recent.length > 0 && (
+          <>
+            <Text size="xs" c="dimmed" fw={700} tt="uppercase" mt={4}>Recent</Text>
+            {recent.map(s => (
+              <Group key={s.id} gap="xs" wrap="nowrap">
+                <StatusBadge status={s.status} />
+                <Text size="sm">
+                  {s.fromPersonId === personId ? `You → ${s.toName}` : `${s.fromName} → you`}: {formatWeekday(s.fromDate)} ↔ {formatWeekday(s.toDate)}
+                </Text>
+              </Group>
+            ))}
+          </>
+        )}
+      </Stack>
+    </Paper>
+  )
+  const nextIn = next ? diffDays(today, next.date) : 0
+
   return (
     <Stack gap="lg">
-      <div>
-        <Title order={2}>My on-call</Title>
-        <Text c="dimmed" size="sm">Your on-call dates, swap requests and tally.</Text>
-      </div>
+      <PageHeader icon={IconStethoscope} title="My on-call" description="Your on-call dates, swap requests and tally." />
 
       {inReview.map(p => (
         <Alert key={p.id} color="violet" icon={<IconArrowsExchange />} title={`${p.name} rota is in review`}>
@@ -83,78 +120,57 @@ export function MyOnCallPage() {
         </Alert>
       ))}
 
-      <SimpleGrid cols={{ base: 2, md: 4 }} spacing="md">
-        <Card withBorder padding="md">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">Next shift</Text>
+      {/* Requests waiting for an answer come first; otherwise the panel sits below the stats. */}
+      {incoming.length > 0 && swapPanel}
+
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+        <Card className="hero-card" padding="lg">
+          <Group gap="xs" mb={6}>
+            <IconCalendarCheck size={18} />
+            <Text size="xs" fw={700} tt="uppercase" opacity={0.85}>Next shift</Text>
+          </Group>
           {next ? (
             <>
-              <Text fw={800} size="lg">{formatWeekday(next.date)}</Text>
-              <Text size="sm" c={diffDays(today, next.date) <= 2 ? 'orange' : 'dimmed'} fw={500}>
-                {inDays(diffDays(today, next.date))}{next.inReview ? ' · draft' : ''}
-              </Text>
+              <Text fw={800} fz={24} lh={1.2}>{formatWeekday(next.date)}</Text>
+              <Group gap={6} mt={8}>
+                {nextIn <= 2
+                  ? <Badge color="orange" variant="filled">{inDays(nextIn)}</Badge>
+                  : <Badge color="white" c="brand.8" variant="filled">{inDays(nextIn)}</Badge>}
+                {next.inReview && <Badge color="violet" variant="filled">Draft</Badge>}
+              </Group>
             </>
-          ) : <Text c="dimmed" mt={4}>None yet</Text>}
+          ) : <Text mt={4} opacity={0.85}>None yet</Text>}
         </Card>
-        <TallyCard label="Tally · total" value={totals?.total} />
-        <TallyCard label="Tally · weekday" value={totals?.weekday} />
-        <TallyCard label="Tally · weekend + PH" value={totals?.weekendHoliday} />
+        <StatCard icon={IconSum} label="Total shifts" value={totals?.total ?? '–'} />
+        <StatCard icon={IconBriefcase} color="indigo" label="Weekday" value={totals?.weekday ?? '–'} />
+        <StatCard icon={IconSun} color="orange" label="Weekend + PH" value={totals?.weekendHoliday ?? '–'} />
       </SimpleGrid>
-      <Text size="xs" c="dimmed" mt={-12}>
+      <Text size="xs" c="dimmed" mt={-10}>
         {profile.data?.totalsKnown
           ? 'The tally counts every shift in published rotas, including upcoming ones, plus any history the admin entered. Draft dates don\'t count until published.'
           : 'No history recorded yet – the tally starts from your first published rota.'}
       </Text>
 
-      {(incoming.length > 0 || outgoing.length > 0 || recent.length > 0) && (
-        <Paper withBorder p="md">
-          <Title order={4} mb="sm">Swap requests</Title>
-          <Stack gap="sm">
-            {incoming.map(s => (
-              <SwapRow key={s.id} swap={s} text={<><b>{s.fromName}</b> asks for your <b>{formatWeekday(s.toDate)}</b> and gives you <b>{formatWeekday(s.fromDate)}</b></>}>
-                <Button size="xs" color="green" leftSection={<IconCheck size={14} />} loading={respond.isPending && respond.variables?.swap.id === s.id}
-                  onClick={() => respond.mutate({ swap: s, action: 'accept' })}>Accept</Button>
-                <Button size="xs" variant="default" leftSection={<IconX size={14} />} disabled={respond.isPending}
-                  onClick={() => respond.mutate({ swap: s, action: 'decline' })}>Decline</Button>
-              </SwapRow>
-            ))}
-            {outgoing.map(s => (
-              <SwapRow key={s.id} swap={s} text={<>You asked <b>{s.toName}</b> for their <b>{formatWeekday(s.toDate)}</b> in exchange for your <b>{formatWeekday(s.fromDate)}</b> – waiting</>}>
-                <Button size="xs" variant="default" disabled={respond.isPending} onClick={() => respond.mutate({ swap: s, action: 'cancel' })}>Withdraw</Button>
-              </SwapRow>
-            ))}
-            {recent.length > 0 && (
-              <>
-                <Text size="xs" c="dimmed" fw={700} tt="uppercase" mt={4}>Recent</Text>
-                {recent.map(s => (
-                  <Group key={s.id} gap="xs" wrap="nowrap">
-                    <StatusBadge status={s.status} />
-                    <Text size="sm">
-                      {s.fromPersonId === personId ? `You → ${s.toName}` : `${s.fromName} → you`}: {formatWeekday(s.fromDate)} ↔ {formatWeekday(s.toDate)}
-                    </Text>
-                  </Group>
-                ))}
-              </>
-            )}
-          </Stack>
-        </Paper>
-      )}
+      {incoming.length === 0 && swapPanel}
 
-      <Group justify="space-between" wrap="wrap">
-        <SegmentedControl value={show} onChange={v => setShow(v as Show)} data={[
-          { value: 'upcoming', label: `Upcoming (${all.filter(s => s.date >= today).length})` },
-          { value: 'past', label: `Past (${all.filter(s => s.date < today).length})` },
-          { value: 'all', label: 'All' },
-        ]} />
-      </Group>
+      <Paper className="panel" p="md">
+        <Group justify="space-between" wrap="wrap" mb="md">
+          <Title order={4}>Shifts</Title>
+          <SegmentedControl value={show} onChange={v => setShow(v as Show)} data={[
+            { value: 'upcoming', label: `Upcoming (${all.filter(s => s.date >= today).length})` },
+            { value: 'past', label: `Past (${all.filter(s => s.date < today).length})` },
+            { value: 'all', label: 'All' },
+          ]} />
+        </Group>
 
-      {list.length === 0 ? (
-        <Alert icon={<IconInfoCircle />} color="blue">
-          {show === 'past' ? 'No past shifts yet.' : 'No upcoming shifts. They appear here once the admin shares a rota.'}
-        </Alert>
-      ) : (
-        <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
-          <Paper withBorder>
-            <Table striped highlightOnHover verticalSpacing="sm">
+        {list.length === 0 ? (
+          <Alert icon={<IconInfoCircle />}>
+            {show === 'past' ? 'No past shifts yet.' : 'No upcoming shifts. They appear here once the admin shares a rota.'}
+          </Alert>
+        ) : (
+          <Stack gap="xl">
+            <RotaCalendar days={toDays(list)} highlightPersonId="me" fillMonths holidays={holidayMap} />
+            <Table highlightOnHover verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Date</Table.Th>
@@ -165,8 +181,8 @@ export function MyOnCallPage() {
               </Table.Thead>
               <Table.Tbody>
                 {list.map(s => (
-                  <Table.Tr key={s.date} bg={s.date === next?.date ? 'green.0' : undefined}>
-                    <Table.Td fw={600}>{formatLong(s.date)}<Text span c="dimmed" size="sm"> · {formatWeekday(s.date).split(' ')[0]}</Text></Table.Td>
+                  <Table.Tr key={s.date} bg={s.date === next?.date ? 'brand.0' : undefined}>
+                    <Table.Td fw={700}>{formatLong(s.date)}<Text span c="dimmed" size="sm" fw={400}> · {formatWeekday(s.date).split(' ')[0]}</Text></Table.Td>
                     <Table.Td>
                       <Group gap={4}>
                         <TypeBadge shift={s} />
@@ -184,12 +200,9 @@ export function MyOnCallPage() {
                 ))}
               </Table.Tbody>
             </Table>
-          </Paper>
-          <Paper withBorder p="md">
-            <RotaCalendar days={toDays(list)} highlightPersonId="me" fillMonths holidays={holidayMap} />
-          </Paper>
-        </SimpleGrid>
-      )}
+          </Stack>
+        )}
+      </Paper>
 
       {swapping && <SwapModal shift={swapping} personId={personId} onClose={() => setSwapping(null)} onSent={refresh} />}
     </Stack>
@@ -238,7 +251,7 @@ function SwapModal({ shift, personId, onClose, onSent }: { shift: Shift; personI
 
 function SwapRow({ swap, text, children }: { swap: Swap; text: React.ReactNode; children: React.ReactNode }) {
   return (
-    <Paper withBorder p="sm" bg="violet.0">
+    <Paper withBorder p="sm" radius="md" bg="violet.0" style={{ borderColor: 'var(--mantine-color-violet-2)' }}>
       <Group justify="space-between" wrap="wrap" gap="xs">
         <div>
           <Text size="sm">{text}</Text>
@@ -255,15 +268,6 @@ const SWAP_COLOR: Record<SwapStatus, string> = { Pending: 'violet', Accepted: 'g
 
 function StatusBadge({ status }: { status: SwapStatus }) {
   return <Badge size="sm" variant="light" color={SWAP_COLOR[status]}>{status}</Badge>
-}
-
-function TallyCard({ label, value }: { label: string; value: number | undefined }) {
-  return (
-    <Card withBorder padding="md">
-      <Text size="xs" c="dimmed" fw={700} tt="uppercase">{label}</Text>
-      <Text fw={800} size="xl">{value ?? '–'}</Text>
-    </Card>
-  )
 }
 
 function TypeBadge({ shift }: { shift: Shift }) {

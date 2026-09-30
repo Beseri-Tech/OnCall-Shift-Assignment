@@ -24,11 +24,20 @@ import { RotaPage } from './pages/RotaPage'
 // oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
 const AdminPage = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })))
 
+// Clinical teal. Shade 7 is the default so white button text keeps 4.5:1 contrast.
 const theme = createTheme({
-  primaryColor: 'blue',
+  colors: {
+    brand: ['#ecfeff', '#cffafe', '#a5f3fc', '#67e8f9', '#22d3ee', '#06b6d4', '#0891b2', '#0e7490', '#155e75', '#164e63'],
+  },
+  primaryColor: 'brand',
+  primaryShade: 7,
   fontFamily: '"Segoe UI", system-ui, -apple-system, Roboto, sans-serif',
   defaultRadius: 'md',
   headings: { fontWeight: '700' },
+  components: {
+    Paper: { defaultProps: { radius: 'lg' } },
+    Card: { defaultProps: { radius: 'lg' } },
+  },
 })
 
 // A 401 anywhere means the session ended (logged out, disabled, password changed elsewhere): back to sign in.
