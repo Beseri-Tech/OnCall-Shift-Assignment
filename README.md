@@ -22,15 +22,16 @@ cp .env.example .env
 Generate the first admin's password hash and paste it into `.env` with `ADMIN_EMAIL` (keep the single quotes):
 
 ```bash
-docker build -t oncall-rota .
-docker run --rm oncall-rota hash-password "your-admin-password"
+docker run --rm ghcr.io/beseri-tech/oncall-shift-assignment hash-password "your-admin-password"
 ```
 
 Also set `POSTGRES_PASSWORD` in `.env`, then:
 
 ```bash
-docker compose up -d --build
+docker compose pull && docker compose up -d
 ```
+
+CI publishes the image to GHCR: every push to `master` updates `:latest`, and a `v1.2.3` tag publishes `:1.2.3`. Set `APP_TAG` to pin a version. If the package is private, sign in on the server first with a token that has `read:packages`: `docker login ghcr.io -u <github-user>`. To build from source instead, use `docker compose up -d --build`.
 
 The app is at <http://localhost:8080> and the admin page at `/admin`. Database migrations run on startup; data lives in the `pgdata` volume, so back it up. Put a reverse proxy with HTTPS in front for anything beyond a trusted network.
 
@@ -42,6 +43,7 @@ The app is at <http://localhost:8080> and the admin page at `/admin`. Database m
 | `APP_BASE_URL` | public address, used in email links | the request's address |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | email for invites and password resets; without it invites show the temporary password to the admin | off |
 | `APP_PORT` | published port | `8080` |
+| `APP_TAG` | image tag to run | `latest` |
 | `TIME_ZONE` | used for "today" and deadlines | `Asia/Kuala_Lumpur` |
 
 ## Develop

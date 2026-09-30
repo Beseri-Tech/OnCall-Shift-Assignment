@@ -18,6 +18,8 @@ services:
     restart: unless-stopped
 
   app:
+    # `docker compose pull` fetches the published image; `docker compose build` builds it from source instead.
+    image: ghcr.io/beseri-tech/oncall-shift-assignment:${APP_TAG:-latest}
     build: .
     depends_on:
       db:
