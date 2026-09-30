@@ -26,6 +26,29 @@ public class AuthTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         app.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
 
     [Fact]
+    public async Task Only_the_configured_web_origin_may_call_the_api_with_the_cookie()
+    {
+        await using var app = fixture.CreateApp(new() { ["App:WebOrigin"] = "https://rota.example.com/" });
+        var client = NewClient(app);
+
+        async Task<HttpResponseMessage> PreflightAsync(string origin)
+        {
+            var req = new HttpRequestMessage(HttpMethod.Options, "/api/auth/login");
+            req.Headers.Add("Origin", origin);
+            req.Headers.Add("Access-Control-Request-Method", "POST");
+            req.Headers.Add("Access-Control-Request-Headers", "content-type");
+            return await client.SendAsync(req);
+        }
+
+        var allowed = await PreflightAsync("https://rota.example.com");
+        Assert.Equal("https://rota.example.com", allowed.Headers.GetValues("Access-Control-Allow-Origin").Single());
+        Assert.Equal("true", allowed.Headers.GetValues("Access-Control-Allow-Credentials").Single());
+
+        var other = await PreflightAsync("https://evil.example.net");
+        Assert.False(other.Headers.Contains("Access-Control-Allow-Origin"));
+    }
+
+    [Fact]
     public async Task Everything_needs_login_except_the_login_itself()
     {
         await using var app = fixture.CreateApp();

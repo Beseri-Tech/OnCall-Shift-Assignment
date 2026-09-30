@@ -33,6 +33,35 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  # master deploys the web app to Cloudflare Pages (Direct Upload project) once the tests pass.
+  # Secrets: CLOUDFLARE_API_TOKEN (Account → Cloudflare Pages → Edit), CLOUDFLARE_ACCOUNT_ID.
+  # Variables (optional): VITE_API_URL, CLOUDFLARE_PAGES_PROJECT.
+  pages:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [api, web]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://rota-api.zogami.uk' }}
+      # --branch must be the project's production branch (main for Direct Upload projects), else it's a preview deploy.
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: web
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'oncall-rota' }} --branch=main
+
   # Pull requests only check the image builds. master and v* tags push it to GHCR once the tests pass:
   # master → :latest and :sha-xxxxxxx, tag v1.2.3 → :1.2.3 and :1.2.
   docker:

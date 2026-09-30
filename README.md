@@ -44,6 +44,18 @@ The app is at <http://localhost:8080> and the admin page at `/admin`. Database m
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | email for invites and password resets; without it invites show the temporary password to the admin | off |
 | `APP_PORT` | published port | `8080` |
 | `APP_TAG` | image tag to run | `latest` |
+| `WEB_ORIGIN` | address of a separately hosted web app allowed to call the API (see below) | off |
+
+### Web app on Cloudflare Pages (optional)
+
+The API serves the web app itself, so this is optional. To host the web app on Cloudflare Pages instead:
+
+1. Put both on the same domain, e.g. `rota.example.com` (Pages) and `rota-api.example.com` (API). The sign-in cookie is `SameSite=Strict`, so a `*.pages.dev` address can't sign in.
+2. On the server, set `WEB_ORIGIN=https://rota.example.com` and `APP_BASE_URL=https://rota.example.com` (email links point at the web app).
+3. In Cloudflare, create a Pages project with **Direct Upload**, named `oncall-rota`, and add the custom domain.
+4. In GitHub repo settings → Secrets and variables → Actions, add the secrets `CLOUDFLARE_API_TOKEN` (permission: Account → Cloudflare Pages → Edit) and `CLOUDFLARE_ACCOUNT_ID`. Optionally add the variables `VITE_API_URL` (the API address) and `CLOUDFLARE_PAGES_PROJECT`.
+
+Every push to `master` then deploys the web app to Pages after the tests pass.
 | `TIME_ZONE` | used for "today" and deadlines | `Asia/Kuala_Lumpur` |
 
 ## Develop

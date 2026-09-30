@@ -74,6 +74,8 @@ builder.Services.AddAuthorizationBuilder()
         .RequireRole(nameof(AccountRole.Admin), nameof(AccountRole.Supervisor))
         .RequireAssertion(c => !c.User.MustChangePassword()));
 
+builder.Services.AddCors();
+
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -123,6 +125,13 @@ var staticFiles = new StaticFileOptions
 app.UseDefaultFiles();
 app.UseStaticFiles(staticFiles);
 
+// The web app can be hosted separately (e.g. Cloudflare Pages on a sibling subdomain, so the SameSite=Strict cookie
+// still counts as same-site). App:WebOrigin lists the origins allowed to call the API with the cookie, comma-separated.
+// Before the rate limiter and auth, so preflights and 401/429 responses carry the CORS headers too.
+string[] webOrigins = (app.Configuration["App:WebOrigin"] ?? "")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Select(o => o.TrimEnd('/')).ToArray();
+app.UseCors(p => p.WithOrigins(webOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials());
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

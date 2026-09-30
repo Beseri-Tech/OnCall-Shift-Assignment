@@ -102,11 +102,15 @@ export class ApiError extends Error {
   }
 }
 
+/** Where the API lives: empty when it serves this app itself (and in dev, via the Vite proxy); set VITE_API_URL at build
+ * time when the app is hosted separately, e.g. on Cloudflare Pages. */
+const API = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '')
+
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
   const isForm = body instanceof FormData
-  const res = await fetch(url, {
+  const res = await fetch(API + url, {
     method,
-    credentials: 'same-origin',
+    credentials: 'include',
     headers: body === undefined || isForm ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   })
@@ -225,9 +229,9 @@ export const api = {
 
 
     exports: {
-      timetable: (runId: string) => `/api/admin/runs/${runId}/timetable.xlsx`,
-      tally: () => '/api/admin/tally/export.xlsx',
-      leave: (periodId: string) => `/api/admin/periods/${periodId}/leave.xlsx`,
+      timetable: (runId: string) => `${API}/api/admin/runs/${runId}/timetable.xlsx`,
+      tally: () => `${API}/api/admin/tally/export.xlsx`,
+      leave: (periodId: string) => `${API}/api/admin/periods/${periodId}/leave.xlsx`,
     },
   },
 }
