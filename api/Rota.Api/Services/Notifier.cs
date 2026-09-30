@@ -47,10 +47,13 @@ public sealed class Notifier
         foreach (var a in accounts)
         {
             _db.Notifications.Add(new Notification { AccountId = a.Id, Kind = kind, Title = title, Body = body, Link = link });
-            if (email && _mailer.IsConfigured)
-                _mailer.Enqueue(_db, a.Email, title, $"{body}\n\nOpen On-Call Rota: {BaseUrl()}{link ?? "/"}".TrimStart());
+            if (email && _mailer.IsConfigured && _http.HttpContext is { } http)
+                _mailer.Enqueue(_db, a.Email, new EmailContent(
+                    Subject: title,
+                    Heading: title,
+                    Paragraphs: (body ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                    ButtonText: "Open On-Call Rota",
+                    ButtonUrl: $"{_mailer.BaseUrl(http)}{link ?? "/"}"), http);
         }
     }
-
-    private string BaseUrl() => _http.HttpContext is { } http ? _mailer.BaseUrl(http) : "";
 }

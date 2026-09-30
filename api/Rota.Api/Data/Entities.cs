@@ -216,6 +216,9 @@ public sealed class OutboxEmail
     public string To { get; set; } = "";
     public string Subject { get; set; } = "";
     public string Body { get; set; } = "";
+
+    /// <summary>HTML version, sent alongside the plain-text Body when present.</summary>
+    public string? Html { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>Not sent before this time (retry backoff).</summary>
