@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Rota.Api.Auth;
 using Rota.Api.Data;
 using Rota.Api.Services;
 using Rota.Core.Leave;
 
 namespace Rota.Api.Endpoints;
 
-/// <summary>No login yet: people pick their name. Edits are logged in change_log.</summary>
+/// <summary>Signed-in pages. Officers see and edit their own leave; admins any officer's. Edits are logged in change_log.</summary>
 public static class PublicEndpoints
 {
     private const int MaxNoteLength = 200;
@@ -20,13 +21,35 @@ public static class PublicEndpoints
                 .Select(p => new PersonSummaryDto(p.Id, p.Code, p.Name))
                 .ToListAsync(ct));
 
-        api.MapGet("/people/{id:guid}", async (Guid id, RotaDbContext db, CancellationToken ct) =>
+        api.MapGet("/people/{id:guid}", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
+            if (!CanAccess(http, id)) return Results.Forbid();
             var p = await db.People.FindAsync([id], ct);
             if (p is null) return Results.NotFound();
 
             var totals = (await Totals.ForPeopleAsync(db, ct: ct)).GetValueOrDefault(id, PersonTotals.Unknown);
             return Results.Ok(new PersonProfileDto(p.Id, p.Code, p.Name, totals.ToDto(), totals.Known));
+        });
+
+        // Shifts in published rotas, plus rotas in review (flagged: they can still change).
+        api.MapGet("/people/{id:guid}/shifts", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            if (!CanAccess(http, id)) return Results.Forbid();
+
+            var shifts = await (
+                from a in db.Assignments
+                join r in db.Runs on a.RunId equals r.Id
+                join p in db.Periods on r.PeriodId equals p.Id
+                where a.PersonId == id && (r.IsPublished || r.IsInReview)
+                orderby a.Date
+                select new { a.Date, a.IsWeekendHoliday, PeriodId = p.Id, PeriodName = p.Name, r.IsInReview, RunId = r.Id })
+                .ToListAsync(ct);
+
+            var dates = shifts.Select(s => s.Date).ToList();
+            var holidays = await db.Holidays.Where(h => dates.Contains(h.Date)).ToDictionaryAsync(h => h.Date, h => h.Name, ct);
+            return Results.Ok(shifts.Select(s =>
+                new ShiftDto(s.Date, s.IsWeekendHoliday, holidays.GetValueOrDefault(s.Date), s.PeriodId, s.PeriodName, s.IsInReview, s.RunId))
+                .ToList());
         });
 
         api.MapGet("/periods", async (PeriodStatus? status, RotaDbContext db, LocalClock clock, CancellationToken ct) =>
@@ -45,8 +68,9 @@ public static class PublicEndpoints
             return await q.OrderBy(h => h.Date).Select(h => new HolidayDto(h.Date, h.Name)).ToListAsync(ct);
         });
 
-        api.MapGet("/people/{id:guid}/entries", async (Guid id, Guid periodId, RotaDbContext db, CancellationToken ct) =>
+        api.MapGet("/people/{id:guid}/entries", async (Guid id, Guid periodId, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
+            if (!CanAccess(http, id)) return Results.Forbid();
             var period = await db.Periods.FindAsync([periodId], ct);
             if (period is null || !await db.People.AnyAsync(p => p.Id == id, ct)) return Results.NotFound();
 
@@ -70,11 +94,15 @@ public static class PublicEndpoints
         api.MapPut("/people/{id:guid}/entries", async (Guid id, Guid periodId, EntriesDto body, RotaDbContext db,
             LocalClock clock, LeaveLimits limits, HttpContext http, CancellationToken ct) =>
         {
+            if (!CanAccess(http, id)) return Results.Forbid();
+            // Admins edit on someone's behalf: no deadline and no leave limits (like the old spreadsheet).
+            bool byAdmin = http.User.IsAdmin();
+
             var period = await db.Periods.FindAsync([periodId], ct);
             var person = await db.People.FindAsync([id], ct);
             if (period is null || person is null || person.Status != OfficerStatus.OnCall) return Results.NotFound();
 
-            if (!period.IsEditable(clock.Today))
+            if (!byAdmin && !period.IsEditable(clock.Today))
                 return Results.Problem(
                     period.Status == PeriodStatus.Open ? "The leave deadline for this period has passed." : "This period is locked.",
                     statusCode: StatusCodes.Status409Conflict);
@@ -101,7 +129,7 @@ public static class PublicEndpoints
             // Read after the lock so we see what the previous save just committed.
             var before = await LoadEntriesAsync(db, id, period, ct);
             var rules = await LeaveRules.LoadAsync(db, limits, period, ct);
-            var limitErrors = rules.Validate(id, before.Leave.Select(l => l.Date).ToList(), body.Leave.Select(l => l.Date).Distinct().ToList());
+            var limitErrors = byAdmin ? [] : rules.Validate(id, before.Leave.Select(l => l.Date).ToList(), body.Leave.Select(l => l.Date).Distinct().ToList());
             if (limitErrors.Count > 0)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["leave"] = [.. limitErrors] });
 
@@ -171,14 +199,19 @@ public static class PublicEndpoints
         api.MapGet("/periods/{id:guid}/rota", async (Guid id, RotaDbContext db, LocalClock clock, CancellationToken ct) =>
         {
             var period = await db.Periods.FindAsync([id], ct);
-            var run = await db.Runs.Include(r => r.Assignments).FirstOrDefaultAsync(r => r.PeriodId == id && r.IsPublished, ct);
+            // The published rota, or else the one in review.
+            var run = await db.Runs.Include(r => r.Assignments).Where(r => r.PeriodId == id && (r.IsPublished || r.IsInReview))
+                .OrderByDescending(r => r.IsPublished).FirstOrDefaultAsync(ct);
             if (period is null || run is null) return Results.NotFound();
 
             var names = await db.People.ToDictionaryAsync(p => p.Id, p => p.Name, ct);
             var holidays = await Mapping.HolidaysAsync(db, period.StartDate, period.EndDate, ct);
-            return Results.Ok(new PublishedRotaDto(period.ToDto(clock.Today), run.Id, Mapping.ToDays(run.Assignments, names, holidays)));
+            return Results.Ok(new PublishedRotaDto(period.ToDto(clock.Today), run.Id, Mapping.ToDays(run.Assignments, names, holidays),
+                !run.IsPublished));
         });
     }
+
+    private static bool CanAccess(HttpContext http, Guid personId) => http.User.IsAdmin() || http.User.PersonId() == personId;
 
     private static string? Clean(string? note) => string.IsNullOrWhiteSpace(note) ? null : note.Trim();
 

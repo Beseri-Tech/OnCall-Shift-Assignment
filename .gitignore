@@ -368,3 +368,6 @@ FodyWeavers.xsd
 # Web
 web/node_modules/
 web/dist/
+
+# Development emails (Smtp:PickupDirectory)
+.mail/

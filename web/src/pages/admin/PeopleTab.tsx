@@ -6,7 +6,7 @@ import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconBuildingHospital, IconDoorExit, IconDownload, IconEdit, IconPlayerPause, IconSearch, IconTrash, IconUserCheck,
+  IconBuildingHospital, IconDoorExit, IconEdit, IconPlayerPause, IconSearch, IconTrash, IconUserCheck,
   IconUserPlus, IconUsersPlus,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
@@ -17,7 +17,6 @@ import { notifyError, notifyOk } from '../../lib'
 
 const blank: UpsertPerson = {
   name: '', code: null, status: 'OnCall', extraShift: false, preferWeekendHoliday: false, weekendWeight: 1,
-  openingTotal: null, openingWeekday: null, openingWeekendHoliday: null,
   statusReason: null, excludedUntil: null, clinicId: null, phone: null,
 }
 
@@ -95,9 +94,6 @@ export function PeopleTab() {
           { value: 'All', label: 'All' },
         ]} />
         <Group>
-          <Button variant="default" leftSection={<IconDownload size={16} />} component="a" href={api.admin.exports.totals()}>
-            Totals (Excel)
-          </Button>
           <Button variant="default" leftSection={<IconBuildingHospital size={16} />} onClick={() => setClinicsOpen(true)}>Clinics</Button>
           <Button variant="default" leftSection={<IconUsersPlus size={16} />} onClick={() => setBulkOpen(true)}>Add many</Button>
           <Button leftSection={<IconUserPlus size={16} />} onClick={() => setEditing({ id: null, value: blank })}>Add officer</Button>
@@ -117,7 +113,7 @@ export function PeopleTab() {
       </Group>
 
       <Paper withBorder>
-        <Table.ScrollContainer minWidth={1100}>
+        <Table.ScrollContainer minWidth={900}>
           <Table striped highlightOnHover verticalSpacing={6}>
             <Table.Thead>
               <Table.Tr>
@@ -127,14 +123,12 @@ export function PeopleTab() {
                 <Table.Th>Phone</Table.Th>
                 <Table.Th>Status</Table.Th>
                 <Table.Th>Flags</Table.Th>
-                <Table.Th ta="center">Opening<br /><Text span size="xs" c="dimmed">total / wkday / wkend+PH</Text></Table.Th>
-                <Table.Th ta="center">Done so far<br /><Text span size="xs" c="dimmed">total / wkday / wkend+PH</Text></Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {rows.length === 0 && (
-                <Table.Tr><Table.Td colSpan={9}><Text c="dimmed" ta="center" py="md">No officers match.</Text></Table.Td></Table.Tr>
+                <Table.Tr><Table.Td colSpan={7}><Text c="dimmed" ta="center" py="md">No officers match.</Text></Table.Td></Table.Tr>
               )}
               {rows.map(p => (
                 <Table.Tr key={p.id} opacity={p.status === 'Left' ? 0.55 : 1}>
@@ -163,16 +157,6 @@ export function PeopleTab() {
                       {p.extraShift && <Badge color="violet" variant="light">Extra</Badge>}
                       {p.weekendWeight > 1 && <Badge variant="light">Weight {p.weekendWeight}</Badge>}
                     </Group>
-                  </Table.Td>
-                  <Table.Td ta="center" c="dimmed">
-                    {[p.openingTotal, p.openingWeekday, p.openingWeekendHoliday].map(v => v ?? '–').join(' / ')}
-                  </Table.Td>
-                  <Table.Td ta="center">
-                    <Tooltip label={p.totalsKnown ? 'Opening numbers + published rotas' : 'Unknown – the group average is used for weekend balancing'}>
-                      <Text span fw={600} c={p.totalsKnown ? undefined : 'dimmed'}>
-                        {p.totals.total} / {p.totals.weekday} / {p.totals.weekendHoliday}
-                      </Text>
-                    </Tooltip>
                   </Table.Td>
                   <Table.Td>
                     <Group gap={4} justify="flex-end" wrap="nowrap">
@@ -231,12 +215,9 @@ export function PeopleTab() {
 
 const toUpsert = (p: AdminPerson): UpsertPerson => ({
   name: p.name, code: p.code, status: p.status, extraShift: p.extraShift, preferWeekendHoliday: p.preferWeekendHoliday,
-  weekendWeight: p.weekendWeight, openingTotal: p.openingTotal, openingWeekday: p.openingWeekday,
-  openingWeekendHoliday: p.openingWeekendHoliday, statusReason: p.statusReason, excludedUntil: p.excludedUntil,
+  weekendWeight: p.weekendWeight, statusReason: p.statusReason, excludedUntil: p.excludedUntil,
   clinicId: p.clinicId, phone: p.phone,
 })
-
-const num = (v: string | number) => (v === '' ? null : Number(v))
 
 const clinicOptions = (clinics: Clinic[]) =>
   [...new Set(clinics.map(c => c.area))].map(area => ({
@@ -336,14 +317,6 @@ function PersonModal({ editing, clinics, onClose, onSaved }: {
           </Group>
           <NumberInput label="Weekend weight" description="Higher = larger share of weekend/PH shifts (1–5)" min={1} max={5}
             value={v.weekendWeight} onChange={x => set('weekendWeight', Number(x) || 1)} w={200} />
-          <Text fw={600} size="sm" mt="xs">Opening numbers (shifts done before this app)</Text>
-          <Text size="xs" c="dimmed" mt={-10}>Leave blank if unknown – the group average is used until their first published rota.</Text>
-          <Group grow>
-            <NumberInput label="Total" min={0} value={v.openingTotal ?? ''} onChange={x => set('openingTotal', num(x))} />
-            <NumberInput label="Weekday" min={0} value={v.openingWeekday ?? ''} onChange={x => set('openingWeekday', num(x))} />
-            <NumberInput label="Weekend + PH" min={0} value={v.openingWeekendHoliday ?? ''}
-              onChange={x => set('openingWeekendHoliday', num(x))} />
-          </Group>
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancel</Button>

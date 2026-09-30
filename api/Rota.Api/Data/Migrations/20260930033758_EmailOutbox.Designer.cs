@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Rota.Api.Data;
@@ -12,9 +13,11 @@ using Rota.Api.Data;
 namespace Rota.Api.Data.Migrations
 {
     [DbContext(typeof(RotaDbContext))]
-    partial class RotaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260930033758_EmailOutbox")]
+    partial class EmailOutbox
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

@@ -1,52 +1,25 @@
-using System.Security.Claims;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Rota.Api.Auth;
 using Rota.Api.Data;
 using Rota.Api.Services;
-using Rota.Core.Leave;
 using Rota.Core.Leave;
 
 namespace Rota.Api.Endpoints;
 
 public static class AdminEndpoints
 {
-    public const string Policy = "Admin";
-    public const string LoginRateLimit = "admin-login";
-
     public static void MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        var auth = app.MapGroup("/api/admin").WithTags("Admin auth");
-
-        auth.MapPost("/login", async (LoginRequest req, HttpContext http, IConfiguration config) =>
-        {
-            if (!AdminPassword.Verify(req.Password, config["Admin:PasswordHash"]))
-                return Results.Problem("Wrong password.", statusCode: StatusCodes.Status401Unauthorized);
-
-            var identity = new ClaimsIdentity([new Claim(ClaimTypes.Name, "admin"), new Claim(ClaimTypes.Role, "admin")],
-                CookieAuthenticationDefaults.AuthenticationScheme);
-            await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
-            return Results.NoContent();
-        }).RequireRateLimiting(LoginRateLimit);
-
-        auth.MapPost("/logout", async (HttpContext http) =>
-        {
-            await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            return Results.NoContent();
-        });
-
-        auth.MapGet("/me", () => Results.Ok(new { admin = true })).RequireAuthorization(Policy);
-
-        var admin = app.MapGroup("/api/admin").RequireAuthorization(Policy);
+        var admin = app.MapGroup("/api/admin").RequireAuthorization(Session.AdminPolicy);
         MapPeople(admin.MapGroup("/people").WithTags("Admin people"));
         MapClinics(admin.MapGroup("/clinics").WithTags("Admin clinics"));
         MapPeriods(admin.MapGroup("/periods").WithTags("Admin periods"));
         MapHolidays(admin.MapGroup("/holidays").WithTags("Admin holidays"));
         MapPeakDays(admin.MapGroup("/peak-days").WithTags("Admin peak days"));
         admin.MapRotaEndpoints();
-        admin.MapImportEndpoints();
+        admin.MapTallyEndpoints();
+        admin.MapAccountEndpoints();
     }
 
     // ---------------- people ----------------
@@ -131,15 +104,10 @@ public static class AdminEndpoints
 
     internal static async Task<List<AdminPersonDto>> AdminPeopleAsync(RotaDbContext db, CancellationToken ct)
     {
-        var totals = await Totals.ForPeopleAsync(db, ct: ct);
         var people = await db.People.Include(p => p.Clinic).OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
-        return people.Select(p =>
-        {
-            var t = totals.GetValueOrDefault(p.Id, PersonTotals.Unknown);
-            return new AdminPersonDto(p.Id, p.Code, p.Name, p.Status, p.StatusReason, p.ExcludedUntil,
-                p.ClinicId, p.Clinic?.Name, p.Clinic?.Area, p.Phone, p.SortOrder, p.ExtraShift, p.PreferWeekendHoliday,
-                p.WeekendWeight, p.OpeningTotal, p.OpeningWeekday, p.OpeningWeekendHoliday, t.ToDto(), t.Known);
-        }).ToList();
+        return people.Select(p => new AdminPersonDto(p.Id, p.Code, p.Name, p.Status, p.StatusReason, p.ExcludedUntil,
+            p.ClinicId, p.Clinic?.Name, p.Clinic?.Area, p.Phone, p.SortOrder, p.ExtraShift, p.PreferWeekendHoliday,
+            p.WeekendWeight)).ToList();
     }
 
     private static void Apply(Person p, UpsertPersonRequest req)
@@ -153,9 +121,6 @@ public static class AdminEndpoints
         p.ExtraShift = req.ExtraShift;
         p.PreferWeekendHoliday = req.PreferWeekendHoliday;
         p.WeekendWeight = req.WeekendWeight;
-        p.OpeningTotal = req.OpeningTotal;
-        p.OpeningWeekday = req.OpeningWeekday;
-        p.OpeningWeekendHoliday = req.OpeningWeekendHoliday;
     }
 
     private static async Task<IResult?> ValidateAsync(RotaDbContext db, UpsertPersonRequest req, Guid? id, CancellationToken ct)
@@ -180,8 +145,6 @@ public static class AdminEndpoints
             errors["clinicId"] = ["Unknown clinic."];
 
         if (req.WeekendWeight is < 1 or > 5) errors["weekendWeight"] = ["Weekend weight must be 1-5."];
-        if (req.OpeningTotal < 0 || req.OpeningWeekday < 0 || req.OpeningWeekendHoliday < 0)
-            errors["opening"] = ["Opening numbers can't be negative."];
 
         return errors.Count > 0 ? Results.ValidationProblem(errors) : null;
     }
@@ -269,7 +232,8 @@ public static class AdminEndpoints
             return periods.Select(p => p.ToDto(clock.Today));
         });
 
-        g.MapPost("/", async (UpsertPeriodRequest req, RotaDbContext db, LocalClock clock, HttpContext http, CancellationToken ct) =>
+        g.MapPost("/", async (UpsertPeriodRequest req, RotaDbContext db, LocalClock clock, Notifier notify, HttpContext http,
+            CancellationToken ct) =>
         {
             if (await ValidatePeriodAsync(db, req, null, ct) is { } problem) return problem;
 
@@ -279,6 +243,9 @@ public static class AdminEndpoints
                 PointsBudget = req.PointsBudget,
             };
             db.Periods.Add(period);
+            string deadline = req.LeaveDeadline is { } d ? $" until {SwapEndpoints.Day(d)}" : "";
+            await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"Enter your leave for {period.Name}",
+                $"Leave for {SwapEndpoints.Day(req.StartDate)} - {SwapEndpoints.Day(req.EndDate)} is open{deadline}.", "/", email: false, ct);
             Mapping.Log(db, http, "period.create", null, req);
             await db.SaveChangesAsync(ct);
             return Results.Ok(period.ToDto(clock.Today));
@@ -336,7 +303,7 @@ public static class AdminEndpoints
 
         // Extra leave points for one officer in one period; 0 removes the grant.
         g.MapPut("/{id:guid}/points/{personId:guid}", async (Guid id, Guid personId, PointGrantRequest req, RotaDbContext db,
-            HttpContext http, CancellationToken ct) =>
+            Notifier notify, HttpContext http, CancellationToken ct) =>
         {
             if (!await db.Periods.AnyAsync(p => p.Id == id, ct) || !await db.People.AnyAsync(p => p.Id == personId, ct))
                 return Results.NotFound();
@@ -349,6 +316,9 @@ public static class AdminEndpoints
             else if (grant is null) db.PointGrants.Add(new PointGrant { PeriodId = id, PersonId = personId, Points = req.Points, Reason = reason });
             else { grant.Points = req.Points; grant.Reason = reason; }
 
+            if (req.Points > (grant?.Points ?? 0))
+                await notify.ToPeopleAsync([personId], Notifier.Points, $"You have {req.Points} extra leave point(s)",
+                    reason is null ? "Added by the admin for this period." : $"Reason: {reason}", "/", email: false, ct);
             Mapping.Log(db, http, "points.grant", personId, new { period = id, req.Points, reason });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();

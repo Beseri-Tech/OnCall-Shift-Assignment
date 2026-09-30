@@ -26,10 +26,12 @@ public sealed class Person
     public bool PreferWeekendHoliday { get; set; }
     public int WeekendWeight { get; set; } = 1;
 
-    /// <summary>Shifts done before this app (entered once by the admin). null = unknown.</summary>
-    public int? OpeningTotal { get; set; }
-    public int? OpeningWeekday { get; set; }
-    public int? OpeningWeekendHoliday { get; set; }
+    /// <summary>
+    /// Admin corrections added to shifts from published rotas (history before the app, manual fixes).
+    /// The tally page stores "typed value - published". null = unknown (group average is used for weekend balancing).
+    /// </summary>
+    public int? TallyWeekdayAdjust { get; set; }
+    public int? TallyWeekendHolidayAdjust { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -57,12 +59,57 @@ public sealed class Clinic
     public string Area { get; set; } = "";
 }
 
+public enum AccountRole
+{
+    /// <summary>On-call officer; edits only their own leave.</summary>
+    Officer,
+    /// <summary>On-call officer who also runs the admin pages.</summary>
+    Admin,
+    /// <summary>Runs the admin pages but is not on the rota (no officer record).</summary>
+    Supervisor,
+}
+
+/// <summary>A login. Officers and admins are linked to their officer record; supervisors are not.</summary>
+public sealed class Account
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+
+    /// <summary>Stored lowercase.</summary>
+    public string Email { get; set; } = "";
+
+    public string PasswordHash { get; set; } = "";
+    public AccountRole Role { get; set; }
+
+    public Guid? PersonId { get; set; }
+    public Person? Person { get; set; }
+
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Set for invites and admin resets: the temporary password must be replaced at the next login.</summary>
+    public bool MustChangePassword { get; set; }
+    public DateTimeOffset? TempPasswordExpiresAt { get; set; }
+
+    /// <summary>SHA-256 of the emailed reset token; the token itself is never stored.</summary>
+    public string? ResetTokenHash { get; set; }
+    public DateTimeOffset? ResetTokenExpiresAt { get; set; }
+
+    /// <summary>Changes on password change, disable or role change; cookies with an old stamp are rejected.</summary>
+    public string SecurityStamp { get; set; } = Guid.NewGuid().ToString("N");
+
+    public DateTimeOffset? LastLoginAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public bool IsAdmin => Role is AccountRole.Admin or AccountRole.Supervisor;
+}
+
 public enum PeriodStatus
 {
     /// <summary>People can enter leave.</summary>
     Open,
     /// <summary>Leave frozen; admin generates drafts.</summary>
     Locked,
+    /// <summary>A draft is shown to officers, who can swap dates before it is published.</summary>
+    Review,
     /// <summary>A rota run is published and counts towards totals.</summary>
     Published,
 }
@@ -76,6 +123,9 @@ public sealed class RotaPeriod
 
     /// <summary>Last day people can edit leave (inclusive, local time). null = until locked.</summary>
     public DateOnly? LeaveDeadline { get; set; }
+
+    /// <summary>Last day officers can request swaps while the rota is in review (inclusive). null = until published.</summary>
+    public DateOnly? SwapDeadline { get; set; }
 
     public PeriodStatus Status { get; set; } = PeriodStatus.Open;
 
@@ -134,9 +184,66 @@ public sealed class RotaRun
     public bool IsPublished { get; set; }
     public DateTimeOffset? PublishedAt { get; set; }
 
+    /// <summary>Shown to officers for review (swaps allowed); at most one per period.</summary>
+    public bool IsInReview { get; set; }
+
     public List<string> Warnings { get; set; } = [];
 
     public List<ShiftAssignment> Assignments { get; set; } = [];
+}
+
+public enum SwapStatus { Pending, Accepted, Declined, Cancelled, Expired }
+
+/// <summary>During review: FromPerson offers their FromDate for ToPerson's ToDate. Accepting swaps the two shifts.</summary>
+public sealed class SwapRequest
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid RunId { get; set; }
+    public Guid FromPersonId { get; set; }
+    public DateOnly FromDate { get; set; }
+    public Guid ToPersonId { get; set; }
+    public DateOnly ToDate { get; set; }
+    public string? Note { get; set; }
+    public SwapStatus Status { get; set; } = SwapStatus.Pending;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? RespondedAt { get; set; }
+}
+
+/// <summary>An email waiting to be sent (or sent / given up), processed by the Mailer background service.</summary>
+public sealed class OutboxEmail
+{
+    public long Id { get; set; }
+    public string To { get; set; } = "";
+    public string Subject { get; set; } = "";
+    public string Body { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>Not sent before this time (retry backoff).</summary>
+    public DateTimeOffset NextAttemptAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public int Attempts { get; set; }
+    public DateTimeOffset? SentAt { get; set; }
+
+    /// <summary>Set when retries are exhausted or the failure is permanent; the email is not tried again.</summary>
+    public DateTimeOffset? FailedAt { get; set; }
+
+    public string? LastError { get; set; }
+}
+
+/// <summary>In-app notification for one account (some are also emailed).</summary>
+public sealed class Notification
+{
+    public long Id { get; set; }
+    public Guid AccountId { get; set; }
+    public string Kind { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string? Body { get; set; }
+
+    /// <summary>App path to open, e.g. /my-oncall.</summary>
+    public string? Link { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ReadAt { get; set; }
 }
 
 public sealed class ShiftAssignment
@@ -159,6 +266,11 @@ public sealed class ChangeLog
 {
     public long Id { get; set; }
     public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>Who made the change (null for anonymous actions such as a failed password reset).</summary>
+    public Guid? AccountId { get; set; }
+
+    /// <summary>The officer the change is about.</summary>
     public Guid? PersonId { get; set; }
     public string Action { get; set; } = "";
     public string? Detail { get; set; }

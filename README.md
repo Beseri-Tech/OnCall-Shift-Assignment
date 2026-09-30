@@ -6,9 +6,10 @@ The original WinForms desktop app lives on the [`legacy`](../../tree/legacy) bra
 
 ## How it works
 
-1. **Staff** open the site, pick their name and mark leave (with a note) and preferred on-call days until the period's deadline. No login.
-2. **Admin** (single password) manages people, periods and public holidays, imports leave / opening shift totals from Excel, then locks leave and generates a draft rota. Weekend and public-holiday shifts are balanced, back-to-back shifts avoided.
-3. The admin overrides days if needed (warnings for leave clashes) and **publishes**. Everyone sees the rota, and published shifts count towards each person's running totals. Timetable, totals and leave can be exported to Excel.
+1. **Accounts.** An admin invites each officer by email; the invite has a temporary password that must be changed at first sign-in. Forgotten passwords are reset by email. Roles: **Officer**, **Admin** (an officer who also runs the admin pages) and **Supervisor** (admin only, not on the rota). Everything needs sign-in.
+2. **Officers** mark their own leave (with a note) and preferred on-call days until the period's deadline, within the leave limits (points for weekends/public holidays/peak days, a weekday allowance and a per-day cap).
+3. **Admins** manage officers, clinics, periods, public holidays, peak days and the shift **tally**, edit anyone's leave, then lock leave and generate a draft rota. Weekend and public-holiday shifts are balanced, back-to-back shifts avoided.
+4. The admin overrides days if needed (warnings for leave clashes) and **publishes**. Everyone sees the rota, and published shifts are added to each officer's tally. Timetable, tally and leave can be exported to Excel.
 
 ## Run with Docker
 
@@ -18,7 +19,7 @@ Needs Docker with Compose.
 cp .env.example .env
 ```
 
-Generate the admin password hash and paste it into `.env` (keep the single quotes):
+Generate the first admin's password hash and paste it into `.env` with `ADMIN_EMAIL` (keep the single quotes):
 
 ```bash
 docker build -t oncall-rota .
@@ -36,7 +37,10 @@ The app is at <http://localhost:8080> and the admin page at `/admin`. Database m
 | Variable | Purpose | Default |
 |---|---|---|
 | `POSTGRES_PASSWORD` | database password | required |
-| `ADMIN_PASSWORD_HASH` | admin password hash | required |
+| `ADMIN_EMAIL` | first admin's sign-in email (created while no admin exists) | required |
+| `ADMIN_PASSWORD_HASH` | first admin's password hash | required |
+| `APP_BASE_URL` | public address, used in email links | the request's address |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | email for invites and password resets; without it invites show the temporary password to the admin | off |
 | `APP_PORT` | published port | `8080` |
 | `TIME_ZONE` | used for "today" and deadlines | `Asia/Kuala_Lumpur` |
 
@@ -46,7 +50,7 @@ Needs the .NET 10 SDK, Node 22 and Docker (API tests start a throwaway Postgres 
 
 ```bash
 docker compose up -d db          # Postgres on 127.0.0.1:5432
-cd api && dotnet run --project Rota.Api   # set Database__MigrateOnStartup=true on first run
+cd api && dotnet run --project Rota.Api   # sign in as admin@localhost / admin; emails land in .mail/
 cd web && npm ci && npm run dev  # Vite dev server
 dotnet test api/Rota.sln         # tests
 ```

@@ -1,9 +1,9 @@
 import { Alert, Badge, Group, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core'
-import { useLocalStorage } from '@mantine/hooks'
 import { useQuery } from '@tanstack/react-query'
 import { IconInfoCircle, IconSearch } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api } from '../api'
+import { useMe } from '../auth'
 import { ErrorBox, Loading } from '../components/common'
 import { defaultPeriod, pick } from '../lib'
 import { RotaCalendar } from '../components/RotaCalendar'
@@ -12,9 +12,11 @@ import { formatLong, formatWeekday } from '../dates'
 export function RotaPage() {
   const [chosenId, setPeriodId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [myId] = useLocalStorage<string | null>({ key: 'rota.personId', defaultValue: null })
+  const myId = useMe().data?.personId ?? null
 
-  const periods = useQuery({ queryKey: ['periods', 'Published'], queryFn: () => api.periods('Published') })
+  // Published rotas, plus drafts shown for review (marked as such).
+  const allPeriods = useQuery({ queryKey: ['periods'], queryFn: () => api.periods() })
+  const periods = { ...allPeriods, data: allPeriods.data?.filter(p => p.status === 'Published' || p.status === 'Review') }
   const periodId = pick(periods.data, chosenId, defaultPeriod(periods.data, () => true))?.id ?? null
 
   const rota = useQuery({ queryKey: ['rota', periodId], queryFn: () => api.rota(periodId!), enabled: !!periodId })
@@ -46,11 +48,11 @@ export function RotaPage() {
       <Group justify="space-between" align="flex-end" wrap="wrap">
         <div>
           <Title order={2}>On-call rota</Title>
-          <Text c="dimmed" size="sm">Published rota. Your shifts are highlighted in green.</Text>
+          <Text c="dimmed" size="sm">Who is on call each day. Your shifts are highlighted in green.</Text>
         </div>
         <Select
           label="Period"
-          data={periods.data.map(p => ({ value: p.id, label: p.name }))}
+          data={periods.data.map(p => ({ value: p.id, label: p.status === 'Review' ? `${p.name} (in review)` : p.name }))}
           value={periodId}
           onChange={setPeriodId}
           allowDeselect={false}
@@ -60,6 +62,13 @@ export function RotaPage() {
 
       {rota.isLoading && <Loading />}
       {rota.error && <ErrorBox error={rota.error} />}
+
+      {rota.data?.inReview && (
+        <Alert color="violet" icon={<IconInfoCircle />} title="Draft for review – not final">
+          This rota can still change: officers are swapping dates and the admin may adjust it before publishing.
+          {rota.data.period.swapDeadline ? ` Swaps close after ${formatLong(rota.data.period.swapDeadline)}.` : ''}
+        </Alert>
+      )}
 
       {rota.data && (
         <>

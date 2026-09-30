@@ -14,10 +14,10 @@ export function ErrorBox({ error }: { error: unknown }) {
   )
 }
 
-const statusColor: Record<PeriodStatus, string> = { Open: 'green', Locked: 'orange', Published: 'blue' }
+const statusColor: Record<PeriodStatus, string> = { Open: 'green', Locked: 'orange', Review: 'violet', Published: 'blue' }
 
 export function StatusBadge({ status }: { status: PeriodStatus }) {
-  return <Badge color={statusColor[status]} variant="light">{status}</Badge>
+  return <Badge color={statusColor[status]} variant="light">{status === 'Review' ? 'In review' : status}</Badge>
 }
 
 export function PeriodSelect({ periods, value, onChange, label = 'Rota period' }: {

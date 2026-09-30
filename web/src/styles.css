@@ -395,6 +395,12 @@ body {
   margin-top: 2px;
 }
 
+/* A day without a shift in a personal calendar: just the date. */
+.rota-day.empty {
+  min-height: 44px;
+  color: #94a3b8;
+}
+
 .rota-day.mine {
   background: #dcfce7;
   border-color: #22c55e;

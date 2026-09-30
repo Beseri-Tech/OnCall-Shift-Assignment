@@ -31,7 +31,8 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var anon = app.CreateClient();
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await anon.GetAsync("/api/admin/people")).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anon.PostAsJsonAsync("/api/admin/login", new { password = "nope" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await anon.PostAsJsonAsync("/api/auth/login", new { email = ApiFixture.AdminEmail, password = "nope" })).StatusCode);
 
         var admin = await ApiFixture.AdminClientAsync(app);
         Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync("/api/admin/people")).StatusCode);
@@ -75,8 +76,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal((OfficerStatus.Excluded, "CUTI BERSALIN", "KP Beseri", "Kangar", "012-3456789"),
             (saved.Status, saved.StatusReason, saved.ClinicName, saved.Area, saved.Phone));
 
-        var anon = app.CreateClient();
-        Assert.DoesNotContain(await Read<List<PersonSummaryDto>>(await anon.GetAsync("/api/people")), p => p.Id == target.Id);
+        Assert.DoesNotContain(await Read<List<PersonSummaryDto>>(await admin.GetAsync("/api/people")), p => p.Id == target.Id);
 
         (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
         var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(1)));
@@ -88,7 +88,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         (await admin.DeleteAsync($"/api/admin/clinics/{clinicId}")).EnsureSuccessStatusCode();
         saved = (await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"))).Single(p => p.Id == target.Id);
         Assert.Equal((OfficerStatus.OnCall, null, null), (saved.Status, saved.StatusReason, saved.ClinicId));
-        Assert.Contains(await Read<List<PersonSummaryDto>>(await anon.GetAsync("/api/people")), p => p.Id == target.Id);
+        Assert.Contains(await Read<List<PersonSummaryDto>>(await admin.GetAsync("/api/people")), p => p.Id == target.Id);
     }
 
     [Fact]
@@ -97,9 +97,10 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         await using var app = fixture.CreateApp();
         var admin = await ApiFixture.AdminClientAsync(app);
         var (people, period) = await SeedAsync(admin, 10);   // Oct 2026: 9 weekend days -> 3 points; caps 3 (busy) / 5 (weekday)
-        var user = app.CreateClient();
+        var officers = new List<HttpClient>();
+        foreach (var p in people) officers.Add(await ApiFixture.OfficerClientAsync(app, admin, p.Id));
         Task<HttpResponseMessage> Save(int who, params int[] days) =>
-            user.PutAsJsonAsync($"/api/people/{people[who].Id}/entries?periodId={period.Id}",
+            officers[who].PutAsJsonAsync($"/api/people/{people[who].Id}/entries?periodId={period.Id}",
                 new EntriesDto(days.Select(d => new LeaveEntryDto(new DateOnly(2026, 10, d), null)).ToList(), []), ApiFixture.Json);
 
         // Four weekend days cost 4 points; only 3 are available until the admin tops up.
@@ -123,7 +124,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Single(race, r => r.IsSuccessStatusCode);
         Assert.Single(race, r => r.StatusCode == HttpStatusCode.BadRequest);
 
-        var rules = await Read<LeaveRulesDto>(await user.GetAsync($"/api/periods/{period.Id}/leave-rules?personId={people[4].Id}"));
+        var rules = await Read<LeaveRulesDto>(await officers[4].GetAsync($"/api/periods/{period.Id}/leave-rules?personId={people[4].Id}"));
         Assert.Equal((3, 0, 3, 5, 10), (rules.Budget, rules.Extra, rules.BusyDayCap, rules.WeekdayCap, rules.OnCall));
         Assert.Equal(3, rules.OthersOff[new DateOnly(2026, 10, 17)]);
 
@@ -146,7 +147,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         await using var app = fixture.CreateApp();
         var admin = await ApiFixture.AdminClientAsync(app);
         var (people, period) = await SeedAsync(admin);
-        var user = app.CreateClient();
+        var user = await ApiFixture.OfficerClientAsync(app, admin, people[0].Id);
         var url = $"/api/people/{people[0].Id}/entries?periodId={period.Id}";
 
         var body = new EntriesDto([new(new DateOnly(2026, 10, 5), "Annual"), new(new DateOnly(2026, 10, 6), "Annual")],
@@ -181,25 +182,32 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal(0, run.Run.ConsecutivePairs);
 
         // Nothing counts until published.
-        var before = await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"));
-        Assert.All(before, p => Assert.Equal(0, p.Totals.Total));
+        var before = await Read<List<TallyRowDto>>(await admin.GetAsync("/api/admin/tally"));
+        Assert.All(before, p => Assert.Equal(0, p.Total));
 
         (await admin.PostAsync($"/api/admin/runs/{run.Run.Id}/publish", null)).EnsureSuccessStatusCode();
-        var after = await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"));
-        Assert.Equal(31, after.Sum(p => p.Totals.Total));
-        Assert.Equal(run.Days.Count(d => d.IsWeekendHoliday), after.Sum(p => p.Totals.WeekendHoliday));
+        var after = await Read<List<TallyRowDto>>(await admin.GetAsync("/api/admin/tally"));
+        Assert.Equal(31, after.Sum(p => p.Total));
+        Assert.Equal(run.Days.Count(d => d.IsWeekendHoliday), after.Sum(p => p.WeekendHoliday));
 
-        // Public rota is visible once published.
-        var rota = await Read<PublishedRotaDto>(await app.CreateClient().GetAsync($"/api/periods/{period.Id}/rota"));
+        // Officers can see the rota once published.
+        var officer = await ApiFixture.OfficerClientAsync(app, admin, people[0].Id);
+        var rota = await Read<PublishedRotaDto>(await officer.GetAsync($"/api/periods/{period.Id}/rota"));
         Assert.Equal(run.Run.Id, rota.RunId);
+
+        // ...and their own shifts (only their own).
+        var shifts = await Read<List<ShiftDto>>(await officer.GetAsync($"/api/people/{people[0].Id}/shifts"));
+        Assert.Equal(run.Days.Where(d => d.PersonId == people[0].Id).Select(d => d.Date), shifts.Select(s => s.Date));
+        Assert.All(shifts, s => Assert.Equal("Oct 2026", s.PeriodName));
+        Assert.Equal(HttpStatusCode.Forbidden, (await officer.GetAsync($"/api/people/{people[1].Id}/shifts")).StatusCode);
 
         // Published runs can't be edited; unpublishing rolls totals back.
         var edit = await admin.PutAsJsonAsync($"/api/admin/runs/{run.Run.Id}/assignments/2026-10-01", new OverrideRequest(people[0].Id));
         Assert.Equal(HttpStatusCode.Conflict, edit.StatusCode);
 
         (await admin.PostAsync($"/api/admin/runs/{run.Run.Id}/unpublish", null)).EnsureSuccessStatusCode();
-        var rolledBack = await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"));
-        Assert.All(rolledBack, p => Assert.Equal(0, p.Totals.Total));
+        var rolledBack = await Read<List<TallyRowDto>>(await admin.GetAsync("/api/admin/tally"));
+        Assert.All(rolledBack, p => Assert.Equal(0, p.Total));
     }
 
     [Fact]
@@ -210,7 +218,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var (people, period) = await SeedAsync(admin);
         var target = people[0];
 
-        await app.CreateClient().PutAsJsonAsync($"/api/people/{target.Id}/entries?periodId={period.Id}",
+        await admin.PutAsJsonAsync($"/api/people/{target.Id}/entries?periodId={period.Id}",
             new EntriesDto([new(new DateOnly(2026, 10, 10), null)], []), ApiFixture.Json);
         (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
         var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(3)));
@@ -224,26 +232,43 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
-    public async Task Opening_numbers_feed_totals_and_prior_weekend_history()
+    public async Task Tally_shows_what_the_admin_typed_and_grows_with_published_rotas()
     {
         await using var app = fixture.CreateApp();
         var admin = await ApiFixture.AdminClientAsync(app);
-        var (people, _) = await SeedAsync(admin, 2);
-
+        var (people, period) = await SeedAsync(admin, 4);
         var p = people[0];
-        (await admin.PutAsJsonAsync($"/api/admin/people/{p.Id}",
-            new UpsertPersonRequest(p.Name, p.Code, OpeningTotal: 10, OpeningWeekday: 7, OpeningWeekendHoliday: 3), ApiFixture.Json))
-            .EnsureSuccessStatusCode();
+        async Task<TallyRowDto> Row() => (await Read<List<TallyRowDto>>(await admin.GetAsync("/api/admin/tally"))).Single(r => r.PersonId == p.Id);
 
-        var profile = await Read<PersonProfileDto>(await app.CreateClient().GetAsync($"/api/people/{p.Id}"));
-        Assert.Equal(new TotalsDto(10, 7, 3), profile.Totals);
+        Assert.False((await Row()).Known);
+        (await admin.PutAsJsonAsync("/api/admin/tally", new[] { new TallyUpdate(p.Id, 7, 3) })).EnsureSuccessStatusCode();
+        Assert.Equal((7, 3, 10, true), ((await Row()).Weekday, (await Row()).WeekendHoliday, (await Row()).Total, (await Row()).Known));
+
+        // The officer sees the same numbers on their profile.
+        var officer = await ApiFixture.OfficerClientAsync(app, admin, p.Id);
+        Assert.Equal(new TotalsDto(10, 7, 3), (await Read<PersonProfileDto>(await officer.GetAsync($"/api/people/{p.Id}"))).Totals);
+
+        // Publishing adds this period's shifts on top.
+        (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
+        var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(1)));
+        (await admin.PostAsync($"/api/admin/runs/{run.Run.Id}/publish", null)).EnsureSuccessStatusCode();
+        int shifts = run.Days.Count(d => d.PersonId == p.Id);
+        Assert.Equal(10 + shifts, (await Row()).Total);
+
+        // Typing a number again shows exactly that, published shifts included.
+        (await admin.PutAsJsonAsync("/api/admin/tally", new[] { new TallyUpdate(p.Id, 20, 5) })).EnsureSuccessStatusCode();
+        Assert.Equal((20, 5), ((await Row()).Weekday, (await Row()).WeekendHoliday));
+
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await admin.PutAsJsonAsync("/api/admin/tally", new[] { new TallyUpdate(p.Id, -1, 0) })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await officer.GetAsync("/api/admin/tally")).StatusCode);
     }
 
     [Fact]
     public async Task Leave_text_parse_endpoint_uses_the_sheet_format()
     {
         await using var app = fixture.CreateApp();
-        var client = app.CreateClient();
+        var client = await ApiFixture.AdminClientAsync(app);
 
         var ok = await Read<ParseResponse>(await client.PostAsJsonAsync("/api/leave/parse",
             new ParseRequest("3/10-5/10, 12/10", new DateOnly(2026, 10, 1))));

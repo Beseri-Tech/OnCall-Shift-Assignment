@@ -6,6 +6,7 @@ namespace Rota.Api.Data;
 public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbContext(options), IDataProtectionKeyContext
 {
     public DbSet<Person> People => Set<Person>();
+    public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Clinic> Clinics => Set<Clinic>();
     public DbSet<RotaPeriod> Periods => Set<RotaPeriod>();
     public DbSet<PublicHoliday> Holidays => Set<PublicHoliday>();
@@ -16,6 +17,9 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
     public DbSet<RotaRun> Runs => Set<RotaRun>();
     public DbSet<ShiftAssignment> Assignments => Set<ShiftAssignment>();
     public DbSet<ChangeLog> ChangeLog => Set<ChangeLog>();
+    public DbSet<SwapRequest> SwapRequests => Set<SwapRequest>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<OutboxEmail> OutboxEmails => Set<OutboxEmail>();
 
     /// <summary>Keys that encrypt the admin cookie; stored here so logins survive redeploys.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -35,6 +39,19 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasOne(p => p.Clinic).WithMany().HasForeignKey(p => p.ClinicId).OnDelete(DeleteBehavior.SetNull);
             e.HasMany(p => p.Leave).WithOne().HasForeignKey(l => l.PersonId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(p => p.PreferredDates).WithOne().HasForeignKey(p => p.PersonId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Account>(e =>
+        {
+            e.ToTable("accounts");
+            e.HasIndex(a => a.Email).IsUnique();
+            e.HasIndex(a => a.PersonId).IsUnique();
+            e.Property(a => a.Email).HasMaxLength(254);
+            e.Property(a => a.Role).HasConversion<string>().HasMaxLength(16);
+            e.Property(a => a.SecurityStamp).HasMaxLength(64);
+            e.Property(a => a.ResetTokenHash).HasMaxLength(64);
+            e.HasOne(a => a.Person).WithMany().HasForeignKey(a => a.PersonId).OnDelete(DeleteBehavior.Cascade);
+            e.Ignore(a => a.IsAdmin);
         });
 
         b.Entity<Clinic>(e =>
@@ -94,7 +111,8 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
         {
             e.ToTable("rota_runs");
             // At most one published run per period.
-            e.HasIndex(r => r.PeriodId).IsUnique().HasFilter("\"IsPublished\"").HasDatabaseName("ix_rota_runs_one_published_per_period");
+            e.HasIndex(r => r.PeriodId, "ix_rota_runs_one_published_per_period").IsUnique().HasFilter("\"IsPublished\"");
+            e.HasIndex(r => r.PeriodId, "ix_rota_runs_one_in_review_per_period").IsUnique().HasFilter("\"IsInReview\"");
             e.HasMany(r => r.Assignments).WithOne().HasForeignKey(a => a.RunId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -104,6 +122,39 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasKey(a => new { a.RunId, a.Date });
             e.HasIndex(a => a.PersonId);
             e.HasOne(a => a.Person).WithMany().HasForeignKey(a => a.PersonId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<SwapRequest>(e =>
+        {
+            e.ToTable("swap_requests");
+            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(s => s.Note).HasMaxLength(200);
+            e.HasIndex(s => new { s.RunId, s.Status });
+            e.HasOne<RotaRun>().WithMany().HasForeignKey(s => s.RunId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Person>().WithMany().HasForeignKey(s => s.FromPersonId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Person>().WithMany().HasForeignKey(s => s.ToPersonId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<OutboxEmail>(e =>
+        {
+            e.ToTable("outbox_emails");
+            e.Property(o => o.To).HasMaxLength(254);
+            e.Property(o => o.Subject).HasMaxLength(200);
+            e.Property(o => o.LastError).HasMaxLength(500);
+            // The sender only looks at unsent mail; SentAt also feeds the rolling daily cap.
+            e.HasIndex(o => o.NextAttemptAt).HasFilter("\"SentAt\" IS NULL AND \"FailedAt\" IS NULL");
+            e.HasIndex(o => o.SentAt);
+        });
+
+        b.Entity<Notification>(e =>
+        {
+            e.ToTable("notifications");
+            e.Property(n => n.Kind).HasMaxLength(32);
+            e.Property(n => n.Title).HasMaxLength(200);
+            e.Property(n => n.Body).HasMaxLength(1000);
+            e.Property(n => n.Link).HasMaxLength(200);
+            e.HasIndex(n => new { n.AccountId, n.CreatedAt });
+            e.HasOne<Account>().WithMany().HasForeignKey(n => n.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<DataProtectionKey>().ToTable("data_protection_keys");

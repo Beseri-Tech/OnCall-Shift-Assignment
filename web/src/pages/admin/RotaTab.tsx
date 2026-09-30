@@ -1,10 +1,11 @@
 import {
   Alert, Badge, Button, Group, List, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, Title, Tooltip,
 } from '@mantine/core'
+import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconAlertTriangle, IconDownload, IconEye, IconEyeOff, IconLock, IconTrash, IconWand,
+  IconAlertTriangle, IconArrowsExchange, IconDownload, IconEye, IconEyeOff, IconLock, IconTrash, IconWand,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api, type Period, type RotaDay, type RunDetail } from '../../api'
@@ -104,10 +105,10 @@ export function RotaTab() {
               key={r.id}
               size="xs"
               variant={r.id === runId ? 'filled' : 'default'}
-              color={r.isPublished ? 'green' : 'blue'}
+              color={r.isPublished ? 'green' : r.isInReview ? 'violet' : 'blue'}
               onClick={() => setRunId(r.id)}
             >
-              #{runs.data.length - i} {r.isPublished ? '· published' : ''} ({r.unassigned} gaps, {r.consecutivePairs} back-to-back)
+              #{runs.data.length - i} {r.isPublished ? '· published' : r.isInReview ? '· in review' : ''} ({r.unassigned} gaps, {r.consecutivePairs} back-to-back)
             </Button>
           ))}
         </Group>
@@ -128,15 +129,18 @@ function RunView({ runId, period, onChanged, onDeleted }: {
   const detail = useQuery({ queryKey: ['admin', 'run', runId], queryFn: () => api.admin.run(runId) })
   const [editing, setEditing] = useState<RotaDay | null>(null)
 
+  const [reviewOpen, setReviewOpen] = useState(false)
   const act = useMutation({
-    mutationFn: (kind: 'publish' | 'unpublish' | 'delete') =>
-      kind === 'publish' ? api.admin.publish(runId) : kind === 'unpublish' ? api.admin.unpublish(runId) : api.admin.deleteRun(runId),
+    mutationFn: (kind: 'publish' | 'unpublish' | 'delete' | 'withdraw') =>
+      kind === 'publish' ? api.admin.publish(runId) : kind === 'unpublish' ? api.admin.unpublish(runId)
+        : kind === 'withdraw' ? api.admin.withdrawReview(runId) : api.admin.deleteRun(runId),
     onSuccess: (_, kind) => {
       qc.invalidateQueries({ queryKey: ['admin', 'run', runId] })
       onChanged()
       if (kind === 'delete') onDeleted()
-      notifyOk(kind === 'publish' ? 'Everyone can now see this rota; shift totals are updated.'
-        : kind === 'unpublish' ? 'Rota hidden; totals rolled back.' : 'Draft deleted.')
+      notifyOk(kind === 'publish' ? 'Published: officers are notified and shift totals are updated.'
+        : kind === 'unpublish' ? 'Rota hidden; totals rolled back.'
+        : kind === 'withdraw' ? 'Back to draft: officers no longer see it and open swap requests are closed.' : 'Draft deleted.')
     },
     onError: e => notifyError(e),
   })
@@ -151,7 +155,9 @@ function RunView({ runId, period, onChanged, onDeleted }: {
       <Paper withBorder p="md">
         <Group justify="space-between" wrap="wrap">
           <Group gap="xs" wrap="wrap">
-            <Badge size="lg" color={run.isPublished ? 'green' : 'gray'}>{run.isPublished ? 'Published' : 'Draft'}</Badge>
+            <Badge size="lg" color={run.isPublished ? 'green' : run.isInReview ? 'violet' : 'gray'}>
+              {run.isPublished ? 'Published' : run.isInReview ? 'In review' : 'Draft'}
+            </Badge>
             <Badge size="lg" color={run.unassigned ? 'red' : 'green'} variant="light">{run.unassigned} unassigned</Badge>
             <Badge size="lg" color={run.consecutivePairs ? 'orange' : 'green'} variant="light">{run.consecutivePairs} back-to-back</Badge>
             <Badge size="lg" color="yellow" variant="light">{run.manualChanges} manual</Badge>
@@ -166,12 +172,22 @@ function RunView({ runId, period, onChanged, onDeleted }: {
                 onClick={() => act.mutate('unpublish')}>Unpublish</Button>
             ) : (
               <>
-                <Button color="red" variant="subtle" leftSection={<IconTrash size={16} />} onClick={() => act.mutate('delete')}>Delete draft</Button>
+                {run.isInReview ? (
+                  <Button color="gray" variant="light" loading={act.isPending} onClick={() => act.mutate('withdraw')}>Back to draft</Button>
+                ) : (
+                  <>
+                    <Button color="red" variant="subtle" leftSection={<IconTrash size={16} />} onClick={() => act.mutate('delete')}>Delete draft</Button>
+                    <Button color="violet" variant="light" leftSection={<IconArrowsExchange size={16} />} onClick={() => setReviewOpen(true)}>
+                      Send for review
+                    </Button>
+                  </>
+                )}
                 <Button color="green" leftSection={<IconEye size={16} />} loading={act.isPending} onClick={() => modals.openConfirmModal({
                   title: `Publish this rota for ${period.name}?`,
                   children: (
                     <Text size="sm">
-                      Everyone will see it on the Rota page and these shifts count towards each person's totals
+                      Officers are notified, everyone sees it on the Rota page and these shifts count towards each person's totals
+                      {run.isInReview ? '. Open swap requests are closed' : ''}
                       {run.unassigned ? `. Note: ${run.unassigned} day(s) are still unassigned.` : '.'}
                     </Text>
                   ),
@@ -194,12 +210,20 @@ function RunView({ runId, period, onChanged, onDeleted }: {
         <Paper withBorder p="md">
           <Group justify="space-between" mb="sm">
             <Title order={5}>Calendar</Title>
-            <Text size="xs" c="dimmed">{run.isPublished ? 'Unpublish to make changes.' : 'Click a day to change who is on call.'}</Text>
+            <Text size="xs" c="dimmed">
+              {run.isPublished ? 'Unpublish to make changes.'
+                : run.isInReview ? 'Click a day to change it – the officers involved are notified.' : 'Click a day to change who is on call.'}
+            </Text>
           </Group>
           <RotaCalendar days={d.days} onDayClick={run.isPublished ? undefined : setEditing} />
         </Paper>
         <Stats detail={d} />
       </SimpleGrid>
+
+      {reviewOpen && <ReviewModal runId={runId} period={period} onClose={() => setReviewOpen(false)} onDone={() => {
+        qc.invalidateQueries({ queryKey: ['admin', 'run', runId] })
+        onChanged()
+      }} />}
 
       {editing && (
         <OverrideModal day={editing} detail={d} onClose={() => setEditing(null)}
@@ -306,6 +330,32 @@ function OverrideModal({ day, detail, onClose, onSaved }: {
           {!warnings.length && (
             <Button onClick={() => save.mutate()} loading={save.isPending} disabled={personId === day.personId}>Save</Button>
           )}
+        </Group>
+      </Stack>
+    </Modal>
+  )
+}
+
+/** Show the draft to officers so they can check their dates and swap, before publishing. */
+function ReviewModal({ runId, period, onClose, onDone }: { runId: string; period: Period; onClose: () => void; onDone: () => void }) {
+  const [deadline, setDeadline] = useState<string | null>(null)
+  const send = useMutation({
+    mutationFn: () => api.admin.sendForReview(runId, deadline),
+    onSuccess: () => { onDone(); onClose(); notifyOk('Sent for review: officers are notified and can request swaps.') },
+  })
+  return (
+    <Modal opened onClose={onClose} title={`Send ${period.name} for review`}>
+      <Stack>
+        <Text size="sm">
+          Officers see this draft on My on-call and can ask each other to swap dates; an accepted swap updates the rota
+          immediately. You can still change days yourself. Nothing counts until you publish.
+        </Text>
+        <DatePickerInput label="Swap deadline (optional)" description="Last day officers can request or accept swaps. Empty = until you publish."
+          value={deadline} onChange={d => setDeadline((d as string | null) ?? null)} valueFormat="D MMM YYYY" clearable />
+        {send.error && <Text c="red" size="sm">{send.error.message}</Text>}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>Cancel</Button>
+          <Button color="violet" loading={send.isPending} onClick={() => send.mutate()}>Send for review</Button>
         </Group>
       </Stack>
     </Modal>

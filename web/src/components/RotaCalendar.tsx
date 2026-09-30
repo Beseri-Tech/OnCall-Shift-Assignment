@@ -1,6 +1,6 @@
 import { SimpleGrid, Text } from '@mantine/core'
 import type { IsoDate, RotaDay } from '../api'
-import { addDays, dayOfMonth, dayOfWeek, endOfMonth, formatMonth, monthsBetween } from '../dates'
+import { addDays, dayOfMonth, dayOfWeek, endOfMonth, formatMonth, isWeekend, monthsBetween } from '../dates'
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -8,10 +8,14 @@ interface Props {
   days: RotaDay[]
   highlightPersonId?: string | null
   onDayClick?: (day: RotaDay) => void
+  /** Draw every date of each month, not just the given days (for a personal view with few days). */
+  fillMonths?: boolean
+  /** Public holidays for dates without a RotaDay (only used with fillMonths). */
+  holidays?: Map<IsoDate, string>
 }
 
 /** Month calendars showing who is on call each day. */
-export function RotaCalendar({ days, highlightPersonId, onDayClick }: Props) {
+export function RotaCalendar({ days, highlightPersonId, onDayClick, fillMonths, holidays }: Props) {
   if (days.length === 0) return null
   const byDate = new Map(days.map(d => [d.date, d]))
   const months = monthsBetween(days[0].date, days[days.length - 1].date)
@@ -29,6 +33,14 @@ export function RotaCalendar({ days, highlightPersonId, onDayClick }: Props) {
               {DOW.map(d => <div key={d} className="dow">{d}</div>)}
               {cells.map((date, i) => {
                 const day = date ? byDate.get(date) : undefined
+                if (date && !day && fillMonths) {
+                  const ph = holidays?.get(date)
+                  return (
+                    <div key={date} className={`rota-day empty${isWeekend(date) || ph ? ' day-weekend' : ''}`} title={ph}>
+                      <Text size="xs" fw={700} c={ph ? 'green.8' : 'dimmed'}>{dayOfMonth(date)}{ph ? ' · PH' : ''}</Text>
+                    </div>
+                  )
+                }
                 if (!date || !day) return <div key={date ?? `b${i}`} />
 
                 const cls = [

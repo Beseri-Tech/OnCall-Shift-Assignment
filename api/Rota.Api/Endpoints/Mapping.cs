@@ -1,3 +1,4 @@
+using Rota.Api.Auth;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Rota.Api.Data;
@@ -11,7 +12,7 @@ internal static class Mapping
         p.Status == PeriodStatus.Open && (p.LeaveDeadline is null || today <= p.LeaveDeadline);
 
     public static PeriodDto ToDto(this RotaPeriod p, DateOnly today) =>
-        new(p.Id, p.Name, p.StartDate, p.EndDate, p.LeaveDeadline, p.Status, p.IsEditable(today), p.PointsBudget);
+        new(p.Id, p.Name, p.StartDate, p.EndDate, p.LeaveDeadline, p.Status, p.IsEditable(today), p.PointsBudget, p.SwapDeadline);
 
     public static TotalsDto ToDto(this PersonTotals t) => new(t.Total, t.Weekday, t.WeekendHoliday);
 
@@ -30,6 +31,7 @@ internal static class Mapping
         db.ChangeLog.Add(new ChangeLog
         {
             Action = action,
+            AccountId = http.User.AccountId(),
             PersonId = personId,
             Detail = detail is null ? null : JsonSerializer.Serialize(detail),
             Ip = http.Connection.RemoteIpAddress?.ToString(),
