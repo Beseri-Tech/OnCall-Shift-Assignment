@@ -98,14 +98,22 @@ public sealed class Mailer(IConfiguration config, IHostEnvironment env, IService
         }
     }
 
-    // Blank counts as unset: Docker Compose passes an unset ${SMTP_FROM} as "".
-    private string FromAddress =>
-        new[] { config["Smtp:From"], config["Smtp:User"] }.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "rota@localhost";
+    /// <summary>
+    /// Smtp:From may be an address ("rota@x.com", "Rota &lt;rota@x.com&gt;") or just a display name ("Rota System"), which is
+    /// then paired with Smtp:User's address. Blank counts as unset: Docker Compose passes an unset ${SMTP_FROM} as "".
+    /// </summary>
+    private MailAddress From()
+    {
+        string? from = config["Smtp:From"]?.Trim(), user = config["Smtp:User"]?.Trim();
+        string address = string.IsNullOrEmpty(user) ? "rota@localhost" : user;
+        if (string.IsNullOrEmpty(from)) return new MailAddress(address);
+        return from.Contains('@') ? new MailAddress(from) : new MailAddress(address, from);
+    }
 
     private async Task TrySendAsync(OutboxEmail email, CancellationToken ct)
     {
         // A bad sender address is a config error, not this email's fault: throw and leave it queued until the config is fixed.
-        var from = new MailAddress(FromAddress);
+        var from = From();
         email.Attempts++;
         try
         {

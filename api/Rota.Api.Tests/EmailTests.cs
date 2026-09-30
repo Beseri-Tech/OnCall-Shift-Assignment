@@ -59,14 +59,17 @@ public class EmailTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.NotNull(email.FailedAt);
     }
 
-    [Fact]
-    public async Task A_blank_sender_falls_back_and_a_malformed_recipient_does_not_block_the_queue()
+    // "" is what Compose passes for an unset ${SMTP_FROM}; a bare name is what people naturally type.
+    [Theory]
+    [InlineData("", "From: rota@example.com")]
+    [InlineData("Rota-Oc System", "From: \"Rota-Oc System\" <rota@example.com>")]
+    [InlineData("Rota <other@example.com>", "From: \"Rota\" <other@example.com>")]
+    public async Task Sender_falls_back_to_the_smtp_user_and_a_malformed_recipient_does_not_block_the_queue(string from, string fromLine)
     {
         string mail = Path.Combine(Path.GetTempPath(), "rota-mail-" + Guid.NewGuid().ToString("N"));
-        // Compose passes an unset ${SMTP_FROM} as an empty string.
         await using var app = fixture.CreateApp(new()
         {
-            ["Smtp:PickupDirectory"] = mail, ["Smtp:From"] = "", ["Smtp:MaxPerMinute"] = "600",
+            ["Smtp:PickupDirectory"] = mail, ["Smtp:From"] = from, ["Smtp:User"] = "rota@example.com", ["Smtp:MaxPerMinute"] = "600",
         });
         using (var scope = app.Services.CreateScope())
         {
@@ -79,7 +82,7 @@ public class EmailTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var rows = await WaitForAsync(app, r => r.Count == 2 && r.All(e => e.SentAt != null || e.FailedAt != null));
         Assert.NotNull(rows.Single(e => e.Subject == "Bad").FailedAt);
         Assert.NotNull(rows.Single(e => e.Subject != "Bad").SentAt);
-        Assert.Single(Directory.GetFiles(mail, "*.eml"));
+        Assert.Contains(fromLine, File.ReadAllLines(Assert.Single(Directory.GetFiles(mail, "*.eml"))));
         Directory.Delete(mail, recursive: true);
     }
 
