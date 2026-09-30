@@ -13,7 +13,7 @@ type Edit = { weekday: number; weekendHoliday: number }
 
 function SortHead({ by, label, sort, onSort }: { by: Sort; label: string; sort: Sort; onSort: (s: Sort) => void }) {
   return (
-    <UnstyledButton onClick={() => onSort(by)} fw={700} fz="sm" c={sort === by ? 'blue' : undefined}>
+    <UnstyledButton onClick={() => onSort(by)} fw={700} fz="sm" c={sort === by ? 'brand' : undefined}>
       <Group gap={4} wrap="nowrap" justify="center" style={{ whiteSpace: 'nowrap' }}>{label}<IconArrowsSort size={14} /></Group>
     </UnstyledButton>
   )

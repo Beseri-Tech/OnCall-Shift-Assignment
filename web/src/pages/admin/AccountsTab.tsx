@@ -89,7 +89,7 @@ export function AccountsTab() {
                   <Table.Tr key={a.id} opacity={a.enabled ? 1 : 0.55}>
                     <Table.Td fw={600}>{a.email}{a.id === me?.accountId && <Text span size="xs" c="dimmed"> (you)</Text>}</Table.Td>
                     <Table.Td>{a.personName ?? <Text span c="dimmed">–</Text>}</Table.Td>
-                    <Table.Td><Badge variant="light" color={a.role === 'Officer' ? 'blue' : 'violet'}>{ROLE_LABEL[a.role]}</Badge></Table.Td>
+                    <Table.Td><Badge variant="light" color={a.role === 'Officer' ? 'brand' : 'violet'}>{ROLE_LABEL[a.role]}</Badge></Table.Td>
                     <Table.Td>
                       <Badge color={st.color} variant="light">{st.label}</Badge>
                       {a.enabled && a.mustChangePassword && a.tempPasswordExpiresAt && (

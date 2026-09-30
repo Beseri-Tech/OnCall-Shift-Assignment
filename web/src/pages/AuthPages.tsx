@@ -1,4 +1,4 @@
-import { Alert, Anchor, Box, Button, Center, Group, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Anchor, Box, Button, Center, Group, Paper, PasswordInput, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { IconCircleCheck, IconLock } from '@tabler/icons-react'
 import { useState, type ReactNode } from 'react'
@@ -10,18 +10,29 @@ import { notifyOk } from '../lib'
 
 function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <Box mih="100vh" bg="var(--app-bg)">
-      <Box className="app-header" />
+    <Box mih="100vh" className="auth-bg">
       <Center py={60} px="md">
-        <Paper withBorder shadow="sm" p="xl" w="100%" maw={400}>
+        <Stack w="100%" maw={420} gap="lg">
+          <Group gap="sm" justify="center" wrap="nowrap">
+            <div className="brand-mark"><img src="/favicon.svg" width={26} height={26} alt="" /></div>
+            <div>
+              <Text fw={800} size="xl" c="white" lh={1.1}>On-Call Rota</Text>
+              <Text size="sm" c="brand.1" lh={1.2}>Dental Officers · Perlis</Text>
+            </div>
+          </Group>
+        <Paper shadow="xl" p="xl" radius="lg">
           <Stack>
             <div>
-              <Group gap="xs" wrap="nowrap" align="flex-start"><IconLock style={{ flexShrink: 0, marginTop: 4 }} /><Title order={3}>{title}</Title></Group>
-              {subtitle && <Text size="sm" c="dimmed" mt={4}>{subtitle}</Text>}
+              <Group gap="sm" wrap="nowrap" align="center">
+                <ThemeIcon size={36} radius="md" variant="light"><IconLock size={20} /></ThemeIcon>
+                <Title order={3} c="brand.9">{title}</Title>
+              </Group>
+              {subtitle && <Text size="sm" c="dimmed" mt={8}>{subtitle}</Text>}
             </div>
             {children}
           </Stack>
         </Paper>
+        </Stack>
       </Center>
     </Box>
   )

@@ -58,7 +58,7 @@ export function NotificationBell() {
               <Stack gap={0}>
                 {items.map(n => (
                   <UnstyledButton key={n.id} onClick={() => open.mutate(n)} px="md" py="sm"
-                    style={{ borderBottom: '1px solid var(--grid-line)', background: n.read ? undefined : '#eff6ff' }}>
+                    style={{ borderBottom: '1px solid var(--grid-line)', background: n.read ? undefined : 'var(--brand-soft)' }}>
                     <Group justify="space-between" gap="xs" wrap="nowrap" align="flex-start">
                       <Text size="sm" fw={n.read ? 500 : 700}>{n.title}</Text>
                       <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>{ago(n.createdAt, data.dataUpdatedAt)}</Text>

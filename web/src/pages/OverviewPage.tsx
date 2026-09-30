@@ -1,10 +1,10 @@
-import { Alert, Group, SegmentedControl, Stack, Switch, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Group, Paper, SegmentedControl, Stack, Switch, Text, TextInput } from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
-import { IconInfoCircle, IconSearch } from '@tabler/icons-react'
+import { IconInfoCircle, IconLayoutGrid, IconSearch, IconUsers } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api } from '../api'
 import { useMe } from '../auth'
-import { ErrorBox, Loading, PeriodSelect, StatusBadge } from '../components/common'
+import { ErrorBox, Legend, Loading, PageHeader, PeriodSelect, StatusBadge } from '../components/common'
 import { defaultPeriod, pick } from '../lib'
 import { dayOfMonth, formatDow, formatLong, formatMonth, monthsBetween, todayIso } from '../dates'
 
@@ -62,35 +62,32 @@ export function OverviewPage() {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-end" wrap="wrap">
-        <div>
-          <Title order={2}>Leave overview</Title>
-          <Text c="dimmed" size="sm">Everyone's leave for the period. The bottom row shows how many people are available each day.</Text>
-        </div>
-        <Group align="flex-end" wrap="wrap">
-          <TextInput label="Find" placeholder="Name or code" leftSection={<IconSearch size={16} />}
-            value={search} onChange={e => setSearch(e.currentTarget.value)} w={220} />
-          <Switch label="Only people with leave" checked={onlyLeave} onChange={e => setOnlyLeave(e.currentTarget.checked)} mb={8} />
-          <PeriodSelect periods={periods.data} value={periodId} onChange={setPeriodId} />
-        </Group>
-      </Group>
+      <PageHeader icon={IconLayoutGrid} title="Leave overview"
+        description="Everyone's leave for the period. The bottom row shows how many people are available each day.">
+        <PeriodSelect periods={periods.data} value={periodId} onChange={setPeriodId} />
+      </PageHeader>
 
       {overview.isLoading && <Loading />}
       {overview.error && <ErrorBox error={overview.error} />}
 
       {data && (
         <>
-          <Group justify="space-between" wrap="wrap" gap="sm">
-            <Group gap="md">
-              <StatusBadge status={data.period.status} />
-              <Text size="sm">{formatLong(data.period.startDate)} – {formatLong(data.period.endDate)}</Text>
-              <Text size="sm" c="dimmed">{total} people</Text>
+          <Paper className="panel" p="sm" px="md">
+            <Group justify="space-between" wrap="wrap" gap="sm">
+              <Group gap="md" wrap="wrap">
+                <StatusBadge status={data.period.status} />
+                <Text size="sm" fw={700}>{formatLong(data.period.startDate)} – {formatLong(data.period.endDate)}</Text>
+                <Group gap={4}><IconUsers size={16} color="var(--mantine-color-dimmed)" /><Text size="sm" c="dimmed">{total} people</Text></Group>
+                <TextInput placeholder="Find name or code" aria-label="Find" leftSection={<IconSearch size={16} />}
+                  value={search} onChange={e => setSearch(e.currentTarget.value)} w={200} size="sm" />
+                <Switch label="Only with leave" checked={onlyLeave} onChange={e => setOnlyLeave(e.currentTarget.checked)} />
+              </Group>
+              <SegmentedControl value={month} onChange={setMonth} data={[
+                ...months.map(m => ({ value: m, label: formatMonth(m) })),
+                { value: ALL, label: 'Whole period' },
+              ]} />
             </Group>
-            <SegmentedControl value={month} onChange={setMonth} data={[
-              ...months.map(m => ({ value: m, label: formatMonth(m) })),
-              { value: ALL, label: 'Whole period' },
-            ]} />
-          </Group>
+          </Paper>
 
           <div className="sheet-wrap">
             <table className={`sheet${fit ? ' sheet-fit' : ''}`}>
@@ -157,10 +154,12 @@ export function OverviewPage() {
             </table>
           </div>
 
-          <Group gap="lg">
-            <Text size="xs"><span className="legend-swatch" style={{ background: 'var(--leave-bg)', borderColor: 'var(--leave-border)' }} /> Leave (letter = note, e.g. A = Annual)</Text>
-            <Text size="xs"><span className="legend-swatch" style={{ background: 'var(--pref-bg)', borderColor: 'var(--pref-border)' }} /> ★ Preferred on-call</Text>
-            <Text size="xs"><span className="legend-swatch" style={{ background: '#fef3c7', borderColor: '#f59e0b' }} /> Under half available</Text>
+          <Group gap="lg" wrap="wrap">
+            <Legend bg="var(--leave-bg)" border="var(--leave-border)" label="Leave (letter = note, e.g. A = Annual)" />
+            <Legend bg="var(--pref-bg)" border="var(--pref-border)" label="★ Preferred on-call" />
+            <Legend bg="var(--weekend-bg)" border="#cbd5e1" label="Weekend / public holiday" />
+            <Legend bg="var(--warn-bg)" border="var(--warn-border)" label="Under half available" />
+            <Legend bg="var(--leave-bg)" border="var(--leave-border)" label="2 or fewer available" />
           </Group>
         </>
       )}

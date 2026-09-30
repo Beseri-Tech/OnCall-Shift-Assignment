@@ -31,8 +31,11 @@ export function Layout() {
         <Container size="xl" h="100%">
           <Group h="100%" justify="space-between" wrap="nowrap">
             <Group gap={10} wrap="nowrap">
-              <img src="/favicon.svg" width={28} height={28} alt="" />
-              <Text fw={800} size="lg" c="white" visibleFrom="xs">On-Call Rota</Text>
+              <div className="brand-mark"><img src="/favicon.svg" width={26} height={26} alt="" /></div>
+              <div>
+                <Text fw={800} size="lg" c="white" lh={1.1} visibleFrom="xs">On-Call Rota</Text>
+                <Text size="xs" c="brand.1" lh={1.1} visibleFrom="sm">Dental Officers · Perlis</Text>
+              </div>
             </Group>
             <Group gap={4} wrap="nowrap">
               {links.map(({ to, label, icon: Icon, end }) => (
