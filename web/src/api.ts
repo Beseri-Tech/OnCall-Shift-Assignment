@@ -42,13 +42,20 @@ export interface PublishedRota { period: Period; runId: string; days: RotaDay[];
 
 export interface AdminPerson {
   id: string; code: string; name: string; status: OfficerStatus; statusReason: string | null; excludedUntil: IsoDate | null
-  clinicId: string | null; clinicName: string | null; area: string | null; phone: string | null; sortOrder: number
-  extraShift: boolean; preferWeekendHoliday: boolean; weekendWeight: number
+  clinicId: string | null; clinicName: string | null; districtId: string | null; district: string | null
+  stateId: string | null; state: string | null; phone: string | null
+  sortOrder: number; extraShift: boolean; preferWeekendHoliday: boolean; weekendWeight: number
+  /** Sign-in email and role, once the officer has an account. invitePending: hasn't signed in and set a password yet. */
+  email: string | null; role: AccountRole | null; invitePending: boolean; accountEnabled: boolean
 }
+/** email invites the officer in the same step (only while they have no account). */
 export interface UpsertPerson {
   name: string; code: string | null; status: OfficerStatus; extraShift: boolean; preferWeekendHoliday: boolean
   weekendWeight: number; statusReason: string | null; excludedUntil: IsoDate | null; clinicId: string | null; phone: string | null
+  email: string | null; role: AccountRole
 }
+/** invite is set when an email was given. */
+export interface SavePersonResult { id: string; invite: InviteResult | null }
 export interface Me {
   accountId: string; email: string; role: AccountRole; personId: string | null; personName: string | null
   mustChangePassword: boolean
@@ -60,12 +67,24 @@ export interface Account {
 /** tempPassword only comes back when the email could not be sent. */
 export interface InviteResult { accountId: string; emailSent: boolean; tempPassword: string | null }
 export interface TallyRow {
-  personId: string; code: string; name: string; status: OfficerStatus; clinicName: string | null; area: string | null
+  personId: string; code: string; name: string; status: OfficerStatus; clinicName: string | null; district: string | null
   weekday: number; weekendHoliday: number; total: number; publishedWeekday: number; publishedWeekendHoliday: number
   known: boolean
 }
-export interface Clinic { id: string; name: string; area: string; people: number }
-export interface UpsertClinic { name: string; area: string }
+// State -> district -> clinic -> officer.
+export interface District { id: string; name: string; clinics: number }
+export interface State { id: string; name: string; districts: District[] }
+export interface Clinic { id: string; name: string; districtId: string; district: string; state: string; people: number }
+export interface UpsertClinic { name: string; districtId: string }
+export interface ImportRow {
+  line: number; name: string; code: string | null; email: string | null; role: AccountRole | null; phone: string | null
+  state: string | null; district: string | null; clinic: string | null; errors: string[]
+}
+export interface IssuedPassword { name: string; email: string; tempPassword: string }
+/** committed: false = only checked (or something was wrong); nothing is saved unless every row is valid. */
+export interface ImportResult {
+  rows: ImportRow[]; fileErrors: string[]; committed: boolean; added: number; invited: number; passwords: IssuedPassword[]
+}
 export interface UpsertPeriod {
   name: string; startDate: IsoDate; endDate: IsoDate; leaveDeadline: IsoDate | null; pointsBudget: number | null
 }
@@ -186,11 +205,19 @@ export const api = {
     saveTally: (rows: { personId: string; weekday: number; weekendHoliday: number }[]) => put<TallyRow[]>('/api/admin/tally', rows),
 
     people: () => get<AdminPerson[]>('/api/admin/people'),
-    createPerson: (p: UpsertPerson) => post<string>('/api/admin/people', p),
-    bulkAdd: (names: string) => post<{ added: string[]; skipped: string[] }>('/api/admin/people/bulk', { names }),
-    updatePerson: (id: string, p: UpsertPerson) => put<void>(`/api/admin/people/${id}`, p),
+    createPerson: (p: UpsertPerson) => post<SavePersonResult>('/api/admin/people', p),
+    updatePerson: (id: string, p: UpsertPerson) => put<SavePersonResult>(`/api/admin/people/${id}`, p),
+    importPeople: (csv: string, commit: boolean) => post<ImportResult>('/api/admin/people/import', { csv, commit }),
     deletePerson: (id: string) => del<void>(`/api/admin/people/${id}`),
     reorder: (ids: string[]) => post<void>('/api/admin/people/reorder', { ids }),
+
+    states: () => get<State[]>('/api/admin/states'),
+    createState: (name: string) => post<string>('/api/admin/states', { name }),
+    updateState: (id: string, name: string) => put<void>(`/api/admin/states/${id}`, { name }),
+    deleteState: (id: string) => del<void>(`/api/admin/states/${id}`),
+    createDistrict: (name: string, stateId: string) => post<string>('/api/admin/districts', { name, stateId }),
+    updateDistrict: (id: string, name: string, stateId: string) => put<void>(`/api/admin/districts/${id}`, { name, stateId }),
+    deleteDistrict: (id: string) => del<void>(`/api/admin/districts/${id}`),
 
     clinics: () => get<Clinic[]>('/api/admin/clinics'),
     createClinic: (c: UpsertClinic) => post<string>('/api/admin/clinics', c),

@@ -13,7 +13,8 @@ public static class AdminEndpoints
     {
         var admin = app.MapGroup("/api/admin").RequireAuthorization(Session.AdminPolicy);
         MapPeople(admin.MapGroup("/people").WithTags("Admin people"));
-        MapClinics(admin.MapGroup("/clinics").WithTags("Admin clinics"));
+        admin.MapLocationEndpoints();
+        admin.MapImportEndpoints();
         MapPeriods(admin.MapGroup("/periods").WithTags("Admin periods"));
         MapHolidays(admin.MapGroup("/holidays").WithTags("Admin holidays"));
         MapPeakDays(admin.MapGroup("/peak-days").WithTags("Admin peak days"));
@@ -28,7 +29,8 @@ public static class AdminEndpoints
     {
         g.MapGet("/", async (RotaDbContext db, CancellationToken ct) => await AdminPeopleAsync(db, ct));
 
-        g.MapPost("/", async (UpsertPersonRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        // Adds the officer and, when an email is given, invites them in the same step.
+        g.MapPost("/", async (UpsertPersonRequest req, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>
         {
             var person = new Person { SortOrder = await NextSortOrderAsync(db, ct) };
             if (await ValidateAsync(db, req, null, ct) is { } problem) return problem;
@@ -39,8 +41,9 @@ public static class AdminEndpoints
                 : req.Code.Trim();
             db.People.Add(person);
             Mapping.Log(db, http, "person.create", person.Id, new { person.Name, person.Code });
+            var invite = InviteIfEmail(db, mailer, http, req, person.Id);
             await db.SaveChangesAsync(ct);
-            return Results.Created($"/api/admin/people/{person.Id}", person.Id);
+            return Results.Created($"/api/admin/people/{person.Id}", new SavePersonResult(person.Id, invite));
         });
 
         g.MapPost("/bulk", async (BulkAddRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
@@ -64,18 +67,23 @@ public static class AdminEndpoints
             return Results.Ok(new { added = toAdd, skipped = names.Except(toAdd).ToList() });
         });
 
-        g.MapPut("/{id:guid}", async (Guid id, UpsertPersonRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        // An email invites an officer who has no account yet; it is ignored once they have one.
+        g.MapPut("/{id:guid}", async (Guid id, UpsertPersonRequest req, RotaDbContext db, Mailer mailer, HttpContext http,
+            CancellationToken ct) =>
         {
             var person = await db.People.FindAsync([id], ct);
             if (person is null) return Results.NotFound();
+            bool hasAccount = await db.Accounts.AnyAsync(a => a.PersonId == id, ct);
+            if (hasAccount) req = req with { Email = null };
             if (await ValidateAsync(db, req, id, ct) is { } problem) return problem;
 
             Apply(person, req);
             if (!string.IsNullOrWhiteSpace(req.Code)) person.Code = req.Code.Trim();
             person.UpdatedAt = DateTimeOffset.UtcNow;
             Mapping.Log(db, http, "person.update", id, req);
+            var invite = InviteIfEmail(db, mailer, http, req, id);
             await db.SaveChangesAsync(ct);
-            return Results.NoContent();
+            return Results.Ok(new SavePersonResult(id, invite));
         });
 
         g.MapPost("/reorder", async (ReorderRequest req, RotaDbContext db, CancellationToken ct) =>
@@ -104,11 +112,22 @@ public static class AdminEndpoints
 
     internal static async Task<List<AdminPersonDto>> AdminPeopleAsync(RotaDbContext db, CancellationToken ct)
     {
-        var people = await db.People.Include(p => p.Clinic).OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
-        return people.Select(p => new AdminPersonDto(p.Id, p.Code, p.Name, p.Status, p.StatusReason, p.ExcludedUntil,
-            p.ClinicId, p.Clinic?.Name, p.Clinic?.Area, p.Phone, p.SortOrder, p.ExtraShift, p.PreferWeekendHoliday,
-            p.WeekendWeight)).ToList();
+        var people = await db.People.Include(p => p.Clinic).ThenInclude(c => c!.District).ThenInclude(d => d!.State)
+            .OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
+        var accounts = await db.Accounts.Where(a => a.PersonId != null).ToDictionaryAsync(a => a.PersonId!.Value, ct);
+        return people.Select(p =>
+        {
+            var account = accounts.GetValueOrDefault(p.Id);
+            return new AdminPersonDto(p.Id, p.Code, p.Name, p.Status, p.StatusReason, p.ExcludedUntil,
+                p.ClinicId, p.Clinic?.Name, p.Clinic?.DistrictId, p.Clinic?.District?.Name, p.Clinic?.District?.StateId,
+                p.Clinic?.District?.State?.Name, p.Phone, p.SortOrder, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight,
+                account?.Email, account?.Role, account?.MustChangePassword ?? false, account?.Enabled ?? false);
+        }).ToList();
     }
+
+    private static InviteResult? InviteIfEmail(RotaDbContext db, Mailer mailer, HttpContext http, UpsertPersonRequest req, Guid personId) =>
+        Clean(req.Email) is null ? null
+            : AdminAccountEndpoints.Invite(db, mailer, http, AuthEndpoints.NormalizeEmail(req.Email!), req.Role, personId);
 
     private static void Apply(Person p, UpsertPersonRequest req)
     {
@@ -146,80 +165,31 @@ public static class AdminEndpoints
 
         if (req.WeekendWeight is < 1 or > 5) errors["weekendWeight"] = ["Weekend weight must be 1-5."];
 
+        if (Clean(req.Email) is not null)
+        {
+            if (await AdminAccountEndpoints.EmailErrorAsync(db, AuthEndpoints.NormalizeEmail(req.Email!), null, ct) is { } emailError)
+                errors["email"] = [emailError];
+            if (req.Role is not (AccountRole.Officer or AccountRole.Admin))
+                errors["role"] = ["An officer's account is Officer or Admin (supervisors are invited on the Accounts tab)."];
+            if (req.Status == OfficerStatus.Left) errors["email"] = ["Officers who have left can't be invited."];
+        }
+
         return errors.Count > 0 ? Results.ValidationProblem(errors) : null;
     }
 
-    private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : Regex.Replace(s.Trim(), @"\s+", " ");
+    internal static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : Regex.Replace(s.Trim(), @"\s+", " ");
 
-    private static async Task<int> NextSortOrderAsync(RotaDbContext db, CancellationToken ct) =>
+    internal static async Task<int> NextSortOrderAsync(RotaDbContext db, CancellationToken ct) =>
         (await db.People.MaxAsync(p => (int?)p.SortOrder, ct) ?? -1) + 1;
 
-    /// <summary>Next free codes D001, D002, ... after the highest existing D-number.</summary>
-    internal static async Task<List<string>> NextCodeAsync(RotaDbContext db, int count, CancellationToken ct)
+    /// <summary>Next free codes D001, D002, ... after the highest existing D-number (and any in <paramref name="alsoTaken"/>).</summary>
+    internal static async Task<List<string>> NextCodeAsync(RotaDbContext db, int count, CancellationToken ct,
+        IEnumerable<string>? alsoTaken = null)
     {
-        var codes = await db.People.Select(p => p.Code).ToListAsync(ct);
+        var codes = (await db.People.Select(p => p.Code).ToListAsync(ct)).Concat(alsoTaken ?? []);
         int max = codes.Select(c => Regex.Match(c, @"^D(\d+)$")).Where(m => m.Success)
             .Select(m => int.Parse(m.Groups[1].Value)).DefaultIfEmpty(0).Max();
         return Enumerable.Range(max + 1, count).Select(n => $"D{n:000}").ToList();
-    }
-
-    // ---------------- clinics ----------------
-
-    private static void MapClinics(RouteGroupBuilder g)
-    {
-        g.MapGet("/", async (RotaDbContext db, CancellationToken ct) =>
-            await db.Clinics.OrderBy(c => c.Area).ThenBy(c => c.Name)
-                .Select(c => new ClinicDto(c.Id, c.Name, c.Area, db.People.Count(p => p.ClinicId == c.Id)))
-                .ToListAsync(ct));
-
-        g.MapPost("/", async (UpsertClinicRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
-        {
-            if (await ValidateClinicAsync(db, req, null, ct) is { } problem) return problem;
-            var clinic = new Clinic { Name = Clean(req.Name)!, Area = Clean(req.Area)! };
-            db.Clinics.Add(clinic);
-            Mapping.Log(db, http, "clinic.create", null, req);
-            await db.SaveChangesAsync(ct);
-            return Results.Created($"/api/admin/clinics/{clinic.Id}", clinic.Id);
-        });
-
-        g.MapPut("/{id:guid}", async (Guid id, UpsertClinicRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
-        {
-            var clinic = await db.Clinics.FindAsync([id], ct);
-            if (clinic is null) return Results.NotFound();
-            if (await ValidateClinicAsync(db, req, id, ct) is { } problem) return problem;
-            clinic.Name = Clean(req.Name)!;
-            clinic.Area = Clean(req.Area)!;
-            Mapping.Log(db, http, "clinic.update", null, new { id, req.Name, req.Area });
-            await db.SaveChangesAsync(ct);
-            return Results.NoContent();
-        });
-
-        // Officers of a deleted clinic just lose their clinic (FK is ON DELETE SET NULL).
-        g.MapDelete("/{id:guid}", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
-        {
-            var clinic = await db.Clinics.FindAsync([id], ct);
-            if (clinic is null) return Results.NotFound();
-            db.Clinics.Remove(clinic);
-            Mapping.Log(db, http, "clinic.delete", null, new { id, clinic.Name });
-            await db.SaveChangesAsync(ct);
-            return Results.NoContent();
-        });
-    }
-
-    private static async Task<IResult?> ValidateClinicAsync(RotaDbContext db, UpsertClinicRequest req, Guid? id, CancellationToken ct)
-    {
-        var errors = new Dictionary<string, string[]>();
-        string? name = Clean(req.Name), area = Clean(req.Area);
-
-        if (name is null) errors["name"] = ["Name is required."];
-        else if (name.Length > 100) errors["name"] = ["Name is too long (max 100)."];
-        else if (await db.Clinics.AnyAsync(c => c.Id != id && c.Name.ToLower() == name.ToLower(), ct))
-            errors["name"] = [$"{name} already exists."];
-
-        if (area is null) errors["area"] = ["Area is required."];
-        else if (area.Length > 50) errors["area"] = ["Area is too long (max 50)."];
-
-        return errors.Count > 0 ? Results.ValidationProblem(errors) : null;
     }
 
     // ---------------- periods ----------------

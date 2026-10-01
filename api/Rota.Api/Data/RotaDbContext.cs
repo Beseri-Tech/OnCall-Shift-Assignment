@@ -7,6 +7,8 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
 {
     public DbSet<Person> People => Set<Person>();
     public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<State> States => Set<State>();
+    public DbSet<District> Districts => Set<District>();
     public DbSet<Clinic> Clinics => Set<Clinic>();
     public DbSet<RotaPeriod> Periods => Set<RotaPeriod>();
     public DbSet<PublicHoliday> Holidays => Set<PublicHoliday>();
@@ -54,12 +56,27 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.Ignore(a => a.IsAdmin);
         });
 
+        b.Entity<State>(e =>
+        {
+            e.ToTable("states");
+            e.HasIndex(s => s.Name).IsUnique();
+            e.Property(s => s.Name).HasMaxLength(50);
+            e.HasMany(s => s.Districts).WithOne(d => d.State).HasForeignKey(d => d.StateId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<District>(e =>
+        {
+            e.ToTable("districts");
+            e.HasIndex(d => new { d.StateId, d.Name }).IsUnique();
+            e.Property(d => d.Name).HasMaxLength(50);
+            e.HasMany(d => d.Clinics).WithOne(c => c.District).HasForeignKey(c => c.DistrictId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         b.Entity<Clinic>(e =>
         {
             e.ToTable("clinics");
             e.HasIndex(c => c.Name).IsUnique();
             e.Property(c => c.Name).HasMaxLength(100);
-            e.Property(c => c.Area).HasMaxLength(50);
         });
 
         b.Entity<RotaPeriod>(e =>

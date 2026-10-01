@@ -53,11 +53,11 @@ public static class AdminTallyEndpoints
     private static async Task<List<TallyRowDto>> RowsAsync(RotaDbContext db, CancellationToken ct)
     {
         var totals = await Totals.ForPeopleAsync(db, ct: ct);
-        var people = await db.People.Include(p => p.Clinic).OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
+        var people = await db.People.Include(p => p.Clinic).ThenInclude(c => c!.District).OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
         return people.Select(p =>
         {
             var t = totals.GetValueOrDefault(p.Id, PersonTotals.Unknown);
-            return new TallyRowDto(p.Id, p.Code, p.Name, p.Status, p.Clinic?.Name, p.Clinic?.Area,
+            return new TallyRowDto(p.Id, p.Code, p.Name, p.Status, p.Clinic?.Name, p.Clinic?.District?.Name,
                 t.Weekday, t.WeekendHoliday, t.Total, t.PublishedWeekday, t.PublishedWeekendHoliday, t.Known);
         }).ToList();
     }
