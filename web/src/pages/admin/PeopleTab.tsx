@@ -6,7 +6,7 @@ import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconDoorExit, IconEdit, IconFileImport, IconMapPin, IconPlayerPause, IconSearch, IconTrash, IconUserCheck, IconUserPlus,
+  IconDoorExit, IconEdit, IconFileImport, IconFilterOff, IconMapPin, IconPlayerPause, IconSearch, IconTrash, IconUserCheck, IconUserPlus,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api, type AccountRole, type AdminPerson, type Clinic, type InviteResult, type OfficerStatus, type UpsertPerson } from '../../api'
@@ -27,6 +27,34 @@ const STATUS_COLOR: Record<OfficerStatus, string> = { OnCall: 'green', Excluded:
 
 type StatusFilter = OfficerStatus | 'All'
 
+/** Sign-in state of an officer, for the account filter. */
+type AccountFilter = 'none' | 'pending' | 'active' | 'disabled' | 'admin'
+const ACCOUNT_FILTERS: { value: AccountFilter; label: string }[] = [
+  { value: 'none', label: 'No account (not invited)' },
+  { value: 'pending', label: 'Invited, not signed in' },
+  { value: 'active', label: 'Signed in' },
+  { value: 'disabled', label: 'Account disabled' },
+  { value: 'admin', label: 'Admins' },
+]
+const accountMatches = (p: AdminPerson, f: AccountFilter) =>
+  f === 'none' ? !p.email
+  : f === 'pending' ? !!p.email && p.accountEnabled && p.invitePending
+  : f === 'active' ? !!p.email && p.accountEnabled && !p.invitePending
+  : f === 'disabled' ? !!p.email && !p.accountEnabled
+  : p.role === 'Admin'
+
+type FlagFilter = 'weekends' | 'extra' | 'weight'
+const FLAG_FILTERS: { value: FlagFilter; label: string }[] = [
+  { value: 'weekends', label: 'Prefers weekends' },
+  { value: 'extra', label: 'Takes extra shifts' },
+  { value: 'weight', label: 'Weekend weight above 1' },
+]
+const flagMatches = (p: AdminPerson, f: FlagFilter) =>
+  f === 'weekends' ? p.preferWeekendHoliday : f === 'extra' ? p.extraShift : p.weekendWeight > 1
+
+/** Clinic filter value for officers without a clinic. */
+const NO_CLINIC = 'none'
+
 // Sort key that puts officers without a state/district/clinic last.
 const last = (s: string | null) => s ?? '￿'
 
@@ -37,8 +65,15 @@ export function PeopleTab() {
   const states = useQuery({ queryKey: ['admin', 'states'], queryFn: api.admin.states })
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<StatusFilter>('OnCall')
-  const [districtId, setDistrictId] = useState('All')
+  const [stateId, setStateId] = useState<string | null>(null)
+  const [districtId, setDistrictId] = useState<string | null>(null)
   const [clinicId, setClinicId] = useState<string | null>(null)
+  const [account, setAccount] = useState<AccountFilter | null>(null)
+  const [flag, setFlag] = useState<FlagFilter | null>(null)
+  const filtered = !!(search.trim() || stateId || districtId || clinicId || account || flag)
+  const clearFilters = () => {
+    setSearch(''); setStateId(null); setDistrictId(null); setClinicId(null); setAccount(null); setFlag(null)
+  }
   const [editing, setEditing] = useState<{ person: AdminPerson | null; value: UpsertPerson } | null>(null)
   const [changing, setChanging] = useState<{ person: AdminPerson; to: 'Excluded' | 'Left' } | null>(null)
   const [importOpen, setImportOpen] = useState(false)
@@ -65,13 +100,15 @@ export function PeopleTab() {
     onError: e => notifyError(e),
   })
 
-  // Districts that have clinics, labelled with their state when there's more than one state.
-  const districts = useMemo(() => {
-    const manyStates = (states.data ?? []).length > 1
-    return (states.data ?? []).flatMap(s => s.districts.filter(d => d.clinics > 0)
-      .map(d => ({ value: d.id, label: manyStates ? `${d.name} (${s.name})` : d.name })))
-  }, [states.data])
-  const districtOf = useMemo(() => new Map((clinics.data ?? []).map(c => [c.id, c.districtId])), [clinics.data])
+  // Cascading choices: districts of the chosen state, clinics of the chosen district (or state).
+  const districtOptions = useMemo(() => (states.data ?? []).filter(s => !stateId || s.id === stateId)
+    .map(s => ({ group: s.name, items: s.districts.map(d => ({ value: d.id, label: d.name })) })), [states.data, stateId])
+  const clinicChoices = useMemo(() => {
+    const stateOf = new Map((states.data ?? []).flatMap(s => s.districts.map(d => [d.id, s.id] as const)))
+    const list = (clinics.data ?? []).filter(c => (!districtId || c.districtId === districtId)
+      && (!stateId || stateOf.get(c.districtId) === stateId))
+    return [{ value: NO_CLINIC, label: 'No clinic' }, ...list.map(c => ({ value: c.id, label: c.name }))]
+  }, [clinics.data, states.data, stateId, districtId])
 
   const counts = useMemo(() => {
     const c: Record<OfficerStatus, number> = { OnCall: 0, Excluded: 0, Left: 0 }
@@ -83,15 +120,19 @@ export function PeopleTab() {
     const s = search.trim().toLowerCase()
     return (people.data ?? [])
       .filter(p => (status === 'All' || p.status === status)
-        && (districtId === 'All' || (p.clinicId && districtOf.get(p.clinicId) === districtId))
-        && (!clinicId || p.clinicId === clinicId)
-        && (!s || p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s) || p.email?.includes(s)))
+        && (!stateId || p.stateId === stateId)
+        && (!districtId || p.districtId === districtId)
+        && (!clinicId || (clinicId === NO_CLINIC ? !p.clinicId : p.clinicId === clinicId))
+        && (!account || accountMatches(p, account))
+        && (!flag || flagMatches(p, flag))
+        && (!s || p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s) || p.email?.includes(s)
+          || p.phone?.replace(/\D/g, '').includes(s.replace(/\D/g, '') || '-')))
       // Like the sheet: grouped by state, district, then clinic.
       .sort((a, b) => last(a.state).localeCompare(last(b.state))
         || last(a.district).localeCompare(last(b.district))
         || last(a.clinicName).localeCompare(last(b.clinicName))
         || a.sortOrder - b.sortOrder)
-  }, [people.data, search, status, districtId, districtOf, clinicId])
+  }, [people.data, search, status, stateId, districtId, clinicId, account, flag])
 
   if (people.isLoading || clinics.isLoading || states.isLoading) return <Loading />
   if (people.error || clinics.error || states.error) return <ErrorBox error={people.error ?? clinics.error ?? states.error} />
@@ -120,15 +161,20 @@ export function PeopleTab() {
       </Group>
 
       <Group wrap="wrap">
-        <TextInput placeholder="Find name, code or email" leftSection={<IconSearch size={16} />} value={search}
-          onChange={e => setSearch(e.currentTarget.value)} w={240} />
-        {districts.length > 0 && (
-          <SegmentedControl value={districtId} onChange={v => { setDistrictId(v); setClinicId(null) }}
-            data={[{ value: 'All', label: 'All districts' }, ...districts]} />
-        )}
-        <Select placeholder="All clinics" clearable w={220} value={clinicId} onChange={setClinicId}
-          data={(clinics.data ?? []).filter(c => districtId === 'All' || c.districtId === districtId).map(c => ({ value: c.id, label: c.name }))} />
-        <Text size="sm" c="dimmed">{rows.length} shown</Text>
+        <TextInput placeholder="Name, code, email, phone" leftSection={<IconSearch size={16} />} value={search}
+          onChange={e => setSearch(e.currentTarget.value)} w={260} />
+        <Select placeholder="All states" clearable w={150} value={stateId}
+          data={(states.data ?? []).map(st => ({ value: st.id, label: st.name }))}
+          onChange={v => { setStateId(v); setDistrictId(null); setClinicId(null) }} />
+        <Select placeholder="All districts" clearable searchable w={170} value={districtId} data={districtOptions}
+          onChange={v => { setDistrictId(v); setClinicId(null) }} />
+        <Select placeholder="All clinics" clearable searchable w={200} value={clinicId} data={clinicChoices} onChange={setClinicId} />
+        <Select placeholder="Any sign-in" clearable w={220} value={account} data={ACCOUNT_FILTERS}
+          onChange={v => setAccount(v as AccountFilter | null)} />
+        <Select placeholder="Any preference" clearable w={200} value={flag} data={FLAG_FILTERS}
+          onChange={v => setFlag(v as FlagFilter | null)} />
+        {filtered && <Button variant="subtle" size="compact-sm" leftSection={<IconFilterOff size={14} />} onClick={clearFilters}>Clear filters</Button>}
+        <Text size="sm" c="dimmed">{rows.length} of {people.data!.length} shown</Text>
       </Group>
 
       <Paper withBorder>
@@ -163,7 +209,11 @@ export function PeopleTab() {
                     {p.email
                       ? <>
                           <Text size="sm">{p.email}</Text>
-                          {p.role === 'Admin' && <Badge size="xs" color="violet" variant="light">Admin</Badge>}
+                          <Group gap={4}>
+                            {!p.accountEnabled ? <Badge size="xs" color="gray" variant="light">Disabled</Badge>
+                              : p.invitePending && <Badge size="xs" color="orange" variant="light">Invited</Badge>}
+                            {p.role === 'Admin' && <Badge size="xs" color="violet" variant="light">Admin</Badge>}
+                          </Group>
                         </>
                       : <Text span size="sm" c="dimmed">No account</Text>}
                   </Table.Td>

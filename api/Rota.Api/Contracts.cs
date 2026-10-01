@@ -79,10 +79,12 @@ public sealed record InviteResult(Guid AccountId, bool EmailSent, string? TempPa
 public sealed record UpdateAccountRequest(string Email, AccountRole Role, Guid? PersonId, bool Enabled);
 
 /// <param name="Email">The officer's sign-in email, if they have an account.</param>
+/// <param name="InvitePending">Invited but hasn't signed in and set their own password yet.</param>
 public sealed record AdminPersonDto(
     Guid Id, string Code, string Name, OfficerStatus Status, string? StatusReason, DateOnly? ExcludedUntil,
-    Guid? ClinicId, string? ClinicName, string? District, string? State, string? Phone, int SortOrder,
-    bool ExtraShift, bool PreferWeekendHoliday, int WeekendWeight, string? Email, AccountRole? Role);
+    Guid? ClinicId, string? ClinicName, Guid? DistrictId, string? District, Guid? StateId, string? State, string? Phone, int SortOrder,
+    bool ExtraShift, bool PreferWeekendHoliday, int WeekendWeight, string? Email, AccountRole? Role, bool InvitePending,
+    bool AccountEnabled);
 
 /// <param name="Email">Invites the officer in the same step (Role: Officer or Admin). Only used while the officer has no
 /// account; change an existing account's email on the Accounts tab.</param>

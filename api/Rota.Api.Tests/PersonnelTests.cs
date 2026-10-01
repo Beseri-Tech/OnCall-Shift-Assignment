@@ -69,7 +69,7 @@ public class PersonnelTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.NotNull(saved.Invite?.TempPassword);   // no SMTP in tests
 
         var person = Assert.Single(await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people")));
-        Assert.Equal(("ali@test.local", AccountRole.Officer, "Kangar", "Perlis"), (person.Email, person.Role, person.District, person.State));
+        Assert.Equal(("ali@test.local", AccountRole.Officer, "Kangar", "Perlis", true), (person.Email, person.Role, person.District, person.State, person.InvitePending));
 
         var officer = app.CreateClient(new() { HandleCookies = true });
         var me = await Read<MeDto>(await officer.PostAsJsonAsync("/api/auth/login",

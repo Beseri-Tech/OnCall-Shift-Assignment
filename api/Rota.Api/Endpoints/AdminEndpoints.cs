@@ -119,8 +119,9 @@ public static class AdminEndpoints
         {
             var account = accounts.GetValueOrDefault(p.Id);
             return new AdminPersonDto(p.Id, p.Code, p.Name, p.Status, p.StatusReason, p.ExcludedUntil,
-                p.ClinicId, p.Clinic?.Name, p.Clinic?.District?.Name, p.Clinic?.District?.State?.Name, p.Phone, p.SortOrder,
-                p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight, account?.Email, account?.Role);
+                p.ClinicId, p.Clinic?.Name, p.Clinic?.DistrictId, p.Clinic?.District?.Name, p.Clinic?.District?.StateId,
+                p.Clinic?.District?.State?.Name, p.Phone, p.SortOrder, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight,
+                account?.Email, account?.Role, account?.MustChangePassword ?? false, account?.Enabled ?? false);
         }).ToList();
     }
 

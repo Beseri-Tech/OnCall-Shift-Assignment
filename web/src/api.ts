@@ -42,10 +42,11 @@ export interface PublishedRota { period: Period; runId: string; days: RotaDay[];
 
 export interface AdminPerson {
   id: string; code: string; name: string; status: OfficerStatus; statusReason: string | null; excludedUntil: IsoDate | null
-  clinicId: string | null; clinicName: string | null; district: string | null; state: string | null; phone: string | null
+  clinicId: string | null; clinicName: string | null; districtId: string | null; district: string | null
+  stateId: string | null; state: string | null; phone: string | null
   sortOrder: number; extraShift: boolean; preferWeekendHoliday: boolean; weekendWeight: number
-  /** Sign-in email and role, once the officer has an account. */
-  email: string | null; role: AccountRole | null
+  /** Sign-in email and role, once the officer has an account. invitePending: hasn't signed in and set a password yet. */
+  email: string | null; role: AccountRole | null; invitePending: boolean; accountEnabled: boolean
 }
 /** email invites the officer in the same step (only while they have no account). */
 export interface UpsertPerson {
