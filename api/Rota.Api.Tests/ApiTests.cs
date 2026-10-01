@@ -59,9 +59,10 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var admin = await ApiFixture.AdminClientAsync(app);
         var (people, period) = await SeedAsync(admin, 4);
 
-        var clinicId = await Read<Guid>(await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("KP Beseri", "Kangar")));
+        var kangar = (await Read<List<StateDto>>(await admin.GetAsync("/api/admin/states"))).Single().Districts.Single(d => d.Name == "Kangar");
+        var clinicId = await Read<Guid>(await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("KP Beseri", kangar.Id)));
         Assert.Equal(HttpStatusCode.BadRequest,
-            (await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("kp beseri", "Kangar"))).StatusCode);
+            (await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("kp beseri", kangar.Id))).StatusCode);
 
         var target = people[0];
         var url = $"/api/admin/people/{target.Id}";
@@ -74,7 +75,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         var saved = (await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"))).Single(p => p.Id == target.Id);
         Assert.Equal((OfficerStatus.Excluded, "CUTI BERSALIN", "KP Beseri", "Kangar", "012-3456789"),
-            (saved.Status, saved.StatusReason, saved.ClinicName, saved.Area, saved.Phone));
+            (saved.Status, saved.StatusReason, saved.ClinicName, saved.District, saved.Phone));
 
         Assert.DoesNotContain(await Read<List<PersonSummaryDto>>(await admin.GetAsync("/api/people")), p => p.Id == target.Id);
 

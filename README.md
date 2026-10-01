@@ -6,9 +6,9 @@ The original WinForms desktop app lives on the [`legacy`](../../tree/legacy) bra
 
 ## How it works
 
-1. **Accounts.** An admin invites each officer by email; the invite has a temporary password that must be changed at first sign-in. Forgotten passwords are reset by email. Roles: **Officer**, **Admin** (an officer who also runs the admin pages) and **Supervisor** (admin only, not on the rota). Everything needs sign-in.
+1. **Officers and accounts.** Officers are organised as state → district → clinic → officer (Perlis with Kangar and Arau to start; admins add clinics, and more districts or states if needed). An admin adds an officer and invites them by email in one step, or imports many from a CSV file (template in the app); the invite has a temporary password that must be changed at first sign-in. Forgotten passwords are reset by email. Roles: **Officer**, **Admin** (an officer who also runs the admin pages) and **Supervisor** (admin only, not on the rota). Everything needs sign-in.
 2. **Officers** mark their own leave (with a note) and preferred on-call days until the period's deadline, within the leave limits (points for weekends/public holidays/peak days, a weekday allowance and a per-day cap).
-3. **Admins** manage officers, clinics, periods, public holidays, peak days and the shift **tally**, edit anyone's leave, then lock leave and generate a draft rota. Weekend and public-holiday shifts are balanced, back-to-back shifts avoided.
+3. **Admins** manage officers, clinics, districts, periods, public holidays, peak days and the shift **tally**, edit anyone's leave, then lock leave and generate a draft rota. Weekend and public-holiday shifts are balanced, back-to-back shifts avoided.
 4. The admin overrides days if needed (warnings for leave clashes) and **publishes**. Everyone sees the rota, and published shifts are added to each officer's tally. Timetable, tally and leave can be exported to Excel.
 
 ## Run with Docker

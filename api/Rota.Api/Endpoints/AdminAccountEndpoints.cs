@@ -26,14 +26,9 @@ public static class AdminAccountEndpoints
             string email = AuthEndpoints.NormalizeEmail(req.Email);
             if (await ValidateAsync(db, email, req.Role, req.PersonId, null, ct) is { } problem) return problem;
 
-            var account = new Account { Email = email, Role = req.Role, PersonId = req.Role == AccountRole.Supervisor ? null : req.PersonId };
-            db.Accounts.Add(account);
-            string temp = SetTemporaryPassword(account);
-            bool sent = QueueInvite(db, mailer, http, account, temp);
-            Mapping.Log(db, http, "account.invite", account.PersonId, new { email, req.Role });
+            var result = Invite(db, mailer, http, email, req.Role, req.Role == AccountRole.Supervisor ? null : req.PersonId);
             await db.SaveChangesAsync(ct);
-
-            return Results.Ok(new InviteResult(account.Id, sent, sent ? null : temp));
+            return Results.Ok(result);
         });
 
         // New temporary password: re-sends a lost invite, and is how the admin resets someone's password.
@@ -75,15 +70,32 @@ public static class AdminAccountEndpoints
         });
     }
 
+    /// <summary>Adds the account with a temporary password and queues the invite email; the caller saves.</summary>
+    internal static InviteResult Invite(RotaDbContext db, Mailer mailer, HttpContext http, string email, AccountRole role, Guid? personId)
+    {
+        var account = new Account { Email = email, Role = role, PersonId = personId };
+        db.Accounts.Add(account);
+        string temp = SetTemporaryPassword(account);
+        bool sent = QueueInvite(db, mailer, http, account, temp);
+        Mapping.Log(db, http, "account.invite", personId, new { email, role });
+        return new InviteResult(account.Id, sent, sent ? null : temp);
+    }
+
+    /// <summary>Problem with a normalized email (invalid, or another account has it), else null.</summary>
+    internal static async Task<string?> EmailErrorAsync(RotaDbContext db, string email, Guid? accountId, CancellationToken ct) =>
+        !IsValidEmail(email) ? "Enter a valid email address."
+        : await db.Accounts.AnyAsync(a => a.Id != accountId && a.Email == email, ct) ? $"{email} already has an account."
+        : null;
+
+    internal static bool IsValidEmail(string email) =>
+        MailAddress.TryCreate(email, out var parsed) && parsed.Address == email && email.Length <= 254;
+
     private static async Task<IResult?> ValidateAsync(RotaDbContext db, string email, AccountRole role, Guid? personId, Guid? id,
         CancellationToken ct)
     {
         var errors = new Dictionary<string, string[]>();
 
-        if (!MailAddress.TryCreate(email, out var parsed) || parsed.Address != email || email.Length > 254)
-            errors["email"] = ["Enter a valid email address."];
-        else if (await db.Accounts.AnyAsync(a => a.Id != id && a.Email == email, ct))
-            errors["email"] = [$"{email} already has an account."];
+        if (await EmailErrorAsync(db, email, id, ct) is { } emailError) errors["email"] = [emailError];
 
         if (!Enum.IsDefined(role)) errors["role"] = ["Unknown role."];
         else if (role != AccountRole.Supervisor)

@@ -78,27 +78,59 @@ public sealed record InviteResult(Guid AccountId, bool EmailSent, string? TempPa
 
 public sealed record UpdateAccountRequest(string Email, AccountRole Role, Guid? PersonId, bool Enabled);
 
+/// <param name="Email">The officer's sign-in email, if they have an account.</param>
 public sealed record AdminPersonDto(
     Guid Id, string Code, string Name, OfficerStatus Status, string? StatusReason, DateOnly? ExcludedUntil,
-    Guid? ClinicId, string? ClinicName, string? Area, string? Phone, int SortOrder,
-    bool ExtraShift, bool PreferWeekendHoliday, int WeekendWeight);
+    Guid? ClinicId, string? ClinicName, string? District, string? State, string? Phone, int SortOrder,
+    bool ExtraShift, bool PreferWeekendHoliday, int WeekendWeight, string? Email, AccountRole? Role);
 
+/// <param name="Email">Invites the officer in the same step (Role: Officer or Admin). Only used while the officer has no
+/// account; change an existing account's email on the Accounts tab.</param>
 public sealed record UpsertPersonRequest(
     string Name, string? Code, OfficerStatus Status = OfficerStatus.OnCall, bool ExtraShift = false, bool PreferWeekendHoliday = false,
-    int WeekendWeight = 1, string? StatusReason = null, DateOnly? ExcludedUntil = null, Guid? ClinicId = null, string? Phone = null);
+    int WeekendWeight = 1, string? StatusReason = null, DateOnly? ExcludedUntil = null, Guid? ClinicId = null, string? Phone = null,
+    string? Email = null, AccountRole Role = AccountRole.Officer);
+
+/// <summary>Invite is set when an email was given.</summary>
+public sealed record SavePersonResult(Guid Id, InviteResult? Invite);
 
 /// <summary>Shifts done so far. Published* = from published rotas; the rest is the admin's adjustment.</summary>
 public sealed record TallyRowDto(
-    Guid PersonId, string Code, string Name, OfficerStatus Status, string? ClinicName, string? Area,
+    Guid PersonId, string Code, string Name, OfficerStatus Status, string? ClinicName, string? District,
     int Weekday, int WeekendHoliday, int Total, int PublishedWeekday, int PublishedWeekendHoliday, bool Known);
 
 public sealed record TallyUpdate(Guid PersonId, int Weekday, int WeekendHoliday);
 
-public sealed record ClinicDto(Guid Id, string Name, string Area, int People);
+// State -> district -> clinic -> officer.
 
-public sealed record UpsertClinicRequest(string Name, string Area);
+public sealed record StateDto(Guid Id, string Name, IReadOnlyList<DistrictDto> Districts);
+
+public sealed record DistrictDto(Guid Id, string Name, int Clinics);
+
+public sealed record UpsertStateRequest(string Name);
+
+public sealed record UpsertDistrictRequest(string Name, Guid StateId);
+
+public sealed record ClinicDto(Guid Id, string Name, Guid DistrictId, string District, string State, int People);
+
+public sealed record UpsertClinicRequest(string Name, Guid DistrictId);
 
 public sealed record BulkAddRequest(string Names);
+
+/// <summary>CSV import of officers. Commit = false only checks the file; nothing is saved unless every row is valid.</summary>
+public sealed record ImportPeopleRequest(string Csv, bool Commit);
+
+/// <param name="Line">Line number in the file (the header is line 1).</param>
+public sealed record ImportRowDto(
+    int Line, string Name, string? Code, string? Email, AccountRole? Role, string? Phone, string? State, string? District,
+    string? Clinic, IReadOnlyList<string> Errors);
+
+/// <param name="Passwords">Temporary passwords of invites whose email couldn't be sent, for the admin to pass on.</param>
+public sealed record ImportResultDto(
+    IReadOnlyList<ImportRowDto> Rows, IReadOnlyList<string> FileErrors, bool Committed, int Added, int Invited,
+    IReadOnlyList<IssuedPasswordDto> Passwords);
+
+public sealed record IssuedPasswordDto(string Name, string Email, string TempPassword);
 
 public sealed record ReorderRequest(IReadOnlyList<Guid> Ids);
 

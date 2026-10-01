@@ -1,15 +1,15 @@
 import {
-  ActionIcon, Alert, Badge, Button, Code, CopyButton, Group, Modal, Paper, SegmentedControl, Select, Stack, Switch, Table, Text,
-  TextInput, Tooltip,
+  ActionIcon, Badge, Button, Group, Modal, Paper, SegmentedControl, Select, Stack, Switch, Table, Text, TextInput, Tooltip,
 } from '@mantine/core'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconCheck, IconCopy, IconEdit, IconMailForward, IconSearch, IconUserPlus } from '@tabler/icons-react'
+import { IconEdit, IconMailForward, IconSearch, IconUserPlus } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api, type Account, type AccountRole, type AdminPerson, type InviteResult } from '../../api'
 import { useMe } from '../../auth'
 import { ErrorBox, Loading } from '../../components/common'
 import { notifyError, notifyOk } from '../../lib'
+import { type IssuedLogin, TempPasswordsModal } from './TempPasswords'
 
 const ROLE_LABEL: Record<AccountRole, string> = { Officer: 'Officer', Admin: 'Admin (on call)', Supervisor: 'Supervisor' }
 const ROLE_HELP: Record<AccountRole, string> = {
@@ -32,14 +32,14 @@ export function AccountsTab() {
   const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people })
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<Account | 'new' | null>(null)
-  const [issued, setIssued] = useState<{ email: string; result: InviteResult } | null>(null)
+  const [issued, setIssued] = useState<IssuedLogin[]>([])
   const [now] = useState(() => new Date().toISOString())
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin', 'accounts'] })
   const onIssued = (email: string, result: InviteResult) => {
     refresh()
     if (result.emailSent) notifyOk(`Email sent to ${email}.`)
-    else setIssued({ email, result })
+    else if (result.tempPassword) setIssued([{ email, tempPassword: result.tempPassword }])
   }
 
   const resend = useMutation({
@@ -130,27 +130,7 @@ export function AccountsTab() {
           onClose={() => setEditing(null)} onSaved={refresh} onIssued={onIssued} />
       )}
 
-      <Modal opened={!!issued} onClose={() => setIssued(null)} title="Email not sent – share this password">
-        {issued && (
-          <Stack>
-            <Alert color="orange">
-              Email isn't set up on the server (or sending failed). Send these sign-in details to {issued.email} yourself, e.g. by
-              WhatsApp. The password is shown only once and must be changed at first sign-in.
-            </Alert>
-            <Group>
-              <Code fz="lg" p="sm">{issued.result.tempPassword}</Code>
-              <CopyButton value={issued.result.tempPassword ?? ''}>
-                {({ copied, copy }) => (
-                  <Button variant="default" leftSection={copied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={copy}>
-                    {copied ? 'Copied' : 'Copy'}
-                  </Button>
-                )}
-              </CopyButton>
-            </Group>
-            <Group justify="flex-end"><Button onClick={() => setIssued(null)}>Done</Button></Group>
-          </Stack>
-        )}
-      </Modal>
+      <TempPasswordsModal logins={issued} onClose={() => setIssued([])} />
     </Stack>
   )
 }
@@ -196,7 +176,7 @@ function AccountModal({ account, people, accounts, isSelf, onClose, onSaved, onI
           </Stack>
           {role !== 'Supervisor' && (
             <Select label="Officer" required searchable placeholder="Pick the officer" data={options} value={personId}
-              onChange={setPersonId} nothingFoundMessage="No officer without an account – add them on the Officers tab first" />
+              onChange={setPersonId} nothingFoundMessage="No officer without an account – add them (with their email) on the Officers tab" />
           )}
           {account && (
             <Switch label="Can sign in" checked={enabled} disabled={isSelf} onChange={e => setEnabled(e.currentTarget.checked)}

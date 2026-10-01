@@ -1,23 +1,25 @@
 import {
-  ActionIcon, Anchor, Autocomplete, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, SegmentedControl, Select, Stack,
-  Table, Text, TextInput, Textarea, Tooltip,
+  ActionIcon, Anchor, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, SegmentedControl, Select, Stack,
+  Table, Text, TextInput, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconBuildingHospital, IconDoorExit, IconEdit, IconPlayerPause, IconSearch, IconTrash, IconUserCheck,
-  IconUserPlus, IconUsersPlus,
+  IconDoorExit, IconEdit, IconFileImport, IconMapPin, IconPlayerPause, IconSearch, IconTrash, IconUserCheck, IconUserPlus,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
-import { api, type AdminPerson, type Clinic, type OfficerStatus, type UpsertPerson } from '../../api'
+import { api, type AccountRole, type AdminPerson, type Clinic, type InviteResult, type OfficerStatus, type UpsertPerson } from '../../api'
 import { ErrorBox, Loading } from '../../components/common'
 import { formatLong, todayIso } from '../../dates'
 import { notifyError, notifyOk } from '../../lib'
+import { ImportModal } from './ImportModal'
+import { LocationsModal } from './LocationsModal'
+import { type IssuedLogin, TempPasswordsModal } from './TempPasswords'
 
 const blank: UpsertPerson = {
   name: '', code: null, status: 'OnCall', extraShift: false, preferWeekendHoliday: false, weekendWeight: 1,
-  statusReason: null, excludedUntil: null, clinicId: null, phone: null,
+  statusReason: null, excludedUntil: null, clinicId: null, phone: null, email: null, role: 'Officer',
 }
 
 const STATUS_LABEL: Record<OfficerStatus, string> = { OnCall: 'On call', Excluded: 'Excluded', Left: 'Left' }
@@ -25,25 +27,29 @@ const STATUS_COLOR: Record<OfficerStatus, string> = { OnCall: 'green', Excluded:
 
 type StatusFilter = OfficerStatus | 'All'
 
-// Sort key that puts officers without an area/clinic last.
+// Sort key that puts officers without a state/district/clinic last.
 const last = (s: string | null) => s ?? '￿'
 
 export function PeopleTab() {
   const qc = useQueryClient()
   const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people })
   const clinics = useQuery({ queryKey: ['admin', 'clinics'], queryFn: api.admin.clinics })
+  const states = useQuery({ queryKey: ['admin', 'states'], queryFn: api.admin.states })
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<StatusFilter>('OnCall')
-  const [area, setArea] = useState('All')
+  const [districtId, setDistrictId] = useState('All')
   const [clinicId, setClinicId] = useState<string | null>(null)
-  const [editing, setEditing] = useState<{ id: string | null; value: UpsertPerson } | null>(null)
+  const [editing, setEditing] = useState<{ person: AdminPerson | null; value: UpsertPerson } | null>(null)
   const [changing, setChanging] = useState<{ person: AdminPerson; to: 'Excluded' | 'Left' } | null>(null)
-  const [bulkOpen, setBulkOpen] = useState(false)
-  const [clinicsOpen, setClinicsOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [locationsOpen, setLocationsOpen] = useState(false)
+  const [issued, setIssued] = useState<IssuedLogin[]>([])
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['admin', 'people'] })
     qc.invalidateQueries({ queryKey: ['admin', 'clinics'] })
+    qc.invalidateQueries({ queryKey: ['admin', 'states'] })
+    qc.invalidateQueries({ queryKey: ['admin', 'accounts'] })
     qc.invalidateQueries({ queryKey: ['people'] })
   }
 
@@ -59,7 +65,13 @@ export function PeopleTab() {
     onError: e => notifyError(e),
   })
 
-  const areas = useMemo(() => [...new Set((clinics.data ?? []).map(c => c.area))], [clinics.data])
+  // Districts that have clinics, labelled with their state when there's more than one state.
+  const districts = useMemo(() => {
+    const manyStates = (states.data ?? []).length > 1
+    return (states.data ?? []).flatMap(s => s.districts.filter(d => d.clinics > 0)
+      .map(d => ({ value: d.id, label: manyStates ? `${d.name} (${s.name})` : d.name })))
+  }, [states.data])
+  const districtOf = useMemo(() => new Map((clinics.data ?? []).map(c => [c.id, c.districtId])), [clinics.data])
 
   const counts = useMemo(() => {
     const c: Record<OfficerStatus, number> = { OnCall: 0, Excluded: 0, Left: 0 }
@@ -70,17 +82,24 @@ export function PeopleTab() {
   const rows = useMemo(() => {
     const s = search.trim().toLowerCase()
     return (people.data ?? [])
-      .filter(p => (status === 'All' || p.status === status) && (area === 'All' || p.area === area)
+      .filter(p => (status === 'All' || p.status === status)
+        && (districtId === 'All' || (p.clinicId && districtOf.get(p.clinicId) === districtId))
         && (!clinicId || p.clinicId === clinicId)
-        && (!s || p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s)))
-      // Like the sheet: grouped by area, then clinic.
-      .sort((a, b) => last(a.area).localeCompare(last(b.area))
+        && (!s || p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s) || p.email?.includes(s)))
+      // Like the sheet: grouped by state, district, then clinic.
+      .sort((a, b) => last(a.state).localeCompare(last(b.state))
+        || last(a.district).localeCompare(last(b.district))
         || last(a.clinicName).localeCompare(last(b.clinicName))
         || a.sortOrder - b.sortOrder)
-  }, [people.data, search, status, area, clinicId])
+  }, [people.data, search, status, districtId, districtOf, clinicId])
 
-  if (people.isLoading || clinics.isLoading) return <Loading />
-  if (people.error || clinics.error) return <ErrorBox error={people.error ?? clinics.error} />
+  if (people.isLoading || clinics.isLoading || states.isLoading) return <Loading />
+  if (people.error || clinics.error || states.error) return <ErrorBox error={people.error ?? clinics.error ?? states.error} />
+
+  const onInvited = (name: string, email: string, invite: InviteResult) => {
+    if (invite.tempPassword) setIssued([{ name, email, tempPassword: invite.tempPassword }])
+    else notifyOk(`Invite emailed to ${email}.`)
+  }
 
   const today = todayIso()
 
@@ -94,21 +113,21 @@ export function PeopleTab() {
           { value: 'All', label: 'All' },
         ]} />
         <Group>
-          <Button variant="default" leftSection={<IconBuildingHospital size={16} />} onClick={() => setClinicsOpen(true)}>Clinics</Button>
-          <Button variant="default" leftSection={<IconUsersPlus size={16} />} onClick={() => setBulkOpen(true)}>Add many</Button>
-          <Button leftSection={<IconUserPlus size={16} />} onClick={() => setEditing({ id: null, value: blank })}>Add officer</Button>
+          <Button variant="default" leftSection={<IconMapPin size={16} />} onClick={() => setLocationsOpen(true)}>Clinics &amp; districts</Button>
+          <Button variant="default" leftSection={<IconFileImport size={16} />} onClick={() => setImportOpen(true)}>Import CSV</Button>
+          <Button leftSection={<IconUserPlus size={16} />} onClick={() => setEditing({ person: null, value: blank })}>Add officer</Button>
         </Group>
       </Group>
 
       <Group wrap="wrap">
-        <TextInput placeholder="Find name or code" leftSection={<IconSearch size={16} />} value={search}
+        <TextInput placeholder="Find name, code or email" leftSection={<IconSearch size={16} />} value={search}
           onChange={e => setSearch(e.currentTarget.value)} w={240} />
-        {areas.length > 0 && (
-          <SegmentedControl value={area} onChange={v => { setArea(v); setClinicId(null) }}
-            data={['All', ...areas].map(a => ({ value: a, label: a === 'All' ? 'All areas' : a }))} />
+        {districts.length > 0 && (
+          <SegmentedControl value={districtId} onChange={v => { setDistrictId(v); setClinicId(null) }}
+            data={[{ value: 'All', label: 'All districts' }, ...districts]} />
         )}
         <Select placeholder="All clinics" clearable w={220} value={clinicId} onChange={setClinicId}
-          data={(clinics.data ?? []).filter(c => area === 'All' || c.area === area).map(c => ({ value: c.id, label: c.name }))} />
+          data={(clinics.data ?? []).filter(c => districtId === 'All' || c.districtId === districtId).map(c => ({ value: c.id, label: c.name }))} />
         <Text size="sm" c="dimmed">{rows.length} shown</Text>
       </Group>
 
@@ -120,6 +139,7 @@ export function PeopleTab() {
                 <Table.Th>Code</Table.Th>
                 <Table.Th>Name</Table.Th>
                 <Table.Th>Clinic</Table.Th>
+                <Table.Th>Sign-in</Table.Th>
                 <Table.Th>Phone</Table.Th>
                 <Table.Th>Status</Table.Th>
                 <Table.Th>Flags</Table.Th>
@@ -128,7 +148,7 @@ export function PeopleTab() {
             </Table.Thead>
             <Table.Tbody>
               {rows.length === 0 && (
-                <Table.Tr><Table.Td colSpan={7}><Text c="dimmed" ta="center" py="md">No officers match.</Text></Table.Td></Table.Tr>
+                <Table.Tr><Table.Td colSpan={8}><Text c="dimmed" ta="center" py="md">No officers match.</Text></Table.Td></Table.Tr>
               )}
               {rows.map(p => (
                 <Table.Tr key={p.id} opacity={p.status === 'Left' ? 0.55 : 1}>
@@ -136,8 +156,16 @@ export function PeopleTab() {
                   <Table.Td fw={600}>{p.name}</Table.Td>
                   <Table.Td>
                     {p.clinicName
-                      ? <>{p.clinicName}<Text size="xs" c="dimmed">{p.area}</Text></>
+                      ? <>{p.clinicName}<Text size="xs" c="dimmed">{p.district}, {p.state}</Text></>
                       : <Text span c="dimmed">–</Text>}
+                  </Table.Td>
+                  <Table.Td>
+                    {p.email
+                      ? <>
+                          <Text size="sm">{p.email}</Text>
+                          {p.role === 'Admin' && <Badge size="xs" color="violet" variant="light">Admin</Badge>}
+                        </>
+                      : <Text span size="sm" c="dimmed">No account</Text>}
                   </Table.Td>
                   <Table.Td>
                     {p.phone ? <Anchor href={`tel:${p.phone}`} size="sm">{p.phone}</Anchor> : <Text span c="dimmed">–</Text>}
@@ -184,7 +212,7 @@ export function PeopleTab() {
                           </ActionIcon>
                         </Tooltip>
                       )}
-                      <ActionIcon variant="subtle" aria-label="Edit" onClick={() => setEditing({ id: p.id, value: toUpsert(p) })}>
+                      <ActionIcon variant="subtle" aria-label="Edit" onClick={() => setEditing({ person: p, value: toUpsert(p) })}>
                         <IconEdit size={18} />
                       </ActionIcon>
                       <ActionIcon variant="subtle" color="red" aria-label="Delete" onClick={() => modals.openConfirmModal({
@@ -205,10 +233,17 @@ export function PeopleTab() {
         </Table.ScrollContainer>
       </Paper>
 
-      {editing && <PersonModal editing={editing} clinics={clinics.data!} onClose={() => setEditing(null)} onSaved={refresh} />}
+      {editing && (
+        <PersonModal editing={editing} clinics={clinics.data!} onClose={() => setEditing(null)} onSaved={refresh}
+          onInvited={onInvited} />
+      )}
       {changing && <StatusModal {...changing} onClose={() => setChanging(null)} onSaved={refresh} />}
-      <BulkAddModal opened={bulkOpen} onClose={() => setBulkOpen(false)} onSaved={refresh} />
-      <ClinicsModal opened={clinicsOpen} clinics={clinics.data!} onClose={() => setClinicsOpen(false)} onSaved={refresh} />
+      {importOpen && (
+        <ImportModal clinics={clinics.data!} onClose={() => setImportOpen(false)} onSaved={refresh} onIssued={setIssued} />
+      )}
+      <LocationsModal opened={locationsOpen} states={states.data!} clinics={clinics.data!} onClose={() => setLocationsOpen(false)}
+        onSaved={refresh} />
+      <TempPasswordsModal logins={issued} onClose={() => setIssued([])} />
     </Stack>
   )
 }
@@ -216,12 +251,13 @@ export function PeopleTab() {
 const toUpsert = (p: AdminPerson): UpsertPerson => ({
   name: p.name, code: p.code, status: p.status, extraShift: p.extraShift, preferWeekendHoliday: p.preferWeekendHoliday,
   weekendWeight: p.weekendWeight, statusReason: p.statusReason, excludedUntil: p.excludedUntil,
-  clinicId: p.clinicId, phone: p.phone,
+  clinicId: p.clinicId, phone: p.phone, email: null, role: p.role ?? 'Officer',
 })
 
+/** Clinics grouped under "District, State". */
 const clinicOptions = (clinics: Clinic[]) =>
-  [...new Set(clinics.map(c => c.area))].map(area => ({
-    group: area, items: clinics.filter(c => c.area === area).map(c => ({ value: c.id, label: c.name })),
+  [...new Set(clinics.map(c => `${c.district}, ${c.state}`))].map(group => ({
+    group, items: clinics.filter(c => `${c.district}, ${c.state}` === group).map(c => ({ value: c.id, label: c.name })),
   }))
 
 /** Reason + (for Excluded) expected return date; shared by the edit form and the quick status modal. */
@@ -275,19 +311,31 @@ function StatusModal({ person, to, onClose, onSaved }: {
   )
 }
 
-function PersonModal({ editing, clinics, onClose, onSaved }: {
-  editing: { id: string | null; value: UpsertPerson }; clinics: Clinic[]; onClose: () => void; onSaved: () => void
+function PersonModal({ editing, clinics, onClose, onSaved, onInvited }: {
+  editing: { person: AdminPerson | null; value: UpsertPerson }; clinics: Clinic[]; onClose: () => void; onSaved: () => void
+  onInvited: (name: string, email: string, invite: InviteResult) => void
 }) {
+  const { person } = editing
   const [v, setV] = useState(editing.value)
   const set = <K extends keyof UpsertPerson>(k: K, value: UpsertPerson[K]) => setV(s => ({ ...s, [k]: value }))
+  const canInvite = !person?.email && v.status !== 'Left'
+  const email = canInvite ? v.email?.trim() || null : null
 
   const save = useMutation({
-    mutationFn: () => (editing.id ? api.admin.updatePerson(editing.id, v) : api.admin.createPerson(v).then(() => undefined)),
-    onSuccess: () => { onSaved(); onClose(); notifyOk(`${v.name} saved.`) },
+    mutationFn: () => {
+      const body = { ...v, email }
+      return person ? api.admin.updatePerson(person.id, body) : api.admin.createPerson(body)
+    },
+    onSuccess: r => {
+      onSaved()
+      onClose()
+      if (r.invite && email) onInvited(v.name, email.toLowerCase(), r.invite)
+      else notifyOk(`${v.name} saved.`)
+    },
   })
 
   return (
-    <Modal opened onClose={onClose} title={editing.id ? 'Edit officer' : 'Add officer'} size="lg">
+    <Modal opened onClose={onClose} title={person ? 'Edit officer' : 'Add officer'} size="lg">
       <form onSubmit={e => { e.preventDefault(); save.mutate() }}>
         <Stack>
           <Group grow align="flex-start">
@@ -296,10 +344,27 @@ function PersonModal({ editing, clinics, onClose, onSaved }: {
               onChange={e => set('code', e.currentTarget.value || null)} maxLength={32} />
           </Group>
           <Group grow align="flex-start">
-            <Select label="Clinic" placeholder={clinics.length ? 'Pick a clinic' : 'Add clinics first (Clinics button)'}
-              data={clinicOptions(clinics)} value={v.clinicId} onChange={id => set('clinicId', id)} clearable searchable />
+            <Select label="Clinic" required={!person}
+              placeholder={clinics.length ? 'Pick a clinic' : 'Add clinics first (Clinics & districts)'}
+              data={clinicOptions(clinics)} value={v.clinicId} onChange={id => set('clinicId', id)} clearable={!!person} searchable />
             <TextInput label="Phone" value={v.phone ?? ''} onChange={e => set('phone', e.currentTarget.value || null)} maxLength={32} />
           </Group>
+          {person?.email ? (
+            <TextInput label="Sign-in email" value={person.email} disabled
+              description="Already invited. Change the email or role on the Accounts tab." />
+          ) : canInvite && (
+            <Group grow align="flex-start">
+              <TextInput label="Email" type="email" value={v.email ?? ''} onChange={e => set('email', e.currentTarget.value || null)}
+                description="Optional. Sends them an invite with a temporary password." maxLength={254} />
+              <Stack gap={4}>
+                <Text fw={500} size="sm">Account</Text>
+                <SegmentedControl value={v.role} onChange={x => set('role', x as AccountRole)} disabled={!email} data={[
+                  { value: 'Officer', label: 'Officer' },
+                  { value: 'Admin', label: 'Admin (on call)' },
+                ]} />
+              </Stack>
+            </Group>
+          )}
           <Stack gap={4}>
             <Text fw={500} size="sm">Status</Text>
             <SegmentedControl value={v.status} onChange={x => set('status', x as OfficerStatus)} data={[
@@ -321,111 +386,12 @@ function PersonModal({ editing, clinics, onClose, onSaved }: {
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancel</Button>
             <Button type="submit" loading={save.isPending}
-              disabled={!v.name.trim() || (v.status !== 'OnCall' && !v.statusReason?.trim())}>Save</Button>
+              disabled={!v.name.trim() || (!person && !v.clinicId) || (v.status !== 'OnCall' && !v.statusReason?.trim())}>
+              {email ? (person ? 'Save and invite' : 'Add and invite') : 'Save'}
+            </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
-  )
-}
-
-function ClinicsModal({ opened, clinics, onClose, onSaved }: {
-  opened: boolean; clinics: Clinic[]; onClose: () => void; onSaved: () => void
-}) {
-  const [form, setForm] = useState<{ id: string | null; name: string; area: string }>({ id: null, name: '', area: '' })
-  const reset = () => setForm({ id: null, name: '', area: '' })
-
-  const save = useMutation({
-    mutationFn: () => (form.id ? api.admin.updateClinic(form.id, form) : api.admin.createClinic(form).then(() => undefined)),
-    onSuccess: () => { onSaved(); notifyOk(`${form.name} saved.`); reset() },
-    onError: e => notifyError(e, 'Could not save clinic'),
-  })
-  const remove = useMutation({
-    mutationFn: (id: string) => api.admin.deleteClinic(id),
-    onSuccess: () => { onSaved(); notifyOk('Clinic removed.') },
-    onError: e => notifyError(e, 'Could not remove clinic'),
-  })
-
-  return (
-    <Modal opened={opened} onClose={() => { reset(); onClose() }} title="Clinics" size="lg">
-      <Stack>
-        <Table striped verticalSpacing={4}>
-          <Table.Thead>
-            <Table.Tr><Table.Th>Clinic</Table.Th><Table.Th>Area</Table.Th><Table.Th ta="center">Officers</Table.Th><Table.Th /></Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {clinics.length === 0 && (
-              <Table.Tr><Table.Td colSpan={4}><Text c="dimmed" ta="center" size="sm">No clinics yet.</Text></Table.Td></Table.Tr>
-            )}
-            {clinics.map(c => (
-              <Table.Tr key={c.id}>
-                <Table.Td fw={600}>{c.name}</Table.Td>
-                <Table.Td>{c.area}</Table.Td>
-                <Table.Td ta="center">{c.people}</Table.Td>
-                <Table.Td>
-                  <Group gap={4} justify="flex-end" wrap="nowrap">
-                    <ActionIcon variant="subtle" aria-label="Edit" onClick={() => setForm({ id: c.id, name: c.name, area: c.area })}>
-                      <IconEdit size={18} />
-                    </ActionIcon>
-                    <ActionIcon variant="subtle" color="red" aria-label="Delete" onClick={() => modals.openConfirmModal({
-                      title: `Remove ${c.name}?`,
-                      children: <Text size="sm">{c.people ? `${c.people} officer(s) will be left without a clinic.` : 'No officers use it.'}</Text>,
-                      labels: { confirm: 'Remove', cancel: 'Cancel' },
-                      confirmProps: { color: 'red' },
-                      onConfirm: () => remove.mutate(c.id),
-                    })}>
-                      <IconTrash size={18} />
-                    </ActionIcon>
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-        <form onSubmit={e => { e.preventDefault(); save.mutate() }}>
-          <Group align="flex-end">
-            <TextInput label={form.id ? 'Edit clinic' : 'New clinic'} placeholder="KP BESERI" value={form.name}
-              onChange={e => setForm({ ...form, name: e.currentTarget.value })} maxLength={100} style={{ flex: 1 }} />
-            <Autocomplete label="Area" placeholder="Kangar" value={form.area} onChange={area => setForm({ ...form, area })}
-              data={[...new Set(clinics.map(c => c.area))]} maxLength={50} w={160} />
-            <Button type="submit" loading={save.isPending} disabled={!form.name.trim() || !form.area.trim()}>
-              {form.id ? 'Save' : 'Add'}
-            </Button>
-            {form.id && <Button variant="default" onClick={reset}>Cancel</Button>}
-          </Group>
-        </form>
-      </Stack>
-    </Modal>
-  )
-}
-
-function BulkAddModal({ opened, onClose, onSaved }: { opened: boolean; onClose: () => void; onSaved: () => void }) {
-  const [names, setNames] = useState('')
-  const add = useMutation({
-    mutationFn: () => api.admin.bulkAdd(names),
-    onSuccess: r => {
-      onSaved()
-      onClose()
-      setNames('')
-      notifyOk(`${r.added.length} added${r.skipped.length ? `, ${r.skipped.length} already in the list` : ''}.`)
-    },
-    onError: e => notifyError(e),
-  })
-  const count = names.split('\n').filter(n => n.trim()).length
-
-  return (
-    <Modal opened={opened} onClose={onClose} title="Add many officers" size="lg">
-      <Stack>
-        <Textarea label="Names, one per line" autosize minRows={8} maxRows={18} value={names}
-          onChange={e => setNames(e.currentTarget.value)} placeholder={'Dr Ahmad bin Ali\nDr Siti binti Abu'} />
-        <Group justify="space-between">
-          <Text size="sm" c="dimmed">{count} name(s). Existing names are skipped; codes are assigned automatically.</Text>
-          <Group>
-            <Button variant="default" onClick={onClose}>Cancel</Button>
-            <Button onClick={() => add.mutate()} loading={add.isPending} disabled={!count}>Add</Button>
-          </Group>
-        </Group>
-      </Stack>
     </Modal>
   )
 }

@@ -50,13 +50,33 @@ public enum OfficerStatus
     Left,
 }
 
+/// <summary>Top of the hierarchy: state -> district -> clinic -> officer.</summary>
+public sealed class State
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public string Name { get; set; } = "";
+
+    public List<District> Districts { get; set; } = [];
+}
+
+/// <summary>Daerah within a state (e.g. Kangar, Arau in Perlis).</summary>
+public sealed class District
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid StateId { get; set; }
+    public State? State { get; set; }
+    public string Name { get; set; } = "";
+
+    public List<Clinic> Clinics { get; set; } = [];
+}
+
 public sealed class Clinic
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public string Name { get; set; } = "";
 
-    /// <summary>Kawasan the clinic belongs to (e.g. Arau, Kangar).</summary>
-    public string Area { get; set; } = "";
+    public Guid DistrictId { get; set; }
+    public District? District { get; set; }
 }
 
 public enum AccountRole

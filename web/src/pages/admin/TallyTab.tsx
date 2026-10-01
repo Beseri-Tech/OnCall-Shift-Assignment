@@ -24,7 +24,7 @@ export function TallyTab() {
   const qc = useQueryClient()
   const tally = useQuery({ queryKey: ['admin', 'tally'], queryFn: api.admin.tally })
   const [status, setStatus] = useState<OfficerStatus | 'All'>('OnCall')
-  const [area, setArea] = useState<string | null>(null)
+  const [district, setDistrict] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<Sort>('name')
   const [edits, setEdits] = useState<Map<string, Edit> | null>(null)   // null = not editing
@@ -39,14 +39,14 @@ export function TallyTab() {
     onError: e => notifyError(e, 'Could not save'),
   })
 
-  const areas = useMemo(() => [...new Set((tally.data ?? []).map(r => r.area).filter((a): a is string => !!a))].sort(), [tally.data])
+  const districts = useMemo(() => [...new Set((tally.data ?? []).map(r => r.district).filter((a): a is string => !!a))].sort(), [tally.data])
 
   const rows = useMemo(() => {
     const s = search.trim().toLowerCase()
-    const list = (tally.data ?? []).filter(r => (status === 'All' || r.status === status) && (!area || r.area === area)
+    const list = (tally.data ?? []).filter(r => (status === 'All' || r.status === status) && (!district || r.district === district)
       && (!s || r.name.toLowerCase().includes(s) || r.code.toLowerCase().includes(s)))
     return sort === 'name' ? list : [...list].sort((a, b) => b[sort] - a[sort] || a.name.localeCompare(b.name))
-  }, [tally.data, status, area, search, sort])
+  }, [tally.data, status, district, search, sort])
 
   if (tally.isLoading) return <Loading />
   if (tally.error) return <ErrorBox error={tally.error} />
@@ -70,7 +70,7 @@ export function TallyTab() {
             { value: 'OnCall', label: 'On call' }, { value: 'Excluded', label: 'Excluded' },
             { value: 'Left', label: 'Left' }, { value: 'All', label: 'All' },
           ]} />
-          {areas.length > 0 && <Select placeholder="All areas" clearable w={160} data={areas} value={area} onChange={setArea} />}
+          {districts.length > 0 && <Select placeholder="All districts" clearable w={160} data={districts} value={district} onChange={setDistrict} />}
           <TextInput placeholder="Find name or code" leftSection={<IconSearch size={16} />} value={search}
             onChange={e => setSearch(e.currentTarget.value)} w={220} />
         </Group>
@@ -129,7 +129,7 @@ export function TallyTab() {
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm">{r.clinicName ?? '–'}</Text>
-                      {r.area && <Text size="xs" c="dimmed">{r.area}</Text>}
+                      {r.district && <Text size="xs" c="dimmed">{r.district}</Text>}
                     </Table.Td>
                     {editing ? (
                       <>
