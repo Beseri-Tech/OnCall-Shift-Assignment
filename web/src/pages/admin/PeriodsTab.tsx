@@ -1,14 +1,16 @@
 import {
-  ActionIcon, Button, Group, Menu, Modal, NumberInput, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title,
+  ActionIcon, Badge, Button, Group, Menu, Modal, NumberInput, Paper, SegmentedControl, SimpleGrid, Stack, Table, Text, TextInput,
+  Title,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconCalendarPlus, IconCoins, IconDeviceFloppy, IconDots, IconDownload, IconEdit, IconLock, IconLockOpen, IconPlus, IconTrash,
+  IconCalendarEvent, IconCalendarPlus, IconCoins, IconCopy, IconDeviceFloppy, IconDots, IconDownload, IconEdit, IconLock,
+  IconLockOpen, IconPlus, IconTrash,
 } from '@tabler/icons-react'
 import { useState } from 'react'
-import { api, type IsoDate, type Period, type PointsRow, type UpsertPeriod } from '../../api'
+import { api, type IsoDate, type Period, type PeriodDay, type PeriodDayKind, type PointsRow, type UpsertPeriod } from '../../api'
 import { ErrorBox, Loading, StatusBadge } from '../../components/common'
 import { notifyError, notifyOk } from '../../lib'
 import { formatLong, formatWeekday, todayIso } from '../../dates'
@@ -30,10 +32,13 @@ function Periods() {
   const periods = useQuery({ queryKey: ['admin', 'periods'], queryFn: api.admin.periods })
   const [editing, setEditing] = useState<{ id: string | null; value: UpsertPeriod } | null>(null)
   const [pointsFor, setPointsFor] = useState<Period | null>(null)
+  const [daysFor, setDaysFor] = useState<Period | null>(null)
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['admin', 'periods'] })
+    qc.invalidateQueries({ queryKey: ['admin', 'periodDays'] })
     qc.invalidateQueries({ queryKey: ['periods'] })
+    qc.invalidateQueries({ queryKey: ['holidays'] })
   }
   const action = useMutation({
     mutationFn: async ({ kind, id }: { kind: 'lock' | 'unlock' | 'delete'; id: string }) => {
@@ -93,6 +98,9 @@ function Periods() {
                         Reopen for leave
                       </Menu.Item>
                     )}
+                    <Menu.Item leftSection={<IconCalendarEvent size={16} />} onClick={() => setDaysFor(p)}>
+                      Holidays & peak days
+                    </Menu.Item>
                     <Menu.Item leftSection={<IconCoins size={16} />} onClick={() => setPointsFor(p)}>Leave points</Menu.Item>
                     <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={api.admin.exports.leave(p.id)}>
                       Leave sheet (Excel)
@@ -118,6 +126,7 @@ function Periods() {
 
       {editing && <PeriodModal editing={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
       {pointsFor && <PointsModal period={pointsFor} onClose={() => setPointsFor(null)} />}
+      {daysFor && <PeriodDaysModal period={daysFor} onClose={() => setDaysFor(null)} />}
     </Paper>
   )
 }
@@ -208,6 +217,10 @@ function PeriodModal({ editing, onClose, onSaved }: {
   editing: { id: string | null; value: UpsertPeriod }; onClose: () => void; onSaved: () => void
 }) {
   const [v, setV] = useState(editing.value)
+  // The picker's own range, which is half-done between the first and second click.
+  // Filling the missing end with the start would make it a finished one-day range,
+  // and the next click would start a new range instead of choosing the end date.
+  const [range, setRange] = useState<[IsoDate | null, IsoDate | null]>([editing.value.startDate, editing.value.endDate])
   const save = useMutation({
     mutationFn: () => (editing.id ? api.admin.updatePeriod(editing.id, v) : api.admin.createPeriod(v)),
     onSuccess: () => { onSaved(); onClose(); notifyOk(`${v.name} saved.`) },
@@ -222,11 +235,13 @@ function PeriodModal({ editing, onClose, onSaved }: {
             type="range"
             label="Dates"
             required
-            value={[v.startDate, v.endDate]}
+            value={range}
             onChange={r => {
-              const [a, b] = r as [string | null, string | null]
-              setV({ ...v, startDate: a ?? v.startDate, endDate: b ?? a ?? v.endDate })
+              const [a, b] = r as [IsoDate | null, IsoDate | null]
+              setRange([a, b])
+              if (a && b) setV({ ...v, startDate: a, endDate: b })
             }}
+            error={range[0] && !range[1] ? 'Pick the end date' : undefined}
             valueFormat="D MMM YYYY"
             numberOfColumns={2}
           />
@@ -250,7 +265,7 @@ function PeriodModal({ editing, onClose, onSaved }: {
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancel</Button>
-            <Button type="submit" loading={save.isPending}>Save</Button>
+            <Button type="submit" loading={save.isPending} disabled={!range[0] || !range[1]}>Save</Button>
           </Group>
         </Stack>
       </form>
@@ -260,13 +275,12 @@ function PeriodModal({ editing, onClose, onSaved }: {
 
 function Holidays() {
   const qc = useQueryClient()
-  const from = `${Number(todayIso().slice(0, 4)) - 1}-01-01`
-  const holidays = useQuery({ queryKey: ['holidays', from, 'all'], queryFn: () => api.holidays(from) })
+  const holidays = useQuery({ queryKey: ['admin', 'holidays'], queryFn: api.admin.holidays })
   const [date, setDate] = useState<IsoDate | null>(null)
   const [name, setName] = useState('')
   const [bulkOpen, setBulkOpen] = useState(false)
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ['holidays'] })
+  const refresh = () => qc.invalidateQueries({ queryKey: ['admin', 'holidays'] })
   const add = useMutation({
     mutationFn: () => api.admin.upsertHoliday({ date: date!, name: name.trim() || 'Public holiday' }),
     onSuccess: () => { refresh(); setDate(null); setName('') },
@@ -284,10 +298,13 @@ function Holidays() {
   return (
     <Paper withBorder p="md">
       <Group justify="space-between" mb="sm">
-        <Title order={4}>Public holidays</Title>
+        <Title order={4}>Public holidays (master list)</Title>
         <Button variant="default" leftSection={<IconCalendarPlus size={16} />} onClick={() => setBulkOpen(true)}>Add several</Button>
       </Group>
-      <Text size="sm" c="dimmed" mb="sm">Public holidays count as weekend shifts when balancing the rota.</Text>
+      <Text size="sm" c="dimmed" mb="sm">
+        Public holidays count as weekend shifts when balancing the rota. New periods start with the holidays in their dates;
+        to change one period, use its menu → <b>Holidays & peak days</b>.
+      </Text>
       <Group align="flex-end" mb="md" wrap="wrap">
         <DatePickerInput label="Date" value={date} onChange={d => setDate(d as string | null)} valueFormat="D MMM YYYY" w={160} clearable />
         <TextInput label="Name" placeholder="e.g. Deepavali" value={name} onChange={e => setName(e.currentTarget.value)} w={200} />
@@ -321,10 +338,7 @@ function PeakDays() {
   const [date, setDate] = useState<IsoDate | null>(null)
   const [name, setName] = useState('')
 
-  const refresh = () => {
-    qc.invalidateQueries({ queryKey: ['admin', 'peakDays'] })
-    qc.invalidateQueries({ queryKey: ['leaveRules'] })
-  }
+  const refresh = () => qc.invalidateQueries({ queryKey: ['admin', 'peakDays'] })
   const add = useMutation({
     mutationFn: () => api.admin.upsertPeakDay({ date: date!, name: name.trim() || 'Peak day' }),
     onSuccess: () => { refresh(); setDate(null); setName('') },
@@ -341,9 +355,10 @@ function PeakDays() {
 
   return (
     <Paper withBorder p="md">
-      <Title order={4} mb="sm">Peak days</Title>
+      <Title order={4} mb="sm">Peak days (master list)</Title>
       <Text size="sm" c="dimmed" mb="sm">
         Weekdays many people want off, like the eve of Raya. Leave on them costs a point, like a weekend.
+        New periods start with the peak days in their dates.
       </Text>
       <Group align="flex-end" mb="md" wrap="wrap">
         <DatePickerInput label="Date" value={date} onChange={d => setDate(d as string | null)} valueFormat="D MMM YYYY" w={160} clearable />
@@ -367,6 +382,87 @@ function PeakDays() {
       </Table>
       {peaks.data!.length === 0 && <Text size="sm" c="dimmed" ta="center" py="md">No peak days yet.</Text>}
     </Paper>
+  )
+}
+
+/** One period's own holidays and peak days: started from the master lists, then changed for this period only. */
+function PeriodDaysModal({ period, onClose }: { period: Period; onClose: () => void }) {
+  const qc = useQueryClient()
+  const key = ['admin', 'periodDays', period.id]
+  const days = useQuery({ queryKey: key, queryFn: () => api.admin.periodDays(period.id) })
+  const [date, setDate] = useState<IsoDate | null>(null)
+  const [kind, setKind] = useState<PeriodDayKind>('Holiday')
+  const [name, setName] = useState('')
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: key })
+    qc.invalidateQueries({ queryKey: ['holidays'] })
+    qc.invalidateQueries({ queryKey: ['leaveRules'] })
+    qc.invalidateQueries({ queryKey: ['overview'] })
+  }
+  const add = useMutation({
+    mutationFn: () => api.admin.upsertPeriodDay(period.id, { date: date!, kind, name: name.trim() }),
+    onSuccess: () => { refresh(); setDate(null); setName('') },
+    onError: e => notifyError(e),
+  })
+  const remove = useMutation({
+    mutationFn: (d: PeriodDay) => api.admin.deletePeriodDay(period.id, d),
+    onSuccess: refresh,
+    onError: e => notifyError(e),
+  })
+  const copy = useMutation({
+    mutationFn: () => api.admin.copyMasterDays(period.id),
+    onSuccess: r => { refresh(); notifyOk(r.added ? `${r.added} day(s) added from the master lists.` : 'Nothing missing from the master lists.') },
+    onError: e => notifyError(e),
+  })
+
+  return (
+    <Modal opened onClose={onClose} size="lg" title={`Holidays & peak days: ${period.name}`}>
+      <Text size="sm" c="dimmed" mb="sm">
+        Only this period uses these days; the master lists and other periods stay as they are.
+        Rota drafts made before a change keep the old days, so generate a new draft afterwards.
+      </Text>
+      <SegmentedControl value={kind} onChange={v => setKind(v as PeriodDayKind)} mb="xs"
+        data={[{ value: 'Holiday', label: 'Public holiday' }, { value: 'Peak', label: 'Peak day' }]} />
+      <Group align="flex-end" mb="md" wrap="wrap">
+        <DatePickerInput label="Date" value={date} onChange={d => setDate(d as string | null)} valueFormat="D MMM YYYY" w={150}
+          minDate={period.startDate} maxDate={period.endDate} defaultDate={period.startDate} clearable />
+        <TextInput label="Name" placeholder={kind === 'Holiday' ? 'e.g. Deepavali' : 'e.g. Eve of Raya'} value={name}
+          onChange={e => setName(e.currentTarget.value)} w={180} />
+        <Button onClick={() => add.mutate()} disabled={!date} loading={add.isPending}>Add</Button>
+      </Group>
+      {days.isLoading ? <Loading /> : days.error ? <ErrorBox error={days.error} /> : (
+        <>
+          <Table>
+            <Table.Tbody>
+              {days.data!.map(d => (
+                <Table.Tr key={`${d.kind}-${d.date}`}>
+                  <Table.Td w={150}>{formatWeekday(d.date)}</Table.Td>
+                  <Table.Td w={160}>
+                    <Badge variant="light" color={d.kind === 'Holiday' ? 'red' : 'orange'}>
+                      {d.kind === 'Holiday' ? 'Public holiday' : 'Peak day'}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>{d.name}</Table.Td>
+                  <Table.Td w={40}>
+                    <ActionIcon variant="subtle" color="red" aria-label="Delete" onClick={() => remove.mutate(d)}>
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+          {days.data!.length === 0 && <Text size="sm" c="dimmed" ta="center" py="md">No holidays or peak days in this period.</Text>}
+        </>
+      )}
+      <Group justify="space-between" mt="md">
+        <Button variant="default" leftSection={<IconCopy size={16} />} onClick={() => copy.mutate()} loading={copy.isPending}>
+          Add missing from master lists
+        </Button>
+        <Button variant="default" onClick={onClose}>Close</Button>
+      </Group>
+    </Modal>
   )
 }
 

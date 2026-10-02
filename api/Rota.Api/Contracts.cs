@@ -151,6 +151,8 @@ public sealed record PointGrantRequest(int Points, string? Reason);
 
 public sealed record UpsertHolidayRequest(DateOnly Date, string Name);
 
+public sealed record PeriodDayDto(DateOnly Date, PeriodDayKind Kind, string Name);
+
 public sealed record BulkHolidayRequest(string Text, DateOnly Reference, string Name);
 
 public sealed record GenerateRequest(int? Seed);

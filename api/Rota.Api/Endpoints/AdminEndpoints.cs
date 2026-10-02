@@ -213,6 +213,7 @@ public static class AdminEndpoints
                 PointsBudget = req.PointsBudget,
             };
             db.Periods.Add(period);
+            await PeriodDays.CopyFromMasterAsync(db, period, period.StartDate, period.EndDate, ct);
             string deadline = req.LeaveDeadline is { } d ? $" until {SwapEndpoints.Day(d)}" : "";
             await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"Enter your leave for {period.Name}",
                 $"Leave for {SwapEndpoints.Day(req.StartDate)} - {SwapEndpoints.Day(req.EndDate)} is open{deadline}.", "/", email: false, ct);
@@ -231,11 +232,13 @@ public static class AdminEndpoints
             if (datesChanged && await db.Runs.AnyAsync(r => r.PeriodId == id, ct))
                 return Results.Problem("Delete this period's rota drafts before changing its dates.", statusCode: StatusCodes.Status409Conflict);
 
+            var (oldStart, oldEnd) = (period.StartDate, period.EndDate);
             period.Name = req.Name.Trim();
             period.StartDate = req.StartDate;
             period.EndDate = req.EndDate;
             period.LeaveDeadline = req.LeaveDeadline;
             period.PointsBudget = req.PointsBudget;
+            if (datesChanged) await PeriodDays.MoveAsync(db, period, oldStart, oldEnd, ct);
             Mapping.Log(db, http, "period.update", null, req);
             await db.SaveChangesAsync(ct);
             return Results.Ok(period.ToDto(clock.Today));
@@ -292,6 +295,51 @@ public static class AdminEndpoints
             Mapping.Log(db, http, "points.grant", personId, new { period = id, req.Points, reason });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
+        });
+
+        // This period's own public holidays and peak days (started from the master lists).
+        g.MapGet("/{id:guid}/days", async (Guid id, RotaDbContext db, CancellationToken ct) =>
+            await db.Periods.AnyAsync(p => p.Id == id, ct)
+                ? Results.Ok(await db.PeriodDays.Where(d => d.PeriodId == id).OrderBy(d => d.Date).ThenBy(d => d.Kind)
+                    .Select(d => new PeriodDayDto(d.Date, d.Kind, d.Name)).ToListAsync(ct))
+                : Results.NotFound());
+
+        g.MapPut("/{id:guid}/days", async (Guid id, PeriodDayDto req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            var period = await db.Periods.FindAsync([id], ct);
+            if (period is null) return Results.NotFound();
+            if (req.Date < period.StartDate || req.Date > period.EndDate)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["date"] = ["The day must be inside this period."] });
+            string name = Clean(req.Name) ?? (req.Kind == PeriodDayKind.Holiday ? "Public holiday" : "Peak day");
+            if (name.Length > 100)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Name max 100 characters."] });
+
+            var day = await db.PeriodDays.FindAsync([id, req.Kind, req.Date], ct);
+            if (day is null) db.PeriodDays.Add(new PeriodDay { PeriodId = id, Date = req.Date, Kind = req.Kind, Name = name });
+            else day.Name = name;
+            Mapping.Log(db, http, "period-day.upsert", null, new { period = id, req.Date, req.Kind, name });
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+
+        g.MapDelete("/{id:guid}/days/{kind}/{date}", async (Guid id, PeriodDayKind kind, DateOnly date, RotaDbContext db,
+            HttpContext http, CancellationToken ct) =>
+        {
+            int n = await db.PeriodDays.Where(d => d.PeriodId == id && d.Kind == kind && d.Date == date).ExecuteDeleteAsync(ct);
+            Mapping.Log(db, http, "period-day.delete", null, new { period = id, date, kind });
+            await db.SaveChangesAsync(ct);
+            return n > 0 ? Results.NoContent() : Results.NotFound();
+        });
+
+        // Adds master-list days in the period's dates that it doesn't have (e.g. after adding to the master list).
+        g.MapPost("/{id:guid}/days/copy-master", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            var period = await db.Periods.FindAsync([id], ct);
+            if (period is null) return Results.NotFound();
+            int added = await PeriodDays.CopyFromMasterAsync(db, period, period.StartDate, period.EndDate, ct);
+            Mapping.Log(db, http, "period-day.copy-master", null, new { period = id, added });
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { added });
         });
 
         g.MapPost("/{id:guid}/lock", (Guid id, RotaDbContext db, LocalClock clock, HttpContext http, CancellationToken ct) =>
@@ -363,6 +411,9 @@ public static class AdminEndpoints
 
     private static void MapHolidays(RouteGroupBuilder g)
     {
+        g.MapGet("/", async (RotaDbContext db, CancellationToken ct) =>
+            await db.Holidays.OrderBy(h => h.Date).Select(h => new HolidayDto(h.Date, h.Name)).ToListAsync(ct));
+
         g.MapPut("/", async (UpsertHolidayRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
             var h = await db.Holidays.FindAsync([req.Date], ct);

@@ -45,10 +45,12 @@ public static class PublicEndpoints
                 select new { a.Date, a.IsWeekendHoliday, PeriodId = p.Id, PeriodName = p.Name, r.IsInReview, RunId = r.Id })
                 .ToListAsync(ct);
 
-            var dates = shifts.Select(s => s.Date).ToList();
-            var holidays = await db.Holidays.Where(h => dates.Contains(h.Date)).ToDictionaryAsync(h => h.Date, h => h.Name, ct);
+            var periodIds = shifts.Select(s => s.PeriodId).Distinct().ToList();
+            var holidays = await db.PeriodDays.Where(d => periodIds.Contains(d.PeriodId) && d.Kind == PeriodDayKind.Holiday)
+                .ToDictionaryAsync(d => (d.PeriodId, d.Date), d => d.Name, ct);
             return Results.Ok(shifts.Select(s =>
-                new ShiftDto(s.Date, s.IsWeekendHoliday, holidays.GetValueOrDefault(s.Date), s.PeriodId, s.PeriodName, s.IsInReview, s.RunId))
+                new ShiftDto(s.Date, s.IsWeekendHoliday, holidays.GetValueOrDefault((s.PeriodId, s.Date)), s.PeriodId, s.PeriodName,
+                    s.IsInReview, s.RunId))
                 .ToList());
         });
 
@@ -60,12 +62,16 @@ public static class PublicEndpoints
             return periods.Select(p => p.ToDto(clock.Today));
         });
 
+        // Holidays in effect: each period's own list, and the master list for dates outside every period.
         api.MapGet("/holidays", async (DateOnly? from, DateOnly? to, RotaDbContext db, CancellationToken ct) =>
         {
-            var q = db.Holidays.AsQueryable();
-            if (from is { } f) q = q.Where(h => h.Date >= f);
-            if (to is { } t) q = q.Where(h => h.Date <= t);
-            return await q.OrderBy(h => h.Date).Select(h => new HolidayDto(h.Date, h.Name)).ToListAsync(ct);
+            DateOnly f = from ?? DateOnly.MinValue, t = to ?? DateOnly.MaxValue;
+            var applied = await db.PeriodDays.Where(d => d.Kind == PeriodDayKind.Holiday && d.Date >= f && d.Date <= t)
+                .Select(d => new HolidayDto(d.Date, d.Name)).ToListAsync(ct);
+            var master = await db.Holidays
+                .Where(h => h.Date >= f && h.Date <= t && !db.Periods.Any(p => p.StartDate <= h.Date && h.Date <= p.EndDate))
+                .Select(h => new HolidayDto(h.Date, h.Name)).ToListAsync(ct);
+            return applied.Concat(master).OrderBy(h => h.Date).ToList();
         });
 
         api.MapGet("/people/{id:guid}/entries", async (Guid id, Guid periodId, RotaDbContext db, HttpContext http, CancellationToken ct) =>
@@ -172,7 +178,7 @@ public static class PublicEndpoints
             var period = await db.Periods.FindAsync([id], ct);
             if (period is null) return Results.NotFound();
 
-            var holidays = await Mapping.HolidaysAsync(db, period.StartDate, period.EndDate, ct);
+            var holidays = await Mapping.HolidaysAsync(db, period.Id, ct);
             var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall)
                 .OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
                 .Select(p => new
@@ -205,7 +211,7 @@ public static class PublicEndpoints
             if (period is null || run is null) return Results.NotFound();
 
             var names = await db.People.ToDictionaryAsync(p => p.Id, p => p.Name, ct);
-            var holidays = await Mapping.HolidaysAsync(db, period.StartDate, period.EndDate, ct);
+            var holidays = await Mapping.HolidaysAsync(db, period.Id, ct);
             return Results.Ok(new PublishedRotaDto(period.ToDto(clock.Today), run.Id, Mapping.ToDays(run.Assignments, names, holidays),
                 !run.IsPublished));
         });

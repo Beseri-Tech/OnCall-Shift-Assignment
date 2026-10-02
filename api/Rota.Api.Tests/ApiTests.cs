@@ -130,8 +130,8 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal(3, rules.OthersOff[new DateOnly(2026, 10, 17)]);
 
         // A peak weekday costs a point but is not a weekend shift for the rota.
-        (await admin.PutAsJsonAsync("/api/admin/peak-days", new UpsertHolidayRequest(new DateOnly(2026, 10, 7), "Eve of Deepavali")))
-            .EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync($"/api/admin/periods/{period.Id}/days",
+            new PeriodDayDto(new DateOnly(2026, 10, 7), PeriodDayKind.Peak, "Eve of Deepavali"), ApiFixture.Json)).EnsureSuccessStatusCode();
         (await Save(5, 7)).EnsureSuccessStatusCode();
         var points = await Read<List<PointsRowDto>>(await admin.GetAsync($"/api/admin/periods/{period.Id}/points"));
         Assert.Equal((1, 0), (points.Single(p => p.PersonId == people[5].Id).PointsUsed, points.Single(p => p.PersonId == people[5].Id).WeekdaysUsed));
@@ -140,6 +140,60 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
         var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(1)));
         Assert.False(run.Days.Single(d => d.Date == new DateOnly(2026, 10, 7)).IsWeekendHoliday);
+    }
+
+    [Fact]
+    public async Task Each_period_has_its_own_holidays_and_peak_days_started_from_the_master_lists()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        DateOnly D(int month, int day) => new(2026, month, day);
+        Task<List<PeriodDayDto>> Days(Guid id) => admin.GetAsync($"/api/admin/periods/{id}/days").ContinueWith(t => Read<List<PeriodDayDto>>(t.Result)).Unwrap();
+        Task<PeriodDto> NewPeriod(string name, DateOnly start, DateOnly end) =>
+            admin.PostAsJsonAsync("/api/admin/periods", new UpsertPeriodRequest(name, start, end, null), ApiFixture.Json)
+                .ContinueWith(t => Read<PeriodDto>(t.Result)).Unwrap();
+
+        (await admin.PutAsJsonAsync("/api/admin/holidays", new UpsertHolidayRequest(D(10, 20), "Deepavali"))).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync("/api/admin/holidays", new UpsertHolidayRequest(D(11, 3), "State holiday"))).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync("/api/admin/peak-days", new UpsertHolidayRequest(D(10, 19), "Eve of Deepavali"))).EnsureSuccessStatusCode();
+
+        // A new period starts with the master days inside its dates.
+        var oct = await NewPeriod("Oct", D(10, 1), D(10, 31));
+        Assert.Equal([new(D(10, 19), PeriodDayKind.Peak, "Eve of Deepavali"), new(D(10, 20), PeriodDayKind.Holiday, "Deepavali")],
+            await Days(oct.Id));
+
+        // Changing one period leaves the master list and other periods alone.
+        (await admin.DeleteAsync($"/api/admin/periods/{oct.Id}/days/Holiday/2026-10-20")).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync($"/api/admin/periods/{oct.Id}/days", new PeriodDayDto(D(10, 24), PeriodDayKind.Holiday, "Sultan's birthday"),
+            ApiFixture.Json)).EnsureSuccessStatusCode();
+        var outside = await admin.PutAsJsonAsync($"/api/admin/periods/{oct.Id}/days", new PeriodDayDto(D(11, 1), PeriodDayKind.Holiday, "x"), ApiFixture.Json);
+        Assert.Equal(HttpStatusCode.BadRequest, outside.StatusCode);
+        Assert.Equal([D(10, 19), D(10, 24)], (await Days(oct.Id)).Select(d => d.Date));
+        Assert.Equal([D(10, 24)], (await Read<List<HolidayDto>>(await admin.GetAsync("/api/holidays?from=2026-10-01&to=2026-10-31"))).Select(h => h.Date));
+
+        var nov = await NewPeriod("Nov", D(11, 1), D(11, 30));
+        Assert.Equal([D(11, 3)], (await Days(nov.Id)).Select(d => d.Date));
+
+        // The rota uses the period's own holidays.
+        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names = "Dr A\nDr B\nDr C" })).EnsureSuccessStatusCode();
+        (await admin.PostAsync($"/api/admin/periods/{oct.Id}/lock", null)).EnsureSuccessStatusCode();
+        var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{oct.Id}/generate", new GenerateRequest(1)));
+        Assert.False(run.Days.Single(d => d.Date == D(10, 20)).IsWeekendHoliday);
+        Assert.Equal("Sultan's birthday", run.Days.Single(d => d.Date == D(10, 24)).HolidayName);
+        (await admin.DeleteAsync($"/api/admin/runs/{run.Run.Id}")).EnsureSuccessStatusCode();
+        (await admin.PostAsync($"/api/admin/periods/{oct.Id}/unlock", null)).EnsureSuccessStatusCode();
+
+        // Copying from the master list puts back what's missing; the period's additions stay.
+        Assert.Equal(1, (await Read<Dictionary<string, int>>(await admin.PostAsync($"/api/admin/periods/{oct.Id}/days/copy-master", null)))["added"]);
+        Assert.Equal([D(10, 19), D(10, 20), D(10, 24)], (await Days(oct.Id)).Select(d => d.Date));
+
+        // Moving the dates drops days outside and adds master days for the newly covered dates.
+        (await admin.PutAsJsonAsync($"/api/admin/periods/{nov.Id}", new UpsertPeriodRequest("Nov", D(11, 5), D(11, 30), null), ApiFixture.Json))
+            .EnsureSuccessStatusCode();
+        Assert.Empty(await Days(nov.Id));
+        (await admin.PutAsJsonAsync($"/api/admin/periods/{oct.Id}", new UpsertPeriodRequest("Oct", D(10, 1), D(11, 4), null), ApiFixture.Json))
+            .EnsureSuccessStatusCode();
+        Assert.Equal([D(10, 19), D(10, 20), D(10, 24), D(11, 3)], (await Days(oct.Id)).Select(d => d.Date));
     }
 
     [Fact]

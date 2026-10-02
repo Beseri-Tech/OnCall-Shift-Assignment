@@ -23,8 +23,10 @@ internal static class Mapping
         for (var d = start; d <= end; d = d.AddDays(1)) yield return d;
     }
 
-    public static async Task<Dictionary<DateOnly, string>> HolidaysAsync(RotaDbContext db, DateOnly start, DateOnly end, CancellationToken ct) =>
-        await db.Holidays.Where(h => h.Date >= start && h.Date <= end).ToDictionaryAsync(h => h.Date, h => h.Name, ct);
+    /// <summary>The public holidays applied to one period (its own list, not the master list).</summary>
+    public static async Task<Dictionary<DateOnly, string>> HolidaysAsync(RotaDbContext db, Guid periodId, CancellationToken ct) =>
+        await db.PeriodDays.Where(d => d.PeriodId == periodId && d.Kind == PeriodDayKind.Holiday)
+            .ToDictionaryAsync(d => d.Date, d => d.Name, ct);
 
     public static void Log(RotaDbContext db, HttpContext http, string action, Guid? personId, object? detail)
     {
