@@ -155,13 +155,9 @@ public static class PublicEndpoints
 
             db.LeaveDays.AddRange(leave);
             db.PreferredDates.AddRange(preferred);
-            Mapping.Log(db, http, "entries.update", id, new
-            {
-                period = period.Name,
-                leaveBefore = LeaveText.Compact(before.Leave.Select(l => l.Date)),
-                leaveAfter = LeaveText.Compact(leave.Select(l => l.Date)),
-                preferredAfter = LeaveText.Compact(preferred.Select(p => p.Date)),
-            });
+            Mapping.Log(db, http, "entries.update", id, new { period = period.Name, byAdmin }, id,
+                new { Leave = LeaveText.Compact(before.Leave.Select(l => l.Date)), Preferred = LeaveText.Compact(before.Preferred) },
+                new { Leave = LeaveText.Compact(leave.Select(l => l.Date)), Preferred = LeaveText.Compact(preferred.Select(p => p.Date)) });
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
 

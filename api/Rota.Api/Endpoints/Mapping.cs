@@ -1,5 +1,6 @@
 using Rota.Api.Auth;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Rota.Api.Data;
 using Rota.Api.Services;
@@ -28,18 +29,34 @@ internal static class Mapping
         await db.PeriodDays.Where(d => d.PeriodId == periodId && d.Kind == PeriodDayKind.Holiday)
             .ToDictionaryAsync(d => d.Date, d => d.Name, ct);
 
-    public static void Log(RotaDbContext db, HttpContext http, string action, Guid? personId, object? detail)
+    private static readonly JsonSerializerOptions LogJson = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+    };
+
+    /// <summary>
+    /// Adds an audit entry; the caller saves. <paramref name="before"/> and <paramref name="after"/> are the changed thing's
+    /// values (null when it didn't exist before or doesn't after); <paramref name="entityId"/> says which one changed.
+    /// </summary>
+    public static void Log(RotaDbContext db, HttpContext http, string action, Guid? personId, object? detail,
+        object? entityId = null, object? before = null, object? after = null)
     {
         db.ChangeLog.Add(new ChangeLog
         {
             Action = action,
+            Entity = action.Split('.')[0],
+            EntityId = entityId?.ToString() is { } id ? id[..Math.Min(id.Length, 64)] : null,
             AccountId = http.User.AccountId(),
             PersonId = personId,
-            Detail = detail is null ? null : JsonSerializer.Serialize(detail),
+            Detail = Json(detail),
+            Before = Json(before),
+            After = Json(after),
             Ip = http.Connection.RemoteIpAddress?.ToString(),
             UserAgent = http.Request.Headers.UserAgent.ToString() is { Length: > 0 } ua ? ua[..Math.Min(ua.Length, 300)] : null,
         });
     }
+
+    private static string? Json(object? value) => value is null ? null : JsonSerializer.Serialize(value, LogJson);
 
     public static List<RotaDayDto> ToDays(IEnumerable<ShiftAssignment> assignments, IReadOnlyDictionary<Guid, string> names,
         IReadOnlyDictionary<DateOnly, string> holidays) =>

@@ -114,6 +114,19 @@ export interface RunStat {
 export interface RunDetail { run: Run; days: RotaDay[]; stats: RunStat[] }
 export interface OverrideResponse { day: RotaDay; warnings: string[] }
 
+/** One audit-log entry. detail, before and after are whatever the change was logged with (before is null for something
+ * new, after for something deleted). */
+export interface AuditEntry {
+  id: number; at: string; accountId: string | null; actorEmail: string | null; actorName: string | null; action: string
+  entity: string | null; entityId: string | null; personId: string | null; personName: string | null
+  detail: unknown; before: unknown; after: unknown; ip: string | null; userAgent: string | null
+}
+export interface AuditPage { items: AuditEntry[]; total: number; page: number; pageSize: number }
+export interface AuditFilters { actors: { accountId: string; email: string; name: string | null }[]; actions: string[]; entities: string[] }
+export interface AuditQuery {
+  from?: IsoDate; to?: IsoDate; accountId?: string; action?: string; entity?: string; personId?: string; page?: number
+  pageSize?: number
+}
 
 /** Error carrying the API's problem-details message. */
 export class ApiError extends Error {
@@ -262,6 +275,9 @@ export const api = {
     unpublish: (runId: string) => post<void>(`/api/admin/runs/${runId}/unpublish`),
     deleteRun: (runId: string) => del<void>(`/api/admin/runs/${runId}`),
 
+    audit: ({ page, pageSize, ...f }: AuditQuery) =>
+      get<AuditPage>(`/api/admin/audit${q({ ...f, page: page?.toString(), pageSize: pageSize?.toString() })}`),
+    auditFilters: () => get<AuditFilters>('/api/admin/audit/filters'),
 
     exports: {
       timetable: (runId: string) => `${API}/api/admin/runs/${runId}/timetable.xlsx`,

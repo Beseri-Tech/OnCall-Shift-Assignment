@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Rota.Api.Data;
 
 namespace Rota.Api;
@@ -173,3 +174,16 @@ public sealed record OverrideRequest(Guid? PersonId);
 
 public sealed record OverrideResponse(RotaDayDto Day, IReadOnlyList<string> Warnings);
 
+
+/// <summary>One audit entry. Detail, Before and After are the JSON the change was logged with.</summary>
+public sealed record AuditEntryDto(
+    long Id, DateTimeOffset At, Guid? AccountId, string? ActorEmail, string? ActorName, string Action, string? Entity,
+    string? EntityId, Guid? PersonId, string? PersonName, JsonElement? Detail, JsonElement? Before, JsonElement? After,
+    string? Ip, string? UserAgent);
+
+public sealed record AuditPageDto(IReadOnlyList<AuditEntryDto> Items, int Total, int Page, int PageSize);
+
+public sealed record AuditActorDto(Guid AccountId, string Email, string? Name);
+
+/// <summary>What the audit log can be filtered by: who has made changes, and the actions and kinds of thing logged.</summary>
+public sealed record AuditFiltersDto(IReadOnlyList<AuditActorDto> Actors, IReadOnlyList<string> Actions, IReadOnlyList<string> Entities);

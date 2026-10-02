@@ -39,7 +39,7 @@ public static class AdminAccountEndpoints
 
             string temp = SetTemporaryPassword(account);
             bool sent = QueueInvite(db, mailer, http, account, temp);
-            Mapping.Log(db, http, "account.resend", account.PersonId, new { account.Email });
+            Mapping.Log(db, http, "account.resend", account.PersonId, new { account.Email }, account.Id);
             await db.SaveChangesAsync(ct);
 
             return Results.Ok(new InviteResult(account.Id, sent, sent ? null : temp));
@@ -59,12 +59,13 @@ public static class AdminAccountEndpoints
             string email = AuthEndpoints.NormalizeEmail(req.Email);
             if (await ValidateAsync(db, email, req.Role, req.PersonId, id, ct) is { } problem) return problem;
 
+            var before = await Audit.AccountAsync(db, account, ct);
             account.Email = email;
             account.Role = req.Role;
             account.PersonId = req.Role == AccountRole.Supervisor ? null : req.PersonId;
             account.Enabled = req.Enabled;
             account.SecurityStamp = Guid.NewGuid().ToString("N");   // new rights apply at their next request
-            Mapping.Log(db, http, "account.update", account.PersonId, new { email, req.Role, req.Enabled });
+            Mapping.Log(db, http, "account.update", account.PersonId, null, id, before, await Audit.AccountAsync(db, account, ct));
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -77,7 +78,7 @@ public static class AdminAccountEndpoints
         db.Accounts.Add(account);
         string temp = SetTemporaryPassword(account);
         bool sent = QueueInvite(db, mailer, http, account, temp);
-        Mapping.Log(db, http, "account.invite", personId, new { email, role });
+        Mapping.Log(db, http, "account.invite", personId, null, account.Id, after: new { account.Email, account.Role });
         return new InviteResult(account.Id, sent, sent ? null : temp);
     }
 

@@ -43,7 +43,7 @@ public static class AdminRotaEndpoints
                 }).ToList(),
             };
             db.Runs.Add(run);
-            Mapping.Log(db, http, "run.generate", null, new { period = period.Name, run.Seed });
+            Mapping.Log(db, http, "run.generate", null, new { period = period.Name, run.Seed, unassigned = run.Assignments.Count(a => a.PersonId == null) }, run.Id);
             await db.SaveChangesAsync(ct);
 
             return Results.Ok(await RunDetailAsync(db, run.Id, ct));
@@ -97,7 +97,9 @@ public static class AdminRotaEndpoints
                         $"The admin changed the {run.Period!.Name} rota under review.", "/my-oncall", email: false, ct);
                 await SwapEndpoints.ExpireStaleAsync(db, run, notify, ct);
             }
-            Mapping.Log(db, http, "run.override", req.PersonId, new { run = id, date });
+            Mapping.Log(db, http, "run.override", req.PersonId, new { period = run.Period!.Name, date }, id,
+                new { date, Officer = await Audit.PersonNameAsync(db, previous, ct) },
+                new { date, Officer = await Audit.PersonNameAsync(db, req.PersonId, ct) });
             await db.SaveChangesAsync(ct);
 
             var detail = await RunDetailAsync(db, id, ct);
@@ -131,7 +133,7 @@ public static class AdminRotaEndpoints
             string until = req?.SwapDeadline is { } d ? $" until {SwapEndpoints.Day(d)}" : " until it is published";
             await notify.ToOnCallOfficersAsync(Notifier.Review, $"{run.Period.Name} rota is ready for review",
                 $"Check your on-call dates. You can ask other officers to swap{until}.", "/my-oncall", email: false, ct);
-            Mapping.Log(db, http, "run.review", null, new { period = run.Period.Name, run = id, req?.SwapDeadline });
+            Mapping.Log(db, http, "run.review", null, new { period = run.Period.Name, req?.SwapDeadline }, id);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return Results.NoContent();
@@ -149,7 +151,7 @@ public static class AdminRotaEndpoints
             await SwapEndpoints.ExpireStaleAsync(db, run, notify, ct, "The admin took the rota back to draft.");
             await notify.ToOnCallOfficersAsync(Notifier.Review, $"{run.Period.Name} rota withdrawn from review",
                 "The admin is reworking the rota. You will be told when it is ready again.", "/my-oncall", email: false, ct);
-            Mapping.Log(db, http, "run.withdraw-review", null, new { period = run.Period.Name, run = id });
+            Mapping.Log(db, http, "run.withdraw-review", null, new { period = run.Period.Name }, id);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -175,7 +177,7 @@ public static class AdminRotaEndpoints
             await SwapEndpoints.ExpireStaleAsync(db, run, notify, ct, "The rota was published, so swap requests are closed.");
             await notify.ToOnCallOfficersAsync(Notifier.Published, $"{run.Period.Name} rota is published",
                 "The final on-call rota is out. Check your dates.", "/my-oncall", email: true, ct);
-            Mapping.Log(db, http, "run.publish", null, new { period = run.Period.Name, run = id });
+            Mapping.Log(db, http, "run.publish", null, new { period = run.Period.Name }, id);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return Results.NoContent();
@@ -190,14 +192,14 @@ public static class AdminRotaEndpoints
             run.IsPublished = false;
             run.PublishedAt = null;
             run.Period.Status = PeriodStatus.Locked;
-            Mapping.Log(db, http, "run.unpublish", null, new { period = run.Period.Name, run = id });
+            Mapping.Log(db, http, "run.unpublish", null, new { period = run.Period.Name }, id);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
 
-        g.MapDelete("/runs/{id:guid}", async (Guid id, RotaDbContext db, CancellationToken ct) =>
+        g.MapDelete("/runs/{id:guid}", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
-            var run = await db.Runs.FindAsync([id], ct);
+            var run = await db.Runs.Include(r => r.Period).FirstOrDefaultAsync(r => r.Id == id, ct);
             if (run is null) return Results.NotFound();
             if (run.IsPublished)
                 return Results.Problem("Unpublish the rota before deleting it.", statusCode: StatusCodes.Status409Conflict);
@@ -205,6 +207,7 @@ public static class AdminRotaEndpoints
                 return Results.Problem("Take the rota back to draft before deleting it.", statusCode: StatusCodes.Status409Conflict);
 
             db.Runs.Remove(run);
+            Mapping.Log(db, http, "run.delete", null, new { period = run.Period?.Name, run.Seed }, id);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });

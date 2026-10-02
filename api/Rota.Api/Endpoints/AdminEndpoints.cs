@@ -21,6 +21,7 @@ public static class AdminEndpoints
         admin.MapRotaEndpoints();
         admin.MapTallyEndpoints();
         admin.MapAccountEndpoints();
+        admin.MapAuditEndpoints();
     }
 
     // ---------------- people ----------------
@@ -40,7 +41,7 @@ public static class AdminEndpoints
                 ? (await NextCodeAsync(db, 1, ct))[0]
                 : req.Code.Trim();
             db.People.Add(person);
-            Mapping.Log(db, http, "person.create", person.Id, new { person.Name, person.Code });
+            Mapping.Log(db, http, "person.create", person.Id, null, person.Id, after: await Audit.PersonAsync(db, person, ct));
             var invite = InviteIfEmail(db, mailer, http, req, person.Id);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/people/{person.Id}", new SavePersonResult(person.Id, invite));
@@ -77,20 +78,22 @@ public static class AdminEndpoints
             if (hasAccount) req = req with { Email = null };
             if (await ValidateAsync(db, req, id, ct) is { } problem) return problem;
 
+            var before = await Audit.PersonAsync(db, person, ct);
             Apply(person, req);
             if (!string.IsNullOrWhiteSpace(req.Code)) person.Code = req.Code.Trim();
             person.UpdatedAt = DateTimeOffset.UtcNow;
-            Mapping.Log(db, http, "person.update", id, req);
+            Mapping.Log(db, http, "person.update", id, null, id, before, await Audit.PersonAsync(db, person, ct));
             var invite = InviteIfEmail(db, mailer, http, req, id);
             await db.SaveChangesAsync(ct);
             return Results.Ok(new SavePersonResult(id, invite));
         });
 
-        g.MapPost("/reorder", async (ReorderRequest req, RotaDbContext db, CancellationToken ct) =>
+        g.MapPost("/reorder", async (ReorderRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
             var people = await db.People.ToDictionaryAsync(p => p.Id, ct);
             for (int i = 0; i < req.Ids.Count; i++)
                 if (people.TryGetValue(req.Ids[i], out var p)) p.SortOrder = i;
+            Mapping.Log(db, http, "person.reorder", null, new { order = req.Ids.Where(people.ContainsKey).Select(id => people[id].Name) });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -103,8 +106,8 @@ public static class AdminEndpoints
                 return Results.Problem("This person has shifts in a rota. Mark them as Left instead so their history is kept.",
                     statusCode: StatusCodes.Status409Conflict);
 
+            Mapping.Log(db, http, "person.delete", id, null, id, before: await Audit.PersonAsync(db, person, ct));
             db.People.Remove(person);
-            Mapping.Log(db, http, "person.delete", id, new { person.Name, person.Code });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -217,7 +220,7 @@ public static class AdminEndpoints
             string deadline = req.LeaveDeadline is { } d ? $" until {SwapEndpoints.Day(d)}" : "";
             await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"Enter your leave for {period.Name}",
                 $"Leave for {SwapEndpoints.Day(req.StartDate)} - {SwapEndpoints.Day(req.EndDate)} is open{deadline}.", "/", email: false, ct);
-            Mapping.Log(db, http, "period.create", null, req);
+            Mapping.Log(db, http, "period.create", null, null, period.Id, after: Audit.Period(period));
             await db.SaveChangesAsync(ct);
             return Results.Ok(period.ToDto(clock.Today));
         });
@@ -233,13 +236,14 @@ public static class AdminEndpoints
                 return Results.Problem("Delete this period's rota drafts before changing its dates.", statusCode: StatusCodes.Status409Conflict);
 
             var (oldStart, oldEnd) = (period.StartDate, period.EndDate);
+            var before = Audit.Period(period);
             period.Name = req.Name.Trim();
             period.StartDate = req.StartDate;
             period.EndDate = req.EndDate;
             period.LeaveDeadline = req.LeaveDeadline;
             period.PointsBudget = req.PointsBudget;
             if (datesChanged) await PeriodDays.MoveAsync(db, period, oldStart, oldEnd, ct);
-            Mapping.Log(db, http, "period.update", null, req);
+            Mapping.Log(db, http, "period.update", null, null, id, before, Audit.Period(period));
             await db.SaveChangesAsync(ct);
             return Results.Ok(period.ToDto(clock.Today));
         });
@@ -252,7 +256,7 @@ public static class AdminEndpoints
                 return Results.Problem("Unpublish the rota before deleting this period.", statusCode: StatusCodes.Status409Conflict);
 
             db.Periods.Remove(period);
-            Mapping.Log(db, http, "period.delete", null, new { period.Name });
+            Mapping.Log(db, http, "period.delete", null, null, id, before: Audit.Period(period));
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -278,13 +282,14 @@ public static class AdminEndpoints
         g.MapPut("/{id:guid}/points/{personId:guid}", async (Guid id, Guid personId, PointGrantRequest req, RotaDbContext db,
             Notifier notify, HttpContext http, CancellationToken ct) =>
         {
-            if (!await db.Periods.AnyAsync(p => p.Id == id, ct) || !await db.People.AnyAsync(p => p.Id == personId, ct))
-                return Results.NotFound();
+            var period = await db.Periods.FindAsync([id], ct);
+            if (period is null || !await db.People.AnyAsync(p => p.Id == personId, ct)) return Results.NotFound();
             string? reason = Clean(req.Reason);
             if (req.Points is < 0 or > 100 || reason?.Length > 200)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["points"] = ["Extra points must be 0-100 (reason max 200)."] });
 
             var grant = await db.PointGrants.FindAsync([id, personId], ct);
+            var before = grant is null ? null : new { grant.Points, grant.Reason };
             if (req.Points == 0) { if (grant is not null) db.PointGrants.Remove(grant); }
             else if (grant is null) db.PointGrants.Add(new PointGrant { PeriodId = id, PersonId = personId, Points = req.Points, Reason = reason });
             else { grant.Points = req.Points; grant.Reason = reason; }
@@ -292,7 +297,8 @@ public static class AdminEndpoints
             if (req.Points > (grant?.Points ?? 0))
                 await notify.ToPeopleAsync([personId], Notifier.Points, $"You have {req.Points} extra leave point(s)",
                     reason is null ? "Added by the admin for this period." : $"Reason: {reason}", "/", email: false, ct);
-            Mapping.Log(db, http, "points.grant", personId, new { period = id, req.Points, reason });
+            Mapping.Log(db, http, "points.grant", personId, new { period = period.Name }, id, before,
+                req.Points == 0 ? null : new { req.Points, Reason = reason });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -315,9 +321,10 @@ public static class AdminEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = ["Name max 100 characters."] });
 
             var day = await db.PeriodDays.FindAsync([id, req.Kind, req.Date], ct);
+            var before = day is null ? null : new { day.Kind, day.Date, day.Name };
             if (day is null) db.PeriodDays.Add(new PeriodDay { PeriodId = id, Date = req.Date, Kind = req.Kind, Name = name });
             else day.Name = name;
-            Mapping.Log(db, http, "period-day.upsert", null, new { period = id, req.Date, req.Kind, name });
+            Mapping.Log(db, http, "period-day.upsert", null, new { period = period.Name }, id, before, new { req.Kind, req.Date, Name = name });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -325,10 +332,13 @@ public static class AdminEndpoints
         g.MapDelete("/{id:guid}/days/{kind}/{date}", async (Guid id, PeriodDayKind kind, DateOnly date, RotaDbContext db,
             HttpContext http, CancellationToken ct) =>
         {
-            int n = await db.PeriodDays.Where(d => d.PeriodId == id && d.Kind == kind && d.Date == date).ExecuteDeleteAsync(ct);
-            Mapping.Log(db, http, "period-day.delete", null, new { period = id, date, kind });
+            var day = await db.PeriodDays.FindAsync([id, kind, date], ct);
+            if (day is null) return Results.NotFound();
+            db.PeriodDays.Remove(day);
+            string? period = await db.Periods.Where(p => p.Id == id).Select(p => p.Name).FirstOrDefaultAsync(ct);
+            Mapping.Log(db, http, "period-day.delete", null, new { period }, id, before: new { day.Kind, day.Date, day.Name });
             await db.SaveChangesAsync(ct);
-            return n > 0 ? Results.NoContent() : Results.NotFound();
+            return Results.NoContent();
         });
 
         // Adds master-list days in the period's dates that it doesn't have (e.g. after adding to the master list).
@@ -337,7 +347,7 @@ public static class AdminEndpoints
             var period = await db.Periods.FindAsync([id], ct);
             if (period is null) return Results.NotFound();
             int added = await PeriodDays.CopyFromMasterAsync(db, period, period.StartDate, period.EndDate, ct);
-            Mapping.Log(db, http, "period-day.copy-master", null, new { period = id, added });
+            Mapping.Log(db, http, "period-day.copy-master", null, new { period = period.Name, added }, id);
             await db.SaveChangesAsync(ct);
             return Results.Ok(new { added });
         });
@@ -357,8 +367,9 @@ public static class AdminEndpoints
         if (period.Status != from)
             return Results.Problem($"The period is {period.Status}, not {from}.", statusCode: StatusCodes.Status409Conflict);
 
+        var before = Audit.Period(period);
         period.Status = to;
-        Mapping.Log(db, http, $"period.{to.ToString().ToLowerInvariant()}", null, new { period.Name });
+        Mapping.Log(db, http, $"period.{to.ToString().ToLowerInvariant()}", null, null, id, before, Audit.Period(period));
         await db.SaveChangesAsync(ct);
         return Results.Ok(period.ToDto(clock.Today));
     }
@@ -391,19 +402,22 @@ public static class AdminEndpoints
         {
             string name = Clean(req.Name) ?? "Peak day";
             var p = await db.PeakDays.FindAsync([req.Date], ct);
+            var before = p is null ? null : new { p.Date, p.Name };
             if (p is null) db.PeakDays.Add(new PeakDay { Date = req.Date, Name = name });
             else p.Name = name;
-            Mapping.Log(db, http, "peak-day.upsert", null, req);
+            Mapping.Log(db, http, "peak-day.upsert", null, null, req.Date, before, new { req.Date, Name = name });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
 
         g.MapDelete("/{date}", async (DateOnly date, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
-            int n = await db.PeakDays.Where(p => p.Date == date).ExecuteDeleteAsync(ct);
-            Mapping.Log(db, http, "peak-day.delete", null, new { date });
+            var p = await db.PeakDays.FindAsync([date], ct);
+            if (p is null) return Results.NotFound();
+            db.PeakDays.Remove(p);
+            Mapping.Log(db, http, "peak-day.delete", null, null, date, before: new { p.Date, p.Name });
             await db.SaveChangesAsync(ct);
-            return n > 0 ? Results.NoContent() : Results.NotFound();
+            return Results.NoContent();
         });
     }
 
@@ -417,9 +431,10 @@ public static class AdminEndpoints
         g.MapPut("/", async (UpsertHolidayRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
             var h = await db.Holidays.FindAsync([req.Date], ct);
+            var before = h is null ? null : new { h.Date, h.Name };
             if (h is null) db.Holidays.Add(new PublicHoliday { Date = req.Date, Name = req.Name.Trim() });
             else h.Name = req.Name.Trim();
-            Mapping.Log(db, http, "holiday.upsert", null, req);
+            Mapping.Log(db, http, "holiday.upsert", null, null, req.Date, before, new { req.Date, Name = req.Name.Trim() });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -433,17 +448,22 @@ public static class AdminEndpoints
             foreach (var d in dates.Where(d => !existing.Contains(d)))
                 db.Holidays.Add(new PublicHoliday { Date = d, Name = string.IsNullOrWhiteSpace(req.Name) ? "Public holiday" : req.Name.Trim() });
 
-            Mapping.Log(db, http, "holiday.bulk", null, req);
+            Mapping.Log(db, http, "holiday.bulk", null, new
+            {
+                req.Text, req.Name, added = LeaveText.Compact(dates.Where(d => !existing.Contains(d))),
+            });
             await db.SaveChangesAsync(ct);
             return Results.Ok(new { added = dates.Count - existing.Count });
         });
 
         g.MapDelete("/{date}", async (DateOnly date, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
-            int n = await db.Holidays.Where(h => h.Date == date).ExecuteDeleteAsync(ct);
-            Mapping.Log(db, http, "holiday.delete", null, new { date });
+            var h = await db.Holidays.FindAsync([date], ct);
+            if (h is null) return Results.NotFound();
+            db.Holidays.Remove(h);
+            Mapping.Log(db, http, "holiday.delete", null, null, date, before: new { h.Date, h.Name });
             await db.SaveChangesAsync(ct);
-            return n > 0 ? Results.NoContent() : Results.NotFound();
+            return Results.NoContent();
         });
     }
 }

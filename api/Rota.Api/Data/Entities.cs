@@ -309,7 +309,7 @@ public sealed class ShiftAssignment
     public bool IsManual { get; set; }
 }
 
-/// <summary>Trail of edits while anyone can edit anyone's leave (no personal logins yet).</summary>
+/// <summary>Audit trail: who changed what and when, with the values before and after where there are any.</summary>
 public sealed class ChangeLog
 {
     public long Id { get; set; }
@@ -321,7 +321,20 @@ public sealed class ChangeLog
     /// <summary>The officer the change is about.</summary>
     public Guid? PersonId { get; set; }
     public string Action { get; set; } = "";
+
+    /// <summary>What kind of thing changed (person, clinic, period, run, ...): the action up to its first dot.</summary>
+    public string? Entity { get; set; }
+
+    /// <summary>Which one, e.g. its id or a date.</summary>
+    public string? EntityId { get; set; }
+
+    /// <summary>Extra context (JSON), e.g. the period a change belongs to.</summary>
     public string? Detail { get; set; }
+
+    /// <summary>The changed thing's values before and after (JSON); null when it was created or deleted.</summary>
+    public string? Before { get; set; }
+    public string? After { get; set; }
+
     public string? Ip { get; set; }
     public string? UserAgent { get; set; }
 }

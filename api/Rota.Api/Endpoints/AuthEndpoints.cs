@@ -58,7 +58,7 @@ public static class AuthEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = [error] });
 
             SetPassword(account, req.NewPassword);
-            Mapping.Log(db, http, "account.change-password", account.PersonId, null);
+            Mapping.Log(db, http, "account.change-password", account.PersonId, null, account.Id);
             await db.SaveChangesAsync(ct);
             await Session.SignInAsync(http, account);   // new stamp, no temporary-password flag
             return Results.Ok(ToMe(account));
@@ -98,7 +98,7 @@ public static class AuthEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = [error] });
 
             SetPassword(account, req.NewPassword);
-            Mapping.Log(db, http, "account.reset-password", account.PersonId, new { account.Email });
+            Mapping.Log(db, http, "account.reset-password", account.PersonId, new { account.Email }, account.Id);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         }).AllowAnonymous().RequireRateLimiting(RateLimit);
