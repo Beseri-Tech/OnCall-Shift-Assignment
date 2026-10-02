@@ -59,7 +59,10 @@ public static class SwapEndpoints
             await notify.ToPeopleAsync([other.Value], Notifier.SwapRequest, $"{fromName} asks to swap on-call dates",
                 $"{fromName} would take your {Day(req.ToDate)} and give you {Day(req.FromDate)} ({run.Period!.Name})." +
                 (swap.Note is null ? "" : $"\nNote: {swap.Note}"), "/my-oncall", email: true, ct);
-            Mapping.Log(db, http, "swap.request", me, new { run = run.Id, req.FromDate, req.ToDate, to = other });
+            Mapping.Log(db, http, "swap.request", me, new
+            {
+                period = run.Period.Name, req.FromDate, req.ToDate, with = await NameAsync(db, other.Value, ct), swap.Note,
+            }, swap.Id);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return Results.Ok((await ToDtosAsync(db, [swap], ct))[0]);
@@ -94,7 +97,9 @@ public static class SwapEndpoints
             await notify.ToAdminsAsync(Notifier.SwapAccepted, $"Swap in {run.Period.Name}",
                 $"{fromName} ({Day(swap.FromDate)}) and {toName} ({Day(swap.ToDate)}) swapped dates.", "/admin/rota", ct);
             await ExpireStaleAsync(db, run, notify, ct);
-            Mapping.Log(db, http, "swap.accept", swap.ToPersonId, new { swap = id });
+            Mapping.Log(db, http, "swap.accept", swap.ToPersonId, new { period = run.Period.Name }, id,
+                new Dictionary<string, string> { [Day(swap.FromDate)] = fromName, [Day(swap.ToDate)] = toName },
+                new Dictionary<string, string> { [Day(swap.FromDate)] = toName, [Day(swap.ToDate)] = fromName });
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return Results.NoContent();
@@ -112,7 +117,7 @@ public static class SwapEndpoints
             string toName = await NameAsync(db, swap.ToPersonId, ct);
             await notify.ToPeopleAsync([swap.FromPersonId], Notifier.SwapDeclined, $"{toName} declined your swap",
                 $"You keep {Day(swap.FromDate)}; {toName} keeps {Day(swap.ToDate)}.", "/my-oncall", email: false, ct);
-            Mapping.Log(db, http, "swap.decline", swap.ToPersonId, new { swap = id });
+            Mapping.Log(db, http, "swap.decline", swap.ToPersonId, new { swap.FromDate, swap.ToDate, with = await NameAsync(db, swap.FromPersonId, ct) }, id);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -129,7 +134,7 @@ public static class SwapEndpoints
             string fromName = await NameAsync(db, swap.FromPersonId, ct);
             await notify.ToPeopleAsync([swap.ToPersonId], Notifier.SwapCancelled, $"{fromName} withdrew a swap request",
                 $"The request to swap your {Day(swap.ToDate)} for {Day(swap.FromDate)} was withdrawn.", "/my-oncall", email: false, ct);
-            Mapping.Log(db, http, "swap.cancel", swap.FromPersonId, new { swap = id });
+            Mapping.Log(db, http, "swap.cancel", swap.FromPersonId, new { swap.FromDate, swap.ToDate, with = await NameAsync(db, swap.ToPersonId, ct) }, id);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });

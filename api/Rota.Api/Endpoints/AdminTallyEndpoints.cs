@@ -31,11 +31,8 @@ public static class AdminTallyEndpoints
                 // Store the difference so "adjustment + published" shows exactly what the admin typed.
                 p.TallyWeekdayAdjust = u.Weekday - t.PublishedWeekday;
                 p.TallyWeekendHolidayAdjust = u.WeekendHoliday - t.PublishedWeekendHoliday;
-                Mapping.Log(db, http, "tally.update", p.Id, new
-                {
-                    before = new { t.Weekday, t.WeekendHoliday },
-                    after = new { u.Weekday, u.WeekendHoliday },
-                });
+                Mapping.Log(db, http, "tally.update", p.Id, null, p.Id,
+                    new { t.Weekday, t.WeekendHoliday }, new { u.Weekday, u.WeekendHoliday });
             }
             await db.SaveChangesAsync(ct);
             return Results.Ok(await RowsAsync(db, ct));

@@ -31,7 +31,7 @@ public static class AdminLocationEndpoints
             if (await ValidateStateAsync(db, req, null, ct) is { } problem) return problem;
             var state = new State { Name = Clean(req.Name)! };
             db.States.Add(state);
-            Mapping.Log(db, http, "state.create", null, req);
+            Mapping.Log(db, http, "state.create", null, null, state.Id, after: new { state.Name });
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/states/{state.Id}", state.Id);
         });
@@ -41,8 +41,9 @@ public static class AdminLocationEndpoints
             var state = await db.States.FindAsync([id], ct);
             if (state is null) return Results.NotFound();
             if (await ValidateStateAsync(db, req, id, ct) is { } problem) return problem;
+            var before = new { state.Name };
             state.Name = Clean(req.Name)!;
-            Mapping.Log(db, http, "state.update", null, new { id, req.Name });
+            Mapping.Log(db, http, "state.update", null, null, id, before, new { state.Name });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -54,7 +55,7 @@ public static class AdminLocationEndpoints
             if (await db.Districts.AnyAsync(d => d.StateId == id, ct))
                 return Results.Problem($"Remove the districts of {state.Name} first.", statusCode: StatusCodes.Status409Conflict);
             db.States.Remove(state);
-            Mapping.Log(db, http, "state.delete", null, new { id, state.Name });
+            Mapping.Log(db, http, "state.delete", null, null, id, before: new { state.Name });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -79,7 +80,7 @@ public static class AdminLocationEndpoints
             if (await ValidateDistrictAsync(db, req, null, ct) is { } problem) return problem;
             var district = new District { Name = Clean(req.Name)!, StateId = req.StateId };
             db.Districts.Add(district);
-            Mapping.Log(db, http, "district.create", null, req);
+            Mapping.Log(db, http, "district.create", null, null, district.Id, after: await Audit.DistrictAsync(db, district, ct));
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/districts/{district.Id}", district.Id);
         });
@@ -89,9 +90,10 @@ public static class AdminLocationEndpoints
             var district = await db.Districts.FindAsync([id], ct);
             if (district is null) return Results.NotFound();
             if (await ValidateDistrictAsync(db, req, id, ct) is { } problem) return problem;
+            var before = await Audit.DistrictAsync(db, district, ct);
             district.Name = Clean(req.Name)!;
             district.StateId = req.StateId;
-            Mapping.Log(db, http, "district.update", null, new { id, req.Name, req.StateId });
+            Mapping.Log(db, http, "district.update", null, null, id, before, await Audit.DistrictAsync(db, district, ct));
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -103,7 +105,7 @@ public static class AdminLocationEndpoints
             if (await db.Clinics.AnyAsync(c => c.DistrictId == id, ct))
                 return Results.Problem($"Move or remove the clinics in {district.Name} first.", statusCode: StatusCodes.Status409Conflict);
             db.Districts.Remove(district);
-            Mapping.Log(db, http, "district.delete", null, new { id, district.Name });
+            Mapping.Log(db, http, "district.delete", null, null, id, before: await Audit.DistrictAsync(db, district, ct));
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -138,7 +140,7 @@ public static class AdminLocationEndpoints
             if (await ValidateClinicAsync(db, req, null, ct) is { } problem) return problem;
             var clinic = new Clinic { Name = Clean(req.Name)!, DistrictId = req.DistrictId };
             db.Clinics.Add(clinic);
-            Mapping.Log(db, http, "clinic.create", null, req);
+            Mapping.Log(db, http, "clinic.create", null, null, clinic.Id, after: await Audit.ClinicAsync(db, clinic, ct));
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/clinics/{clinic.Id}", clinic.Id);
         });
@@ -148,9 +150,10 @@ public static class AdminLocationEndpoints
             var clinic = await db.Clinics.FindAsync([id], ct);
             if (clinic is null) return Results.NotFound();
             if (await ValidateClinicAsync(db, req, id, ct) is { } problem) return problem;
+            var before = await Audit.ClinicAsync(db, clinic, ct);
             clinic.Name = Clean(req.Name)!;
             clinic.DistrictId = req.DistrictId;
-            Mapping.Log(db, http, "clinic.update", null, new { id, req.Name, req.DistrictId });
+            Mapping.Log(db, http, "clinic.update", null, null, id, before, await Audit.ClinicAsync(db, clinic, ct));
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
@@ -161,7 +164,8 @@ public static class AdminLocationEndpoints
             var clinic = await db.Clinics.FindAsync([id], ct);
             if (clinic is null) return Results.NotFound();
             db.Clinics.Remove(clinic);
-            Mapping.Log(db, http, "clinic.delete", null, new { id, clinic.Name });
+            Mapping.Log(db, http, "clinic.delete", null, new { officers = await db.People.CountAsync(p => p.ClinicId == id, ct) }, id,
+                before: await Audit.ClinicAsync(db, clinic, ct));
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });

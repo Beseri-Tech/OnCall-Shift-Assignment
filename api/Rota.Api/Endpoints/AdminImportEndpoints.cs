@@ -53,7 +53,10 @@ public static class AdminImportEndpoints
                 if (invite.TempPassword is { } temp) passwords.Add(new IssuedPasswordDto(row.Name, row.Email, temp));
             }
 
-            Mapping.Log(db, http, "person.import", null, new { added = rows.Select(r => r.Name).ToList(), invited });
+            Mapping.Log(db, http, "person.import", null, new
+            {
+                added = rows.Select(r => new { r.Name, r.Code, r.Email, r.Clinic }).ToList(), invited,
+            });
             await db.SaveChangesAsync(ct);
             return Results.Ok(new ImportResultDto(rows.Select(r => r.ToDto()).ToList(), [], true, rows.Count, invited, passwords));
         });

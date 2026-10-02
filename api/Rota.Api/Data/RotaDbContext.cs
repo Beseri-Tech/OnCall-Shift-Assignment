@@ -190,8 +190,15 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
         {
             e.ToTable("change_log");
             e.Property(c => c.Action).HasMaxLength(64);
+            e.Property(c => c.Entity).HasMaxLength(32);
+            e.Property(c => c.EntityId).HasMaxLength(64);
             e.Property(c => c.Detail).HasColumnType("jsonb");
+            e.Property(c => c.Before).HasColumnType("jsonb");
+            e.Property(c => c.After).HasColumnType("jsonb");
             e.HasIndex(c => c.At);
+            e.HasIndex(c => new { c.Entity, c.At });
+            e.HasIndex(c => new { c.AccountId, c.At });
+            e.HasIndex(c => new { c.PersonId, c.At });
         });
     }
 }
