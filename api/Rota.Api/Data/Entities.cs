@@ -156,16 +156,41 @@ public sealed class RotaPeriod
     public List<RotaRun> Runs { get; set; } = [];
 }
 
+/// <summary>Master list: copied into new periods as <see cref="PeriodDay"/>s; the rota itself uses the period's days.</summary>
 public sealed class PublicHoliday
 {
     public DateOnly Date { get; set; }
     public string Name { get; set; } = "";
 }
 
-/// <summary>A busy weekday (e.g. the eve of Raya): leave on it costs points. Not a holiday for the rota itself.</summary>
+/// <summary>
+/// Master list of busy weekdays (e.g. the eve of Raya): leave on it costs points. Not a holiday for the rota itself.
+/// Copied into new periods as <see cref="PeriodDay"/>s.
+/// </summary>
 public sealed class PeakDay
 {
     public DateOnly Date { get; set; }
+    public string Name { get; set; } = "";
+}
+
+public enum PeriodDayKind
+{
+    /// <summary>Counts as a weekend shift when balancing the rota.</summary>
+    Holiday,
+    /// <summary>Leave on it costs points; not a holiday for the rota itself.</summary>
+    Peak,
+}
+
+/// <summary>
+/// A public holiday or peak day applied to one rota period. A new period starts with the master lists
+/// (<see cref="PublicHoliday"/>, <see cref="PeakDay"/>) in its date range; the admin can then add or remove days
+/// for that period alone. Always inside the period's dates.
+/// </summary>
+public sealed class PeriodDay
+{
+    public Guid PeriodId { get; set; }
+    public DateOnly Date { get; set; }
+    public PeriodDayKind Kind { get; set; }
     public string Name { get; set; } = "";
 }
 

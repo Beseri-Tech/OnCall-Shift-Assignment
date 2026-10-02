@@ -10,7 +10,7 @@ public sealed class LeaveRules
 {
     public required LeavePolicy Policy { get; init; }
     public required RotaPeriod Period { get; init; }
-    public required List<PeakDay> Peaks { get; init; }
+    public required List<PeriodDay> Peaks { get; init; }
 
     /// <summary>Leave dates in the period per on-call officer (officers without leave included).</summary>
     public required Dictionary<Guid, List<DateOnly>> LeaveByPerson { get; init; }
@@ -31,9 +31,9 @@ public sealed class LeaveRules
 
     public static async Task<LeaveRules> LoadAsync(RotaDbContext db, LeaveLimits limits, RotaPeriod period, CancellationToken ct)
     {
-        var holidays = (await Mapping.HolidaysAsync(db, period.StartDate, period.EndDate, ct)).Keys.ToHashSet();
-        var peaks = await db.PeakDays.Where(p => p.Date >= period.StartDate && p.Date <= period.EndDate)
-            .OrderBy(p => p.Date).ToListAsync(ct);
+        var holidays = (await Mapping.HolidaysAsync(db, period.Id, ct)).Keys.ToHashSet();
+        var peaks = await db.PeriodDays.Where(d => d.PeriodId == period.Id && d.Kind == PeriodDayKind.Peak)
+            .OrderBy(d => d.Date).ToListAsync(ct);
 
         var onCall = await db.People.Where(p => p.Status == OfficerStatus.OnCall).Select(p => p.Id).ToListAsync(ct);
         var leave = await db.LeaveDays

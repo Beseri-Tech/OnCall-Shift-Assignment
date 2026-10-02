@@ -13,6 +13,9 @@ export interface Period {
   status: PeriodStatus; isEditable: boolean; pointsBudget: number | null; swapDeadline: IsoDate | null
 }
 export interface Holiday { date: IsoDate; name: string }
+/** A public holiday or peak day applied to one rota period. */
+export type PeriodDayKind = 'Holiday' | 'Peak'
+export interface PeriodDay { date: IsoDate; kind: PeriodDayKind; name: string }
 export interface LeaveEntry { date: IsoDate; note: string | null }
 export interface RotaDay {
   date: IsoDate; isWeekendHoliday: boolean; holidayName: string | null
@@ -233,11 +236,16 @@ export const api = {
     points: (id: string) => get<PointsRow[]>(`/api/admin/periods/${id}/points`),
     grantPoints: (id: string, personId: string, points: number, reason: string | null) =>
       put<void>(`/api/admin/periods/${id}/points/${personId}`, { points, reason }),
+    periodDays: (id: string) => get<PeriodDay[]>(`/api/admin/periods/${id}/days`),
+    upsertPeriodDay: (id: string, d: PeriodDay) => put<void>(`/api/admin/periods/${id}/days`, d),
+    deletePeriodDay: (id: string, d: PeriodDay) => del<void>(`/api/admin/periods/${id}/days/${d.kind}/${d.date}`),
+    copyMasterDays: (id: string) => post<{ added: number }>(`/api/admin/periods/${id}/days/copy-master`),
 
     peakDays: () => get<Holiday[]>('/api/admin/peak-days'),
     upsertPeakDay: (h: Holiday) => put<void>('/api/admin/peak-days', h),
     deletePeakDay: (date: IsoDate) => del<void>(`/api/admin/peak-days/${date}`),
 
+    holidays: () => get<Holiday[]>('/api/admin/holidays'),
     upsertHoliday: (h: Holiday) => put<void>('/api/admin/holidays', h),
     bulkHolidays: (text: string, reference: IsoDate, name: string) =>
       post<{ added: number }>('/api/admin/holidays/bulk', { text, reference, name }),

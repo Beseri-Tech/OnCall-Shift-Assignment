@@ -217,7 +217,7 @@ public static class AdminRotaEndpoints
             if (run?.Period is null) return Results.NotFound();
 
             var names = await db.People.ToDictionaryAsync(p => p.Id, p => p.Name, ct);
-            var holidays = await Mapping.HolidaysAsync(db, run.Period.StartDate, run.Period.EndDate, ct);
+            var holidays = await Mapping.HolidaysAsync(db, run.Period.Id, ct);
             var days = run.Assignments.OrderBy(a => a.Date)
                 .Select(a => new TimetableDay(a.Date, a.PersonId is { } p ? names.GetValueOrDefault(p) : null,
                     a.IsWeekendHoliday, holidays.ContainsKey(a.Date)))
@@ -242,8 +242,7 @@ public static class AdminRotaEndpoints
     internal static async Task<RotaInput> BuildInputAsync(RotaDbContext db, RotaPeriod period, int? seed, CancellationToken ct)
     {
         var totals = await Totals.ForPeopleAsync(db, excludePeriodId: period.Id, ct: ct);
-        var holidays = await db.Holidays.Where(h => h.Date >= period.StartDate && h.Date <= period.EndDate)
-            .Select(h => h.Date).ToListAsync(ct);
+        var holidays = (await Mapping.HolidaysAsync(db, period.Id, ct)).Keys;
 
         var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
             .Select(p => new
@@ -283,7 +282,7 @@ public static class AdminRotaEndpoints
         var period = run.Period;
         var people = await db.People.AsNoTracking().OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
         var names = people.ToDictionary(p => p.Id, p => p.Name);
-        var holidays = await Mapping.HolidaysAsync(db, period.StartDate, period.EndDate, ct);
+        var holidays = await Mapping.HolidaysAsync(db, period.Id, ct);
         var totals = await Totals.ForPeopleAsync(db, excludePeriodId: period.Id, ct: ct);
         var leaveCounts = await db.LeaveDays.Where(l => l.Date >= period.StartDate && l.Date <= period.EndDate)
             .GroupBy(l => l.PersonId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count, ct);
