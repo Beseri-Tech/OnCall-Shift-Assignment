@@ -208,6 +208,10 @@ function PeriodModal({ editing, onClose, onSaved }: {
   editing: { id: string | null; value: UpsertPeriod }; onClose: () => void; onSaved: () => void
 }) {
   const [v, setV] = useState(editing.value)
+  // The picker's own range, which is half-done between the first and second click.
+  // Filling the missing end with the start would make it a finished one-day range,
+  // and the next click would start a new range instead of choosing the end date.
+  const [range, setRange] = useState<[IsoDate | null, IsoDate | null]>([editing.value.startDate, editing.value.endDate])
   const save = useMutation({
     mutationFn: () => (editing.id ? api.admin.updatePeriod(editing.id, v) : api.admin.createPeriod(v)),
     onSuccess: () => { onSaved(); onClose(); notifyOk(`${v.name} saved.`) },
@@ -222,11 +226,13 @@ function PeriodModal({ editing, onClose, onSaved }: {
             type="range"
             label="Dates"
             required
-            value={[v.startDate, v.endDate]}
+            value={range}
             onChange={r => {
-              const [a, b] = r as [string | null, string | null]
-              setV({ ...v, startDate: a ?? v.startDate, endDate: b ?? a ?? v.endDate })
+              const [a, b] = r as [IsoDate | null, IsoDate | null]
+              setRange([a, b])
+              if (a && b) setV({ ...v, startDate: a, endDate: b })
             }}
+            error={range[0] && !range[1] ? 'Pick the end date' : undefined}
             valueFormat="D MMM YYYY"
             numberOfColumns={2}
           />
@@ -250,7 +256,7 @@ function PeriodModal({ editing, onClose, onSaved }: {
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancel</Button>
-            <Button type="submit" loading={save.isPending}>Save</Button>
+            <Button type="submit" loading={save.isPending} disabled={!range[0] || !range[1]}>Save</Button>
           </Group>
         </Stack>
       </form>
