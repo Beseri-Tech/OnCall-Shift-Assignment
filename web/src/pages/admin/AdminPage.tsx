@@ -1,6 +1,7 @@
 import { Paper, Stack, Tabs } from '@mantine/core'
 import { IconCalendarCog, IconHistory, IconMessage2, IconShieldLock, IconSum, IconUserShield, IconUsers, IconWand } from '@tabler/icons-react'
 import { PageHeader } from '../../components/common'
+import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { AccountsTab } from './AccountsTab'
 import { AuditTab } from './AuditTab'
@@ -19,12 +20,18 @@ export function AdminPage() {
   const { '*': sub } = useParams()
   const tab: Tab = TABS.includes(sub as Tab) ? (sub as Tab) : 'rota'
 
+  // On phones the tab row scrolls: keep the open tab in view (e.g. after following a link to the audit log).
+  useEffect(() => {
+    document.querySelector('.tabs-scroll [data-active]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [tab])
+
   return (
     <Stack gap="md">
       <PageHeader icon={IconShieldLock} title="Admin" description="Build and publish the rota, manage officers, tallies, periods and accounts, read feedback, and see who changed what." />
       <Tabs value={tab} onChange={v => navigate(`/admin/${v}`)} keepMounted={false} variant="pills" radius="xl">
         <Paper className="panel" p={6} mb="md" radius="xl">
-        <Tabs.List>
+        {/* One row; on phones it scrolls sideways instead of wrapping into a tall block. */}
+        <Tabs.List className="tabs-scroll">
           <Tabs.Tab value="rota" leftSection={<IconWand size={16} />}>Generate rota</Tabs.Tab>
           <Tabs.Tab value="people" leftSection={<IconUsers size={16} />}>Officers</Tabs.Tab>
           <Tabs.Tab value="tally" leftSection={<IconSum size={16} />}>Tally</Tabs.Tab>

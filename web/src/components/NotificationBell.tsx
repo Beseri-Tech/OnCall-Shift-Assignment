@@ -36,7 +36,7 @@ export function NotificationBell() {
   const items = data.data?.items ?? []
 
   return (
-    <Popover opened={opened} onChange={setOpened} position="bottom-end" width={360} shadow="md" withinPortal>
+    <Popover opened={opened} onChange={setOpened} position="bottom-end" width="min(360px, calc(100vw - 24px))" shadow="md" withinPortal>
       <Popover.Target>
         <Indicator label={unread > 9 ? '9+' : unread} size={16} color="red" disabled={unread === 0} offset={4}>
           <UnstyledButton className="nav-link" aria-label={`Notifications (${unread} unread)`} onClick={() => setOpened(o => !o)}>

@@ -1,5 +1,6 @@
-import { SimpleGrid, Text } from '@mantine/core'
+import { Badge, SimpleGrid, Text } from '@mantine/core'
 import type { IsoDate, RotaDay } from '../api'
+import { usePhone } from '../lib'
 import { addDays, dayOfMonth, dayOfWeek, endOfMonth, formatMonth, isWeekend, monthsBetween } from '../dates'
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -16,7 +17,10 @@ interface Props {
 
 /** Month calendars showing who is on call each day. */
 export function RotaCalendar({ days, highlightPersonId, onDayClick, fillMonths, holidays }: Props) {
+  const phone = usePhone()
   if (days.length === 0) return null
+  // A personal calendar only says "On call", which fits a phone's grid; a full rota names someone every day, so phones get a list.
+  if (phone && !fillMonths) return <RotaList days={days} highlightPersonId={highlightPersonId} onDayClick={onDayClick} />
   const byDate = new Map(days.map(d => [d.date, d]))
   const months = monthsBetween(days[0].date, days[days.length - 1].date)
 
@@ -43,14 +47,7 @@ export function RotaCalendar({ days, highlightPersonId, onDayClick, fillMonths, 
                 }
                 if (!date || !day) return <div key={date ?? `b${i}`} />
 
-                const cls = [
-                  'rota-day',
-                  day.isWeekendHoliday && 'day-weekend',
-                  !day.personId && 'unassigned',
-                  highlightPersonId && day.personId === highlightPersonId && 'mine',
-                  day.isManual && 'manual',
-                  onDayClick && 'clickable',
-                ].filter(Boolean).join(' ')
+                const cls = `rota-day ${dayClasses(day, highlightPersonId, !!onDayClick)}`
 
                 return (
                   <div
@@ -74,5 +71,53 @@ export function RotaCalendar({ days, highlightPersonId, onDayClick, fillMonths, 
         )
       })}
     </SimpleGrid>
+  )
+}
+
+const dayClasses = (day: RotaDay, highlightPersonId: string | null | undefined, clickable: boolean) => [
+  day.isWeekendHoliday && 'day-weekend',
+  !day.personId && 'unassigned',
+  highlightPersonId && day.personId === highlightPersonId && 'mine',
+  day.isManual && 'manual',
+  clickable && 'clickable',
+].filter(Boolean).join(' ')
+
+/** Phone layout: one row per day, grouped by month, so full names fit. */
+function RotaList({ days, highlightPersonId, onDayClick }: Pick<Props, 'days' | 'highlightPersonId' | 'onDayClick'>) {
+  const months = monthsBetween(days[0].date, days[days.length - 1].date)
+  return (
+    <div>
+      {months.map(month => {
+        const inMonth = days.filter(d => d.date >= month && d.date <= endOfMonth(month))
+        if (inMonth.length === 0) return null
+        return (
+          <section key={month} className="rota-list-month">
+            <Text fw={700} mb={6}>{formatMonth(month)}</Text>
+            <div className="rota-list">
+              {inMonth.map(day => (
+                <div
+                  key={day.date}
+                  className={`rota-row ${dayClasses(day, highlightPersonId, !!onDayClick)}`}
+                  role={onDayClick ? 'button' : undefined}
+                  tabIndex={onDayClick ? 0 : undefined}
+                  onClick={() => onDayClick?.(day)}
+                  onKeyDown={e => { if (onDayClick && (e.key === 'Enter' || e.key === ' ')) onDayClick(day) }}
+                >
+                  <div className="rota-row-date">
+                    <span className="rota-row-dow">{DOW[(dayOfWeek(day.date) + 6) % 7]}</span>
+                    <span className="rota-row-num">{dayOfMonth(day.date)}</span>
+                  </div>
+                  <div className="rota-row-name">
+                    {day.personName ?? 'Unassigned'}
+                    {day.holidayName && <Text size="xs" c="green.8" fw={600} truncate>{day.holidayName}</Text>}
+                  </div>
+                  {day.holidayName && <Badge size="xs" color="green" variant="light">PH</Badge>}
+                </div>
+              ))}
+            </div>
+          </section>
+        )
+      })}
+    </div>
   )
 }

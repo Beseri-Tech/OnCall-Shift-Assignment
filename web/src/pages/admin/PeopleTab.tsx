@@ -1,5 +1,5 @@
 import {
-  ActionIcon, Anchor, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, SegmentedControl, Select, Stack,
+  ActionIcon, Anchor, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack,
   Table, Text, TextInput, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
@@ -317,14 +317,14 @@ function StatusFields({ status, reason, until, onReason, onUntil }: {
 }) {
   if (status === 'OnCall') return null
   return (
-    <Group grow align="flex-start">
+    <SimpleGrid cols={{ base: 1, sm: 2 }}>
       <TextInput label="Reason" required data-autofocus value={reason ?? ''} onChange={e => onReason(e.currentTarget.value || null)}
         placeholder={status === 'Excluded' ? 'e.g. CUTI BERSALIN, PREGNANT' : 'e.g. PINDAH, RESIGN'} maxLength={200} />
       {status === 'Excluded' && (
         <DatePickerInput label="Expected back" description="Optional – a reminder only, not applied automatically"
           value={until} onChange={d => onUntil((d as string | null) ?? null)} valueFormat="D MMM YYYY" clearable />
       )}
-    </Group>
+    </SimpleGrid>
   )
 }
 
@@ -388,22 +388,22 @@ function PersonModal({ editing, clinics, onClose, onSaved, onInvited }: {
     <Modal opened onClose={onClose} title={person ? 'Edit officer' : 'Add officer'} size="lg">
       <form onSubmit={e => { e.preventDefault(); save.mutate() }}>
         <Stack>
-          <Group grow align="flex-start">
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <TextInput label="Name" required value={v.name} onChange={e => set('name', e.currentTarget.value)} data-autofocus />
             <TextInput label="Code" description="Leave blank to assign the next D-number" value={v.code ?? ''}
               onChange={e => set('code', e.currentTarget.value || null)} maxLength={32} />
-          </Group>
-          <Group grow align="flex-start">
+          </SimpleGrid>
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <Select label="Clinic" required={!person}
               placeholder={clinics.length ? 'Pick a clinic' : 'Add clinics first (Clinics & districts)'}
               data={clinicOptions(clinics)} value={v.clinicId} onChange={id => set('clinicId', id)} clearable={!!person} searchable />
             <TextInput label="Phone" value={v.phone ?? ''} onChange={e => set('phone', e.currentTarget.value || null)} maxLength={32} />
-          </Group>
+          </SimpleGrid>
           {person?.email ? (
             <TextInput label="Sign-in email" value={person.email} disabled
               description="Already invited. Change the email or role on the Accounts tab." />
           ) : canInvite && (
-            <Group grow align="flex-start">
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <TextInput label="Email" type="email" value={v.email ?? ''} onChange={e => set('email', e.currentTarget.value || null)}
                 description="Optional. Sends them an invite with a temporary password." maxLength={254} />
               <Stack gap={4}>
@@ -413,7 +413,7 @@ function PersonModal({ editing, clinics, onClose, onSaved, onInvited }: {
                   { value: 'Admin', label: 'Admin (on call)' },
                 ]} />
               </Stack>
-            </Group>
+            </SimpleGrid>
           )}
           <Stack gap={4}>
             <Text fw={500} size="sm">Status</Text>

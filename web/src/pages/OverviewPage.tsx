@@ -1,11 +1,11 @@
-import { Alert, Group, Paper, SegmentedControl, Stack, Switch, Text, TextInput } from '@mantine/core'
+import { Alert, Group, Paper, SegmentedControl, Select, Stack, Switch, Text, TextInput } from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
 import { IconInfoCircle, IconLayoutGrid, IconSearch, IconUsers } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api } from '../api'
 import { useMe } from '../auth'
 import { ErrorBox, Legend, Loading, PageHeader, PeriodSelect, StatusBadge } from '../components/common'
-import { defaultPeriod, pick } from '../lib'
+import { defaultPeriod, pick, usePhone } from '../lib'
 import { dayOfMonth, formatDow, formatLong, formatMonth, monthsBetween, todayIso } from '../dates'
 
 const ALL = 'all'
@@ -17,6 +17,7 @@ export function OverviewPage() {
   const [onlyLeave, setOnlyLeave] = useState(false)
   const [chosenMonth, setMonth] = useState<string | null>(null)
   const myId = useMe().data?.personId ?? null
+  const phone = usePhone()
 
   const periods = useQuery({ queryKey: ['periods'], queryFn: () => api.periods() })
   const periodId = pick(periods.data, chosenId, defaultPeriod(periods.data))?.id ?? null
@@ -60,6 +61,8 @@ export function OverviewPage() {
     else monthSpans.push({ month: m, span: 1 })
   }
 
+  const monthChoices = [...months.map(m => ({ value: m, label: formatMonth(m) })), { value: ALL, label: 'Whole period' }]
+
   return (
     <Stack gap="md">
       <PageHeader icon={IconLayoutGrid} title="Leave overview"
@@ -82,10 +85,9 @@ export function OverviewPage() {
                   value={search} onChange={e => setSearch(e.currentTarget.value)} w={200} size="sm" />
                 <Switch label="Only with leave" checked={onlyLeave} onChange={e => setOnlyLeave(e.currentTarget.checked)} />
               </Group>
-              <SegmentedControl value={month} onChange={setMonth} data={[
-                ...months.map(m => ({ value: m, label: formatMonth(m) })),
-                { value: ALL, label: 'Whole period' },
-              ]} />
+              {phone
+                ? <Select aria-label="Month" value={month} onChange={v => v && setMonth(v)} data={monthChoices} allowDeselect={false} w="100%" />
+                : <SegmentedControl value={month} onChange={setMonth} data={monthChoices} />}
             </Group>
           </Paper>
 
