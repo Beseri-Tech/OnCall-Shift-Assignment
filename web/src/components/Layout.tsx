@@ -1,7 +1,7 @@
 import { Box, Container, Group, Menu, Text, UnstyledButton } from '@mantine/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconKey, IconLayoutGrid, IconLogout, IconShieldLock, IconUserCircle,
+  IconBook, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconKey, IconLayoutGrid, IconLogout, IconShieldLock, IconUserCircle,
 } from '@tabler/icons-react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { api } from '../api'
@@ -23,6 +23,8 @@ export function Layout() {
     ...(me?.personId ? [{ to: '/my-oncall', label: 'My on-call', icon: IconCalendarCheck, end: false }] : []),
     { to: '/overview', label: 'Overview', icon: IconLayoutGrid, end: false },
     { to: '/rota', label: 'Rota', icon: IconCalendarEvent, end: false },
+    // On phones the header is full, so Rules lives in the account menu there.
+    { to: '/rules', label: 'Rules', icon: IconBook, end: false, wideOnly: true },
     ...(isAdmin(me) ? [{ to: '/admin', label: 'Admin', icon: IconShieldLock, end: false }] : []),
   ]
 
@@ -39,8 +41,8 @@ export function Layout() {
               </div>
             </Group>
             <Group gap={4} wrap="nowrap">
-              {links.map(({ to, label, icon: Icon, end }) => (
-                <UnstyledButton key={to} component={NavLink} to={to} end={end} className="nav-link">
+              {links.map(({ to, label, icon: Icon, end, wideOnly }) => (
+                <UnstyledButton key={to} component={NavLink} to={to} end={end} className="nav-link" visibleFrom={wideOnly ? 'sm' : undefined}>
                   <Icon size={18} stroke={1.8} />
                   <span className="nav-label">{label}</span>
                 </UnstyledButton>
@@ -59,6 +61,7 @@ export function Layout() {
                     <Text size="sm" fw={600} c="dark">{me?.personName ?? me?.email}</Text>
                     <Text size="xs" c="dimmed">{me?.email} · {me?.role}</Text>
                   </Menu.Label>
+                  <Menu.Item leftSection={<IconBook size={16} />} component={Link} to="/rules" hiddenFrom="sm">Rules and guidelines</Menu.Item>
                   <Menu.Item leftSection={<IconKey size={16} />} component={Link} to="/account/password">Change password</Menu.Item>
                   <Menu.Item leftSection={<IconLogout size={16} />} onClick={() => logout.mutate()}>Sign out</Menu.Item>
                 </Menu.Dropdown>
