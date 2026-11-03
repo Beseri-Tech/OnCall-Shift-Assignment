@@ -273,7 +273,7 @@ public static class AdminEndpoints
                 .OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
             return Results.Ok(people.Select(p =>
             {
-                var leave = rules.LeaveByPerson[p.Id];   // confirmed leave uses points too
+                var leave = rules.OwnLeave(p.Id);
                 var grant = rules.Grants.GetValueOrDefault(p.Id);
                 return new PointsRowDto(p.Id, p.Code, p.Name, rules.Policy.Points(leave), rules.BaseBudget, grant?.Points ?? 0,
                     grant?.Reason, rules.Policy.Weekdays(leave), rules.Policy.WeekdayAllowance);
