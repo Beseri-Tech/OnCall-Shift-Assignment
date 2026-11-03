@@ -81,8 +81,10 @@ export interface Clinic { id: string; name: string; districtId: string; district
 export interface UpsertClinic { name: string; districtId: string }
 export interface ImportRow {
   line: number; name: string; code: string | null; email: string | null; role: AccountRole | null; phone: string | null
-  state: string | null; district: string | null; clinic: string | null; errors: string[]
+  state: string | null; district: string | null; clinic: string | null; errors: ImportError[]
 }
+/** One problem in one cell: column is the header as written in the file, letter the spreadsheet column (A, B, ...). */
+export interface ImportError { column: string; letter: string; message: string }
 export interface IssuedPassword { name: string; email: string; tempPassword: string }
 /** committed: false = only checked (or something was wrong); nothing is saved unless every row is valid. */
 export interface ImportResult {
