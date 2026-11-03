@@ -1,3 +1,4 @@
+import { useMediaQuery } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import type { Period } from './api'
 
@@ -18,4 +19,9 @@ export function defaultPeriod(periods: Period[] | undefined, prefer: (p: Period)
 /** Keep an explicit choice if it still exists, otherwise fall back to the default. */
 export function pick<T extends { id: string }>(items: T[] | undefined, chosen: string | null, fallback: T | undefined): T | undefined {
   return items?.find(i => i.id === chosen) ?? fallback
+}
+
+/** True on phones: narrower than Mantine's sm breakpoint (48em, 768px). Read on first render so layouts don't flash. */
+export function usePhone() {
+  return useMediaQuery('(max-width: 47.99em)', false, { getInitialValueInEffect: false })
 }
