@@ -207,6 +207,51 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("districts", (string)null);
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.Feedback", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid?>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Page")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResolvedByAccountId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("ResolvedByAccountId");
+
+                    b.ToTable("feedback", (string)null);
+                });
+
             modelBuilder.Entity("Rota.Api.Data.LeaveDay", b =>
                 {
                     b.Property<Guid>("PersonId")
@@ -684,6 +729,19 @@ namespace Rota.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("State");
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.Feedback", b =>
+                {
+                    b.HasOne("Rota.Api.Data.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Rota.Api.Data.Account", null)
+                        .WithMany()
+                        .HasForeignKey("ResolvedByAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Rota.Api.Data.LeaveDay", b =>

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Rota.Api.Endpoints;
 
 namespace Rota.Api.Data;
 
@@ -23,6 +24,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
     public DbSet<SwapRequest> SwapRequests => Set<SwapRequest>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<OutboxEmail> OutboxEmails => Set<OutboxEmail>();
+    public DbSet<Feedback> Feedback => Set<Feedback>();
 
     /// <summary>Keys that encrypt the admin cookie; stored here so logins survive redeploys.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -182,6 +184,17 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.Property(n => n.Link).HasMaxLength(200);
             e.HasIndex(n => new { n.AccountId, n.CreatedAt });
             e.HasOne<Account>().WithMany().HasForeignKey(n => n.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Feedback>(e =>
+        {
+            e.ToTable("feedback");
+            e.Property(f => f.Category).HasConversion<string>().HasMaxLength(16);
+            e.Property(f => f.Message).HasMaxLength(FeedbackEndpoints.MaxMessageLength);
+            e.Property(f => f.Page).HasMaxLength(200);
+            e.HasIndex(f => f.CreatedAt);
+            e.HasOne<Account>().WithMany().HasForeignKey(f => f.AccountId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<Account>().WithMany().HasForeignKey(f => f.ResolvedByAccountId).OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<DataProtectionKey>().ToTable("data_protection_keys");
