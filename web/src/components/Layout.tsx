@@ -6,6 +6,7 @@ import {
 import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { api } from '../api'
 import { isAdmin, useMe } from '../auth'
+import { FeedbackButton } from './FeedbackButton'
 import { NotificationBell } from './NotificationBell'
 
 export function Layout() {
@@ -44,6 +45,7 @@ export function Layout() {
                   <span className="nav-label">{label}</span>
                 </UnstyledButton>
               ))}
+              <FeedbackButton />
               <NotificationBell />
               <Menu position="bottom-end" withinPortal>
                 <Menu.Target>

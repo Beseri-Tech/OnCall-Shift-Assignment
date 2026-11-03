@@ -192,3 +192,13 @@ public sealed record AuditActorDto(Guid AccountId, string Email, string? Name);
 
 /// <summary>What the audit log can be filtered by: who has made changes, and the actions and kinds of thing logged.</summary>
 public sealed record AuditFiltersDto(IReadOnlyList<AuditActorDto> Actors, IReadOnlyList<string> Actions, IReadOnlyList<string> Entities);
+
+/// <summary>Page is the app path the user was on (optional).</summary>
+public sealed record SubmitFeedbackRequest(FeedbackCategory Category, string Message, string? Page);
+
+public sealed record FeedbackDto(
+    long Id, DateTimeOffset CreatedAt, FeedbackCategory Category, string Message, string? Page, Guid? AccountId,
+    string? SenderEmail, string? SenderName, DateTimeOffset? ResolvedAt, string? ResolvedByEmail);
+
+/// <summary>Open counts every unresolved item, whatever the filters, for the tab's badge.</summary>
+public sealed record FeedbackPageDto(IReadOnlyList<FeedbackDto> Items, int Total, int Page, int PageSize, int Open);

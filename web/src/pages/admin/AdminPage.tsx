@@ -1,15 +1,16 @@
 import { Paper, Stack, Tabs } from '@mantine/core'
-import { IconCalendarCog, IconHistory, IconShieldLock, IconSum, IconUserShield, IconUsers, IconWand } from '@tabler/icons-react'
+import { IconCalendarCog, IconHistory, IconMessage2, IconShieldLock, IconSum, IconUserShield, IconUsers, IconWand } from '@tabler/icons-react'
 import { PageHeader } from '../../components/common'
 import { useNavigate, useParams } from 'react-router'
 import { AccountsTab } from './AccountsTab'
 import { AuditTab } from './AuditTab'
+import { FeedbackTab } from './FeedbackTab'
 import { PeopleTab } from './PeopleTab'
 import { PeriodsTab } from './PeriodsTab'
 import { RotaTab } from './RotaTab'
 import { TallyTab } from './TallyTab'
 
-const TABS = ['rota', 'people', 'tally', 'periods', 'accounts', 'log'] as const
+const TABS = ['rota', 'people', 'tally', 'periods', 'accounts', 'feedback', 'log'] as const
 type Tab = (typeof TABS)[number]
 
 /** Only reachable by admins and supervisors (see AdminOnly in main.tsx; the API checks too). */
@@ -20,7 +21,7 @@ export function AdminPage() {
 
   return (
     <Stack gap="md">
-      <PageHeader icon={IconShieldLock} title="Admin" description="Build and publish the rota, manage officers, tallies, periods and accounts, and see who changed what." />
+      <PageHeader icon={IconShieldLock} title="Admin" description="Build and publish the rota, manage officers, tallies, periods and accounts, read feedback, and see who changed what." />
       <Tabs value={tab} onChange={v => navigate(`/admin/${v}`)} keepMounted={false} variant="pills" radius="xl">
         <Paper className="panel" p={6} mb="md" radius="xl">
         <Tabs.List>
@@ -29,6 +30,7 @@ export function AdminPage() {
           <Tabs.Tab value="tally" leftSection={<IconSum size={16} />}>Tally</Tabs.Tab>
           <Tabs.Tab value="periods" leftSection={<IconCalendarCog size={16} />}>Periods & holidays</Tabs.Tab>
           <Tabs.Tab value="accounts" leftSection={<IconUserShield size={16} />}>Accounts</Tabs.Tab>
+          <Tabs.Tab value="feedback" leftSection={<IconMessage2 size={16} />}>Feedback</Tabs.Tab>
           <Tabs.Tab value="log" leftSection={<IconHistory size={16} />}>Audit log</Tabs.Tab>
         </Tabs.List>
         </Paper>
@@ -37,6 +39,7 @@ export function AdminPage() {
         <Tabs.Panel value="tally"><TallyTab /></Tabs.Panel>
         <Tabs.Panel value="periods"><PeriodsTab /></Tabs.Panel>
         <Tabs.Panel value="accounts"><AccountsTab /></Tabs.Panel>
+        <Tabs.Panel value="feedback"><FeedbackTab /></Tabs.Panel>
         <Tabs.Panel value="log"><AuditTab /></Tabs.Panel>
       </Tabs>
     </Stack>

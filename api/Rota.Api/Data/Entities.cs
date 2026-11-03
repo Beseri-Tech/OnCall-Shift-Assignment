@@ -338,3 +338,24 @@ public sealed class ChangeLog
     public string? Ip { get; set; }
     public string? UserAgent { get; set; }
 }
+
+public enum FeedbackCategory { Bug, Suggestion, Other }
+
+/// <summary>Feedback about the app from a signed-in user; admins read it and mark it resolved.</summary>
+public sealed class Feedback
+{
+    public long Id { get; set; }
+
+    /// <summary>Who sent it; null once their account is gone.</summary>
+    public Guid? AccountId { get; set; }
+
+    public FeedbackCategory Category { get; set; }
+    public string Message { get; set; } = "";
+
+    /// <summary>The app page they were on when they sent it, e.g. /rota.</summary>
+    public string? Page { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ResolvedAt { get; set; }
+    public Guid? ResolvedByAccountId { get; set; }
+}

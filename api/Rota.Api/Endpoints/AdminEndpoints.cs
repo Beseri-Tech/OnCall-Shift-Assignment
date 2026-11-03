@@ -22,6 +22,7 @@ public static class AdminEndpoints
         admin.MapTallyEndpoints();
         admin.MapAccountEndpoints();
         admin.MapAuditEndpoints();
+        admin.MapAdminFeedbackEndpoints();
     }
 
     // ---------------- people ----------------

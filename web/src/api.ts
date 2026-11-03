@@ -130,6 +130,16 @@ export interface AuditQuery {
   pageSize?: number
 }
 
+export type FeedbackCategory = 'Bug' | 'Suggestion' | 'Other'
+/** page: the app path the sender was on. resolvedAt is null while it's open. */
+export interface Feedback {
+  id: number; createdAt: string; category: FeedbackCategory; message: string; page: string | null; accountId: string | null
+  senderEmail: string | null; senderName: string | null; resolvedAt: string | null; resolvedByEmail: string | null
+}
+/** open: every unresolved item, whatever the filters. */
+export interface FeedbackPage { items: Feedback[]; total: number; page: number; pageSize: number; open: number }
+export interface FeedbackQuery { status?: 'open' | 'resolved'; category?: FeedbackCategory; page?: number; pageSize?: number }
+
 /** Error carrying the API's problem-details message. */
 export class ApiError extends Error {
   readonly status: number
@@ -199,6 +209,8 @@ export const api = {
   notifications: () => get<Notifications>('/api/notifications'),
   readNotification: (id: number) => post<void>(`/api/notifications/${id}/read`),
   readAllNotifications: () => post<void>('/api/notifications/read-all'),
+  sendFeedback: (category: FeedbackCategory, message: string, page: string | null) =>
+    post<{ id: number }>('/api/feedback', { category, message, page }),
   leaveRules: (periodId: string, personId: string) => get<LeaveRules>(`/api/periods/${periodId}/leave-rules${q({ personId })}`),
 
   auth: {
@@ -280,6 +292,11 @@ export const api = {
     audit: ({ page, pageSize, ...f }: AuditQuery) =>
       get<AuditPage>(`/api/admin/audit${q({ ...f, page: page?.toString(), pageSize: pageSize?.toString() })}`),
     auditFilters: () => get<AuditFilters>('/api/admin/audit/filters'),
+
+    feedback: ({ page, pageSize, ...f }: FeedbackQuery) =>
+      get<FeedbackPage>(`/api/admin/feedback${q({ ...f, page: page?.toString(), pageSize: pageSize?.toString() })}`),
+    resolveFeedback: (id: number) => post<void>(`/api/admin/feedback/${id}/resolve`),
+    reopenFeedback: (id: number) => post<void>(`/api/admin/feedback/${id}/reopen`),
 
     exports: {
       timetable: (runId: string) => `${API}/api/admin/runs/${runId}/timetable.xlsx`,

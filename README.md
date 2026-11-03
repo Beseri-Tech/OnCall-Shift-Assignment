@@ -10,6 +10,7 @@ The original WinForms desktop app lives on the [`legacy`](../../tree/legacy) bra
 2. **Officers** mark their own leave (with a note) and preferred on-call days until the period's deadline, within the leave limits (points for weekends/public holidays/peak days, a weekday allowance and a per-day cap).
 3. **Admins** manage officers, clinics, districts, periods, public holidays, peak days and the shift **tally**, edit anyone's leave, then lock leave and generate a draft rota. Weekend and public-holiday shifts are balanced, back-to-back shifts avoided.
 4. The admin overrides days if needed (warnings for leave clashes) and **publishes**. Everyone sees the rota, and published shifts are added to each officer's tally. Timetable, tally and leave can be exported to Excel.
+5. Anyone signed in can **send feedback** (a problem, an idea or anything else) from the header; it carries the page they were on. Admins get a notification, read and filter it on the admin page's Feedback tab, and mark it resolved. Sending and resolving show up in the audit log.
 
 ## Run with Docker
 

@@ -11,7 +11,8 @@ public sealed class Notifier
 {
     public const string Review = "review", SwapRequest = "swap-request", SwapAccepted = "swap-accepted",
         SwapDeclined = "swap-declined", SwapCancelled = "swap-cancelled", ShiftChanged = "shift-changed",
-        Published = "published", PeriodOpen = "period-open", Points = "points";
+        Published = "published", PeriodOpen = "period-open", Points = "points",
+        Feedback = "feedback";
 
     private readonly RotaDbContext _db;
     private readonly Mailer _mailer;

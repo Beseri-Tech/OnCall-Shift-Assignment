@@ -14,7 +14,7 @@ const PAGE_SIZE = 50
 const ENTITIES: Record<string, string> = {
   person: 'Officer', state: 'State', district: 'District', clinic: 'Clinic', period: 'Rota period',
   'period-day': 'Holiday / peak day', points: 'Leave points', holiday: 'Public holiday (master list)',
-  'peak-day': 'Peak day (master list)', run: 'Rota', tally: 'Tally', account: 'Account', entries: 'Leave', swap: 'Swap',
+  'peak-day': 'Peak day (master list)', run: 'Rota', tally: 'Tally', account: 'Account', entries: 'Leave', swap: 'Swap', feedback: 'Feedback',
 }
 
 const VERBS: Record<string, string> = {
@@ -23,10 +23,10 @@ const VERBS: Record<string, string> = {
   generate: 'generated', override: 'shift changed', review: 'sent for review', 'withdraw-review': 'withdrawn from review',
   publish: 'published', unpublish: 'unpublished', grant: 'changed', invite: 'invited', resend: 'new temporary password',
   'change-password': 'password changed', 'reset-password': 'password reset', request: 'requested', accept: 'accepted',
-  decline: 'declined', cancel: 'withdrawn',
+  decline: 'declined', cancel: 'withdrawn', resolve: 'resolved', reopen: 'reopened',
 }
 
-const COLORS: Record<string, string> = { create: 'green', delete: 'red', publish: 'brand', accept: 'teal', decline: 'orange' }
+const COLORS: Record<string, string> = { resolve: 'teal', create: 'green', delete: 'red', publish: 'brand', accept: 'teal', decline: 'orange' }
 
 const entityLabel = (e: string) => ENTITIES[e] ?? e
 function actionLabel(action: string) {
