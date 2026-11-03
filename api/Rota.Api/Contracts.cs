@@ -126,7 +126,12 @@ public sealed record ImportPeopleRequest(string Csv, bool Commit);
 /// <param name="Line">Line number in the file (the header is line 1).</param>
 public sealed record ImportRowDto(
     int Line, string Name, string? Code, string? Email, AccountRole? Role, string? Phone, string? State, string? District,
-    string? Clinic, IReadOnlyList<string> Errors);
+    string? Clinic, IReadOnlyList<ImportErrorDto> Errors);
+
+/// <summary>One problem in one cell of the file.</summary>
+/// <param name="Column">The column's header as written in the file, e.g. "State" or "Negeri".</param>
+/// <param name="Letter">The spreadsheet column letter (A, B, ...), so the cell is easy to find in Excel.</param>
+public sealed record ImportErrorDto(string Column, string Letter, string Message);
 
 /// <param name="Passwords">Temporary passwords of invites whose email couldn't be sent, for the admin to pass on.</param>
 public sealed record ImportResultDto(

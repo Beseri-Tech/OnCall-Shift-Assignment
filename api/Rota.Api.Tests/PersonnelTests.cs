@@ -111,11 +111,15 @@ public class PersonnelTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.False(check.Committed);
         Assert.Equal([2, 3, 4, 5], check.Rows.Select(r => r.Line));
         Assert.Empty(check.Rows[0].Errors);
-        Assert.Contains("already in the list", Assert.Single(check.Rows[1].Errors));
-        Assert.Equal(4, check.Rows[2].Errors.Count);   // code taken, bad email, bad role, clinic in another district
-        Assert.Contains(check.Rows[2].Errors, e => e.Contains("KP Arau is in Arau"));
-        Assert.Contains(check.Rows[3].Errors, e => e.Contains("Same email as line 2"));
-        Assert.Contains(check.Rows[3].Errors, e => e.Contains("Unknown state Kedah"));
+        var existing = Assert.Single(check.Rows[1].Errors);
+        Assert.Equal(("Name", "A"), (existing.Column, existing.Letter));
+        Assert.Contains("already in the officer list", existing.Message);
+        // Code taken, bad email, bad role, clinic in another district: each names its column.
+        Assert.Equal(["Code", "Email", "Role", "District"], check.Rows[2].Errors.Select(e => e.Column));
+        Assert.Contains(check.Rows[2].Errors, e => e.Message.Contains("KP Arau is in Arau"));
+        Assert.Contains(check.Rows[3].Errors, e => e is { Column: "Email", Letter: "C" } && e.Message.Contains("Same email as row 2"));
+        Assert.Contains(check.Rows[3].Errors, e => e is { Column: "State", Letter: "F" } && e.Message.Contains("Kedah is not set up")
+            && e.Message.Contains("States set up: Perlis"));
         Assert.Single(await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people")));
 
         // Semicolons (Excel in some locales), quoted fields, Malay headers and any letter case are fine.
@@ -139,6 +143,41 @@ public class PersonnelTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         Assert.Contains("Missing column(s): clinic", Assert.Single((await Read<ImportResultDto>(await admin.PostAsJsonAsync(
             "/api/admin/people/import", new ImportPeopleRequest("Name,State,District\nDr X,Perlis,Kangar", true), ApiFixture.Json))).FileErrors));
+    }
+
+    /// <summary>The shape of a real export from Excel: BOM, CRLF, stray spaces in cells, then hundreds of rows of bare commas
+    /// where the sheet once had content. Only the one officer in a state that isn't set up should be reported.</summary>
+    [Fact]
+    public async Task Csv_import_from_excel_reports_only_the_real_problem_with_its_row_and_column()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        var districts = await DistrictsAsync(admin);
+        await Read<Guid>(await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("KP Kuala Perlis", districts["Arau"])));
+        await Read<Guid>(await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("KP Kangar", districts["Kangar"])));
+
+        var csv = "\uFEFFName,Code,Email,Role,Phone,State,District,Clinic\r\n" +
+                  "Dr Aisyah Tan ,,aisyah@test.local,Officer,0135315972,Perlis,Arau,KP Kuala Perlis\r\n" +
+                  "Dr Wong,,wong@test.local ,Officer,0174590887 ,Perlis,Kangar ,KP Kangar\r\n" +
+                  "Dr. Chan,,chan@test.local,Officer,0174101529,Kedah,Kubang Pasu,KP Ayer Hitam\r\n" +
+                  string.Concat(Enumerable.Repeat(",,,,,,,\r\n", 960));
+
+        var check = await Read<ImportResultDto>(await admin.PostAsJsonAsync("/api/admin/people/import",
+            new ImportPeopleRequest(csv, Commit: false), ApiFixture.Json));
+        Assert.Empty(check.FileErrors);
+        Assert.Equal([2, 3, 4], check.Rows.Select(r => r.Line));
+        Assert.Equal(("Dr Aisyah Tan", "wong@test.local", "0174590887", "Kangar"),
+            (check.Rows[0].Name, check.Rows[1].Email, check.Rows[1].Phone, check.Rows[1].District));
+        var error = Assert.Single(check.Rows.SelectMany(r => r.Errors));
+        Assert.Equal(("State", "F"), (error.Column, error.Letter));
+        Assert.StartsWith("Kedah is not set up as a state", error.Message);
+        Assert.Equal(4, check.Rows.Single(r => r.Errors.Count > 0).Line);
+    }
+
+    [Fact]
+    public void Csv_column_letters_match_a_spreadsheet()
+    {
+        Assert.Equal(["A", "F", "Z", "AA", "AB"], new[] { 0, 5, 25, 26, 27 }.Select(Rota.Api.Endpoints.AdminImportEndpoints.ColumnLetter));
     }
 
     [Fact]

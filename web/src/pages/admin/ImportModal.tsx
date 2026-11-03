@@ -60,6 +60,8 @@ export function ImportModal({ clinics, onClose, onSaved, onIssued }: {
 
   const result = checked?.csv === csv ? checked.result : null
   const problems = result ? result.rows.filter(r => r.errors.length).length : 0
+  // Every problem on its own line, so the reason is visible without scrolling through the table.
+  const errors = result ? result.rows.flatMap(r => r.errors.map(e => ({ ...e, line: r.line, name: r.name }))) : []
   const ready = !!result && result.fileErrors.length === 0 && result.rows.length > 0 && problems === 0
 
   return (
@@ -68,7 +70,7 @@ export function ImportModal({ clinics, onClose, onSaved, onIssued }: {
         <Text size="sm">
           One officer per row with the columns <b>{HEADER.join(', ')}</b>. Name, State, District and Clinic are required, and the
           state, district and clinic must already exist under <i>Clinics &amp; districts</i>. Officers with an Email are invited
-          (Role: Officer or Admin, default Officer). A blank Code gets the next D-number. Nothing is added unless every row is valid.
+          (Role: Officer or Admin, default Officer). A blank Code gets the next D-number. Nothing is added unless every row is valid. Blank rows are skipped.
         </Text>
         <Group>
           <Button variant="default" leftSection={<IconDownload size={16} />} onClick={() => downloadTemplate(clinics)}>
@@ -86,25 +88,45 @@ export function ImportModal({ clinics, onClose, onSaved, onIssued }: {
             <List size="sm">{result.fileErrors.map(e => <List.Item key={e}>{e}</List.Item>)}</List>
           </Alert>
         )}
+        {errors.length > 0 && (
+          <Alert color="red" icon={<IconAlertTriangle size={18} />}
+            title={`${errors.length} problem${errors.length > 1 ? 's' : ''} to fix in the file, then check again`}>
+            <Stack gap={6}>
+              {errors.map((e, i) => (
+                <div key={i}>
+                  <Text size="sm" fw={600}>
+                    Row {e.line}, column {e.letter} ({e.column}){e.name && <Text span size="sm" c="dimmed" fw={400}> · {e.name}</Text>}
+                  </Text>
+                  <Text size="sm">{e.message}</Text>
+                </div>
+              ))}
+            </Stack>
+          </Alert>
+        )}
         {result && result.rows.length > 0 && (
           <>
             <Text size="sm" fw={600} c={problems ? 'red' : 'green'}>
-              {result.rows.length} officer(s){problems ? `, ${problems} with problems – fix the file and check again` : ', all ready'}
+              {result.rows.length} officer(s){problems ? `, ${problems} with problems (listed above, and at the top of the table)` : ', all ready'}
             </Text>
             <Paper withBorder>
               <Table.ScrollContainer minWidth={760} mah={360}>
                 <Table striped verticalSpacing={4} stickyHeader>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Line</Table.Th><Table.Th>Name</Table.Th><Table.Th>Sign-in</Table.Th><Table.Th>Clinic</Table.Th>
-                      <Table.Th>Problems</Table.Th>
+                      <Table.Th>Row</Table.Th><Table.Th>Name</Table.Th><Table.Th>Problems</Table.Th><Table.Th>Sign-in</Table.Th>
+                      <Table.Th>Clinic</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {result.rows.map(r => (
+                    {[...result.rows].sort((a, b) => Number(!a.errors.length) - Number(!b.errors.length) || a.line - b.line).map(r => (
                       <Table.Tr key={r.line} bg={r.errors.length ? 'var(--mantine-color-red-light)' : undefined}>
                         <Table.Td>{r.line}</Table.Td>
                         <Table.Td fw={600}>{r.name || '–'}{r.code && <Text size="xs" c="dimmed">{r.code}</Text>}</Table.Td>
+                        <Table.Td>
+                          {r.errors.length
+                            ? <List size="xs" c="red">{r.errors.map((e, i) => <List.Item key={i}><b>{e.column}:</b> {e.message}</List.Item>)}</List>
+                            : <Text size="xs" c="green">OK</Text>}
+                        </Table.Td>
                         <Table.Td>
                           {r.email
                             ? <><Text size="sm">{r.email}</Text>{r.role === 'Admin' && <Badge size="xs" color="violet" variant="light">Admin</Badge>}</>
@@ -113,11 +135,6 @@ export function ImportModal({ clinics, onClose, onSaved, onIssued }: {
                         <Table.Td>
                           {r.clinic ?? '–'}
                           {(r.district || r.state) && <Text size="xs" c="dimmed">{[r.district, r.state].filter(Boolean).join(', ')}</Text>}
-                        </Table.Td>
-                        <Table.Td>
-                          {r.errors.length
-                            ? <List size="xs" c="red">{r.errors.map(e => <List.Item key={e}>{e}</List.Item>)}</List>
-                            : <Text size="xs" c="green">OK</Text>}
                         </Table.Td>
                       </Table.Tr>
                     ))}
