@@ -135,19 +135,26 @@ public static class PublicEndpoints
             // Read after the lock so we see what the previous save just committed.
             var before = await LoadEntriesAsync(db, id, period, ct);
             var rules = await LeaveRules.LoadAsync(db, limits, period, ct);
-            var limitErrors = byAdmin ? [] : rules.Validate(id, before.Leave.Select(l => l.Date).ToList(), body.Leave.Select(l => l.Date).Distinct().ToList());
+
+            // Confirmed leave is the admin's (Confirmed leave page): it stays as it is, whatever the body says about those days.
+            var confirmed = await db.LeaveDays
+                .Where(l => l.PersonId == id && l.ApprovalId != null && l.Date >= period.StartDate && l.Date <= period.EndDate)
+                .Select(l => l.Date).ToHashSetAsync(ct);
+            var ownLeave = body.Leave.Where(l => !confirmed.Contains(l.Date)).ToList();
+
+            var limitErrors = byAdmin ? [] : rules.Validate(id, before.Leave.Select(l => l.Date).ToList(), ownLeave.Select(l => l.Date).Distinct().ToList());
             if (limitErrors.Count > 0)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["leave"] = [.. limitErrors] });
 
-            await db.LeaveDays.Where(l => l.PersonId == id && l.Date >= period.StartDate && l.Date <= period.EndDate)
+            await db.LeaveDays.Where(l => l.PersonId == id && l.ApprovalId == null && l.Date >= period.StartDate && l.Date <= period.EndDate)
                 .ExecuteDeleteAsync(ct);
             await db.PreferredDates.Where(p => p.PersonId == id && p.Date >= period.StartDate && p.Date <= period.EndDate)
                 .ExecuteDeleteAsync(ct);
 
-            var leave = body.Leave.GroupBy(l => l.Date)
+            var leave = ownLeave.GroupBy(l => l.Date)
                 .Select(g => new LeaveDay { PersonId = id, Date = g.Key, Note = Clean(g.Last().Note) })
                 .ToList();
-            var leaveDates = leave.Select(l => l.Date).ToHashSet();
+            var leaveDates = leave.Select(l => l.Date).Concat(confirmed).ToHashSet();
             var preferred = body.Preferred.Distinct()
                 .Where(d => !leaveDates.Contains(d))   // can't prefer a day you're on leave
                 .Select(d => new PreferredDate { PersonId = id, Date = d })
@@ -169,7 +176,7 @@ public static class PublicEndpoints
                 ? new ParseResponse(dates, null)
                 : new ParseResponse([], error));
 
-        api.MapGet("/periods/{id:guid}/overview", async (Guid id, RotaDbContext db, LocalClock clock, CancellationToken ct) =>
+        api.MapGet("/periods/{id:guid}/overview", async (Guid id, RotaDbContext db, LocalClock clock, HttpContext http, CancellationToken ct) =>
         {
             var period = await db.Periods.FindAsync([id], ct);
             if (period is null) return Results.NotFound();
@@ -181,11 +188,19 @@ public static class PublicEndpoints
                 {
                     p.Id, p.Code, p.Name,
                     Leave = p.Leave.Where(l => l.Date >= period.StartDate && l.Date <= period.EndDate)
-                        .OrderBy(l => l.Date).Select(l => new LeaveEntryDto(l.Date, l.Note)).ToList(),
+                        .OrderBy(l => l.Date)
+                        .Select(l => new { l.Date, l.Note, l.ApprovalId })
+                        .ToList(),
                     Preferred = p.PreferredDates.Where(d => d.Date >= period.StartDate && d.Date <= period.EndDate)
                         .OrderBy(d => d.Date).Select(d => d.Date).ToList(),
                 })
                 .ToListAsync(ct);
+
+            // Other officers see only that leave is confirmed; the reason is for admins and the officer.
+            var approvalIds = people.SelectMany(p => p.Leave).Where(l => l.ApprovalId != null).Select(l => l.ApprovalId!.Value).Distinct().ToList();
+            var reasons = await db.LeaveApprovals.Where(a => approvalIds.Contains(a.Id)).ToDictionaryAsync(a => a.Id, a => a.Reason, ct);
+            bool admin = http.User.IsAdmin();
+            Guid? me = http.User.PersonId();
 
             var onLeave = people.SelectMany(p => p.Leave.Select(l => l.Date)).GroupBy(d => d).ToDictionary(g => g.Key, g => g.Count());
             var days = Mapping.Days(period.StartDate, period.EndDate)
@@ -195,7 +210,11 @@ public static class PublicEndpoints
 
             return Results.Ok(new OverviewDto(
                 period.ToDto(clock.Today), days,
-                people.Select(p => new OverviewPerson(p.Id, p.Code, p.Name, p.Leave, p.Preferred)).ToList()));
+                people.Select(p => new OverviewPerson(p.Id, p.Code, p.Name,
+                    p.Leave.Select(l => l.ApprovalId is { } aid
+                        ? new LeaveEntryDto(l.Date, admin || me == p.Id ? reasons.GetValueOrDefault(aid) : null, true)
+                        : new LeaveEntryDto(l.Date, l.Note)).ToList(),
+                    p.Preferred)).ToList()));
         });
 
         api.MapGet("/periods/{id:guid}/rota", async (Guid id, RotaDbContext db, LocalClock clock, CancellationToken ct) =>
@@ -220,11 +239,15 @@ public static class PublicEndpoints
     private static async Task<EntriesDto> LoadEntriesAsync(RotaDbContext db, Guid personId, RotaPeriod period, CancellationToken ct)
     {
         var leave = await db.LeaveDays
-            .Where(l => l.PersonId == personId && l.Date >= period.StartDate && l.Date <= period.EndDate)
-            .OrderBy(l => l.Date).Select(l => new LeaveEntryDto(l.Date, l.Note)).ToListAsync(ct);
+            .Where(l => l.PersonId == personId && l.ApprovalId == null && l.Date >= period.StartDate && l.Date <= period.EndDate)
+            .OrderBy(l => l.Date).Select(l => new LeaveEntryDto(l.Date, l.Note, false)).ToListAsync(ct);
         var preferred = await db.PreferredDates
             .Where(p => p.PersonId == personId && p.Date >= period.StartDate && p.Date <= period.EndDate)
             .OrderBy(p => p.Date).Select(p => p.Date).ToListAsync(ct);
-        return new EntriesDto(leave, preferred);
+        var confirmed = await db.LeaveApprovals
+            .Where(a => a.PersonId == personId && a.StartDate <= period.EndDate && a.EndDate >= period.StartDate)
+            .OrderBy(a => a.StartDate)
+            .Select(a => new ConfirmedLeaveDto(a.Id, a.StartDate, a.EndDate, a.Reason, a.Reference)).ToListAsync(ct);
+        return new EntriesDto(leave, preferred, confirmed);
     }
 }

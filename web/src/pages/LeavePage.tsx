@@ -7,10 +7,10 @@ import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconBeach, IconBriefcase, IconCalendarPlus, IconCalendarTime, IconCoins, IconDeviceFloppy, IconEraser, IconInfoCircle, IconKeyboard,
-  IconLock, IconStar, IconSum, IconTrash,
+  IconLock, IconPlaneDeparture, IconStar, IconSum, IconTrash,
 } from '@tabler/icons-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, type Entries, type IsoDate, type Period } from '../api'
+import { api, type ConfirmedLeave, type Entries, type IsoDate, type Period } from '../api'
 import { isAdmin, useMe } from '../auth'
 import { ErrorBox, Legend, Loading, PageHeader, PeriodSelect, StatCard } from '../components/common'
 import { defaultPeriod, notifyError, notifyOk, pick } from '../lib'
@@ -38,6 +38,14 @@ const toEntries = (d: Draft): Entries => ({
 })
 
 const sameDraft = (a: Draft, b: Draft) => JSON.stringify(toEntries(a)) === JSON.stringify(toEntries(b))
+
+/** Confirmed-leave days in the period, with their reason. */
+const confirmedDays = (ranges: ConfirmedLeave[] | undefined, period: Period) => {
+  const out = new Map<IsoDate, string>()
+  for (const c of ranges ?? [])
+    for (const d of eachDay(c.startDate, c.endDate)) if (d >= period.startDate && d <= period.endDate) out.set(d, c.reason)
+  return out
+}
 
 export function LeavePage() {
   const me = useMe().data
@@ -124,6 +132,8 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
 
   const [draft, setDraft] = useState<Draft>(() => toDraft(initial))
   const [saved, setSaved] = useState<Draft>(() => toDraft(initial))
+  const [confirmedRanges, setConfirmedRanges] = useState(initial.confirmed ?? [])
+  const confirmed = useMemo(() => confirmedDays(confirmedRanges, period), [confirmedRanges, period])
 
   const holidayMap = useMemo(() => new Map((holidays.data ?? []).map(h => [h.date, h.name])), [holidays.data])
   const peakMap = useMemo(() => new Map((rules.data?.peaks ?? []).map(h => [h.date, h.name])), [rules.data])
@@ -134,8 +144,8 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
     const r = rules.data
     if (!r || byAdmin) return new Set<IsoDate>()
     return new Set(eachDay(period.startDate, period.endDate)
-      .filter(d => !saved.leave.has(d) && (r.othersOff[d] ?? 0) >= dayCap(kindOf(d), r)))
-  }, [rules.data, byAdmin, period.startDate, period.endDate, saved.leave, kindOf])
+      .filter(d => !saved.leave.has(d) && !confirmed.has(d) && (r.othersOff[d] ?? 0) >= dayCap(kindOf(d), r)))
+  }, [rules.data, byAdmin, period.startDate, period.endDate, saved.leave, confirmed, kindOf])
   const [mode, setMode] = useState<Mode>('leave')
   const [note, setNote] = useState<string | null>('Annual')
   const [customNote, setCustomNote] = useState('')
@@ -157,6 +167,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
     onSuccess: data => {
       setDraft(toDraft(data))
       setSaved(toDraft(data))
+      setConfirmedRanges(data.confirmed ?? [])
       qc.setQueryData(['entries', personId, period.id], data)
       qc.invalidateQueries({ queryKey: ['overview', period.id] })
       qc.invalidateQueries({ queryKey: ['leaveRules', period.id] })
@@ -175,6 +186,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
       const leave = new Map(d.leave)
       const preferred = new Set(d.preferred)
       for (const date of dates) {
+        if (confirmed.has(date)) continue   // confirmed leave is the admin's
         if (mode === 'leave') {
           if (add && full.has(date)) continue
           if (add) { leave.set(date, effectiveNote); preferred.delete(date) } else leave.delete(date)
@@ -184,7 +196,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
       }
       return { leave, preferred }
     })
-  }, [mode, effectiveNote, full])
+  }, [mode, effectiveNote, full, confirmed])
 
   // Drag painting: the first day decides add vs remove; dragging across days (and months) continues.
   // Fast pointer moves can skip cells, so every day between the last painted day and the current one is filled.
@@ -264,6 +276,22 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
         </Alert>
       )}
 
+      {confirmedRanges.length > 0 && (
+        <Alert color="grape" icon={<IconPlaneDeparture />} title="Confirmed leave">
+          <Stack gap={4}>
+            {confirmedRanges.map(c => (
+              <Text key={c.id} size="sm">
+                <b>{formatRange([c.startDate, c.endDate])}</b> – {c.reason}{c.reference ? ` (ref. ${c.reference})` : ''}
+              </Text>
+            ))}
+            <Text size="xs" c="dimmed">
+              Approved leave entered by the admin. It doesn't use your points or weekday allowance, and you won't be put on call
+              on these days. Only the admin can change it.
+            </Text>
+          </Stack>
+        </Alert>
+      )}
+
       <Paper className="panel" p="md">
         {!readOnly && (
           <>
@@ -340,7 +368,10 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
               full={readOnly || mode !== 'leave' ? undefined : full}
               today={today}
               readOnly={readOnly}
-              stateOf={date => ({ leave: draft.leave.has(date), note: draft.leave.get(date), preferred: draft.preferred.has(date) })}
+              stateOf={date => ({
+                leave: draft.leave.has(date), note: draft.leave.get(date), preferred: draft.preferred.has(date),
+                confirmed: confirmed.get(date),
+              })}
               onDayDown={onDayDown}
               onDayEnter={onDayEnter}
             />
@@ -349,6 +380,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
         <Group gap="lg" mt="md" wrap="wrap">
           <Legend bg="var(--leave-bg)" border="var(--leave-border)" label="Leave" />
           <Legend bg="var(--pref-bg)" border="var(--pref-border)" label="Preferred on-call" />
+          {confirmed.size > 0 && <Legend bg="var(--confirmed-bg)" border="var(--confirmed-border)" label="Confirmed leave (admin)" />}
           <Legend bg="var(--weekend-bg)" border="#cbd5e1" label="Weekend" />
           <Text size="xs" c="var(--holiday-text)" fw={700}>PH = public holiday</Text>
           <Text size="xs" c="var(--peak-text)" fw={700}>PEAK = peak day</Text>

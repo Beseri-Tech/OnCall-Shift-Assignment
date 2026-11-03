@@ -10,6 +10,9 @@
   --leave-bg: #ffe4e6;
   --leave-border: #fb7185;
   --leave-text: #9f1239;
+  --confirmed-bg: #f3e8ff;
+  --confirmed-border: #a855f7;
+  --confirmed-text: #6b21a8;
   --pref-bg: #e0e7ff;
   --pref-border: #818cf8;
   --pref-text: #3730a3;
@@ -207,6 +210,14 @@ body {
   background: var(--leave-bg);
   border-color: var(--leave-border);
   color: var(--leave-text);
+}
+
+.day-confirmed,
+.day-confirmed:disabled {
+  background: repeating-linear-gradient(135deg, var(--confirmed-bg) 0 6px, #ead5fd 6px 12px);
+  border-color: var(--confirmed-border);
+  color: var(--confirmed-text);
+  cursor: not-allowed;
 }
 
 .day-preferred {
@@ -409,6 +420,12 @@ body {
 .sheet .cell-leave {
   background: var(--leave-bg);
   color: var(--leave-text);
+  font-weight: 800;
+}
+
+.sheet .cell-confirmed {
+  background: var(--confirmed-bg);
+  color: var(--confirmed-text);
   font-weight: 800;
 }
 

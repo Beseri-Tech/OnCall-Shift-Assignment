@@ -1,16 +1,19 @@
 import { Paper, Stack, Tabs } from '@mantine/core'
-import { IconCalendarCog, IconHistory, IconMessage2, IconShieldLock, IconSum, IconUserShield, IconUsers, IconWand } from '@tabler/icons-react'
+import {
+  IconCalendarCog, IconHistory, IconMessage2, IconPlaneDeparture, IconShieldLock, IconSum, IconUserShield, IconUsers, IconWand,
+} from '@tabler/icons-react'
 import { PageHeader } from '../../components/common'
 import { useNavigate, useParams } from 'react-router'
 import { AccountsTab } from './AccountsTab'
 import { AuditTab } from './AuditTab'
+import { ConfirmedLeaveTab } from './ConfirmedLeaveTab'
 import { FeedbackTab } from './FeedbackTab'
 import { PeopleTab } from './PeopleTab'
 import { PeriodsTab } from './PeriodsTab'
 import { RotaTab } from './RotaTab'
 import { TallyTab } from './TallyTab'
 
-const TABS = ['rota', 'people', 'tally', 'periods', 'accounts', 'feedback', 'log'] as const
+const TABS = ['rota', 'people', 'leave', 'tally', 'periods', 'accounts', 'feedback', 'log'] as const
 type Tab = (typeof TABS)[number]
 
 /** Only reachable by admins and supervisors (see AdminOnly in main.tsx; the API checks too). */
@@ -21,12 +24,13 @@ export function AdminPage() {
 
   return (
     <Stack gap="md">
-      <PageHeader icon={IconShieldLock} title="Admin" description="Build and publish the rota, manage officers, tallies, periods and accounts, read feedback, and see who changed what." />
+      <PageHeader icon={IconShieldLock} title="Admin" description="Build and publish the rota, manage officers, confirmed leave, tallies, periods and accounts, read feedback, and see who changed what." />
       <Tabs value={tab} onChange={v => navigate(`/admin/${v}`)} keepMounted={false} variant="pills" radius="xl">
         <Paper className="panel" p={6} mb="md" radius="xl">
         <Tabs.List>
           <Tabs.Tab value="rota" leftSection={<IconWand size={16} />}>Generate rota</Tabs.Tab>
           <Tabs.Tab value="people" leftSection={<IconUsers size={16} />}>Officers</Tabs.Tab>
+          <Tabs.Tab value="leave" leftSection={<IconPlaneDeparture size={16} />}>Confirmed leave</Tabs.Tab>
           <Tabs.Tab value="tally" leftSection={<IconSum size={16} />}>Tally</Tabs.Tab>
           <Tabs.Tab value="periods" leftSection={<IconCalendarCog size={16} />}>Periods & holidays</Tabs.Tab>
           <Tabs.Tab value="accounts" leftSection={<IconUserShield size={16} />}>Accounts</Tabs.Tab>
@@ -36,6 +40,7 @@ export function AdminPage() {
         </Paper>
         <Tabs.Panel value="rota"><RotaTab /></Tabs.Panel>
         <Tabs.Panel value="people"><PeopleTab /></Tabs.Panel>
+        <Tabs.Panel value="leave"><ConfirmedLeaveTab /></Tabs.Panel>
         <Tabs.Panel value="tally"><TallyTab /></Tabs.Panel>
         <Tabs.Panel value="periods"><PeriodsTab /></Tabs.Panel>
         <Tabs.Panel value="accounts"><AccountsTab /></Tabs.Panel>

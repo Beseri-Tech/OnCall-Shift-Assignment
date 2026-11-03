@@ -114,7 +114,7 @@ export function OverviewPage() {
               </thead>
               <tbody>
                 {people.map(p => {
-                  const leave = new Map(p.leave.map(l => [l.date, l.note]))
+                  const leave = new Map(p.leave.map(l => [l.date, l]))
                   const preferred = new Set(p.preferred)
                   const off = days.filter(d => leave.has(d.date)).length
                   return (
@@ -124,8 +124,11 @@ export function OverviewPage() {
                         <span className="pcode">{p.code}</span>
                       </td>
                       {days.map(d => {
-                        if (leave.has(d.date)) {
-                          const note = leave.get(d.date)
+                        const l = leave.get(d.date)
+                        if (l?.confirmed)
+                          return <td key={d.date} className="cell-confirmed" title={`${p.name}: confirmed leave${l.note ? ` – ${l.note}` : ''}`}>✓</td>
+                        if (l) {
+                          const note = l.note
                           return <td key={d.date} className="cell-leave" title={`${p.name}: leave${note ? ` – ${note}` : ''}`}>{note ? note[0].toUpperCase() : 'L'}</td>
                         }
                         if (preferred.has(d.date))
@@ -156,6 +159,7 @@ export function OverviewPage() {
 
           <Group gap="lg" wrap="wrap">
             <Legend bg="var(--leave-bg)" border="var(--leave-border)" label="Leave (letter = note, e.g. A = Annual)" />
+            <Legend bg="var(--confirmed-bg)" border="var(--confirmed-border)" label="✓ Confirmed leave (approved)" />
             <Legend bg="var(--pref-bg)" border="var(--pref-border)" label="★ Preferred on-call" />
             <Legend bg="var(--weekend-bg)" border="#cbd5e1" label="Weekend / public holiday" />
             <Legend bg="var(--warn-bg)" border="var(--warn-border)" label="Under half available" />

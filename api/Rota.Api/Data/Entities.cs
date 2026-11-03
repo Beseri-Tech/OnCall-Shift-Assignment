@@ -208,6 +208,31 @@ public sealed class LeaveDay
     public Guid PersonId { get; set; }
     public DateOnly Date { get; set; }
     public string? Note { get; set; }
+
+    /// <summary>Set for confirmed leave: the approval this day belongs to. Only admins change these days.</summary>
+    public Guid? ApprovalId { get; set; }
+}
+
+/// <summary>
+/// Confirmed leave: an absence the department has already approved (e.g. an overseas trip), entered by an admin.
+/// Its days are ordinary <see cref="LeaveDay"/> rows linked by ApprovalId, so the rota, swaps and overrides treat them as
+/// leave. They cost no points, don't use the weekday allowance and are never refused because a day is full, but they
+/// still count toward a day being full for other officers.
+/// </summary>
+public sealed class LeaveApproval
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid PersonId { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public string Reason { get; set; } = "";
+
+    /// <summary>Approval letter or memo number, if any.</summary>
+    public string? Reference { get; set; }
+
+    public Guid? CreatedByAccountId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class PreferredDate

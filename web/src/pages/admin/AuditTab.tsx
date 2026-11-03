@@ -15,6 +15,7 @@ const ENTITIES: Record<string, string> = {
   person: 'Officer', state: 'State', district: 'District', clinic: 'Clinic', period: 'Rota period',
   'period-day': 'Holiday / peak day', points: 'Leave points', holiday: 'Public holiday (master list)',
   'peak-day': 'Peak day (master list)', run: 'Rota', tally: 'Tally', account: 'Account', entries: 'Leave', swap: 'Swap', feedback: 'Feedback',
+  'confirmed-leave': 'Confirmed leave',
 }
 
 const VERBS: Record<string, string> = {

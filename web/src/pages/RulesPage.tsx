@@ -1,6 +1,6 @@
 import { Alert, Anchor, Badge, List, Paper, SimpleGrid, Stack, Table, Text, ThemeIcon, Title } from '@mantine/core'
 import {
-  IconArrowsExchange, IconBeach, IconBell, IconBook, IconCalendarStar, IconCalendarTime, IconListCheck, IconScale, IconStar,
+  IconArrowsExchange, IconBeach, IconBell, IconBook, IconCalendarStar, IconCalendarTime, IconListCheck, IconPlaneDeparture, IconScale, IconStar,
   IconSum, IconUserOff, type Icon,
 } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
@@ -45,6 +45,10 @@ export function RulesPage() {
         </Text>
         <List size="sm" spacing={4} mt="xs">
           <List.Item>The admin can add extra points for you for that period, with the reason noted.</List.Item>
+          <List.Item>
+            Leave that's <b>officially approved</b>, such as an overseas trip, doesn't need points: the admin records it as
+            confirmed leave (see below).
+          </List.Item>
           <List.Item>Ask <b>early</b>, because busy days fill up first come, first served.</List.Item>
           <List.Item>
             If the app won't let you mark a day because you're out of points, ask the admin. Don't leave it unmarked, or you
@@ -116,6 +120,21 @@ export function RulesPage() {
         </Items>
       </Section>
 
+      <Section icon={IconPlaneDeparture} title="Approved leave (confirmed leave)">
+        <Text size="sm">
+          If your leave is <b>officially approved</b>, for example an overseas trip, send the approval to the admin. The admin
+          records it as <b>confirmed leave</b>.
+        </Text>
+        <Items>
+          <List.Item>It <b>doesn't use your points</b> or weekday allowance.</List.Item>
+          <List.Item>It's <b>never refused because a day is full</b>, and you won't be put on call on those days.</List.Item>
+          <List.Item>It still counts toward the daily limit for other officers, so a day may fill up sooner for them.</List.Item>
+          <List.Item>The admin can enter it before the rota period opens. You get a notification and an email.</List.Item>
+          <List.Item>It shows on My leave with its reason, but only the admin can change it. Others see only "confirmed leave".</List.Item>
+          <List.Item>If you're already on call on those days, the admin moves the shifts to someone else.</List.Item>
+        </Items>
+      </Section>
+
       <Section icon={IconCalendarStar} title="Preferred on-call days">
         <Items>
           <List.Item>Switch to <b>Preferred on-call</b> on My leave to mark days you'd like to work.</List.Item>
@@ -172,7 +191,7 @@ export function RulesPage() {
         <Section icon={IconBell} title="Notifications and feedback">
           <Items>
             <List.Item>The <b>bell</b> shows rota and swap updates.</List.Item>
-            <List.Item>You get an email for swap requests and when the final rota is published.</List.Item>
+            <List.Item>You get an email for swap requests, confirmed leave and when the final rota is published.</List.Item>
             <List.Item>Report a problem or share an idea with <b>Send feedback</b> in the header.</List.Item>
           </Items>
         </Section>
