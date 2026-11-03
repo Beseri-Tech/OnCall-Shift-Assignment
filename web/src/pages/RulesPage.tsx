@@ -1,6 +1,6 @@
-import { Alert, Anchor, Badge, List, Paper, SimpleGrid, Stack, Table, Text, ThemeIcon, Title } from '@mantine/core'
+import { Alert, Anchor, Badge, Button, List, Paper, SimpleGrid, Stack, Table, Text, ThemeIcon, Title } from '@mantine/core'
 import {
-  IconArrowsExchange, IconBeach, IconBell, IconBook, IconCalendarStar, IconCalendarTime, IconListCheck, IconPlaneDeparture, IconScale, IconStar,
+  IconArrowsExchange, IconBeach, IconBell, IconBook, IconDownload, IconCalendarStar, IconCalendarTime, IconListCheck, IconPlaneDeparture, IconScale, IconStar,
   IconSum, IconUserOff, type Icon,
 } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
@@ -36,7 +36,11 @@ const POINTS = [
 export function RulesPage() {
   return (
     <Stack gap="lg" maw={900}>
-      <PageHeader icon={IconBook} title="Rules and guidelines" description="How the on-call rota is shared out, and what you need to know." />
+      <PageHeader icon={IconBook} title="Rules and guidelines" description="How the on-call rota is shared out, and what you need to know.">
+        <Button component="a" href="/assets/Rota-OC-user-manual.pdf" download variant="light" leftSection={<IconDownload size={18} />}>
+          Download user manual (PDF)
+        </Button>
+      </PageHeader>
 
       <Alert color="yellow" variant="light" icon={<IconStar />} title="Outstation or travelling? Ask for extra points">
         <Text size="sm">
