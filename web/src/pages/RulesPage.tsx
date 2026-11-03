@@ -46,8 +46,8 @@ export function RulesPage() {
         <List size="sm" spacing={4} mt="xs">
           <List.Item>The admin can add extra points for you for that period, with the reason noted.</List.Item>
           <List.Item>
-            Leave that's <b>officially approved</b>, such as an overseas trip, doesn't need points: the admin records it as
-            confirmed leave (see below).
+            Leave that's <b>officially approved</b>, such as an overseas trip, can be recorded by the admin as confirmed leave
+            even when you're out of points (see below).
           </List.Item>
           <List.Item>Ask <b>early</b>, because busy days fill up first come, first served.</List.Item>
           <List.Item>
@@ -126,8 +126,8 @@ export function RulesPage() {
           records it as <b>confirmed leave</b>.
         </Text>
         <Items>
-          <List.Item>It <b>doesn't use your points</b> or weekday allowance.</List.Item>
-          <List.Item>It's <b>never refused because a day is full</b>, and you won't be put on call on those days.</List.Item>
+          <List.Item>It's <b>never refused</b>, even if you're out of points or the day is full, and you won't be put on call on those days.</List.Item>
+          <List.Item>It still <b>uses your points and weekday allowance first</b>, so you may have little or none left for other leave in that period.</List.Item>
           <List.Item>It still counts toward the daily limit for other officers, so a day may fill up sooner for them.</List.Item>
           <List.Item>The admin can enter it before the rota period opens. You get a notification and an email.</List.Item>
           <List.Item>It shows on My leave with its reason, but only the admin can change it. Others see only "confirmed leave".</List.Item>

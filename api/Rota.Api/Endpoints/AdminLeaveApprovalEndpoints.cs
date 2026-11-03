@@ -7,9 +7,9 @@ using Rota.Core.Leave;
 namespace Rota.Api.Endpoints;
 
 /// <summary>
-/// Confirmed leave: absences already approved by the department (e.g. an overseas trip). Only admins enter it. It costs no
-/// points, isn't limited by the weekday allowance and is never refused because a day is full, but it still counts toward
-/// a day being full for other officers. It can be entered before the period exists.
+/// Confirmed leave: absences already approved by the department (e.g. an overseas trip). Only admins enter it. It is never
+/// refused (points, weekday allowance or a full day), but it uses up the officer's points and weekday allowance first and
+/// counts toward a day being full for other officers. It can be entered before the period exists.
 /// </summary>
 public static class AdminLeaveApprovalEndpoints
 {
@@ -104,7 +104,7 @@ public static class AdminLeaveApprovalEndpoints
 
         var warnings = new List<string>();
 
-        // Leave the officer already marked on these days becomes confirmed (and stops using their points).
+        // Leave the officer already marked on these days becomes confirmed (it can no longer be removed by the officer).
         var own = await db.LeaveDays.Where(l => l.PersonId == req.PersonId && l.ApprovalId == null &&
                                                l.Date >= req.StartDate && l.Date <= req.EndDate).ToListAsync(ct);
         foreach (var l in own) { l.ApprovalId = approval.Id; l.Note = null; }
@@ -112,7 +112,7 @@ public static class AdminLeaveApprovalEndpoints
         db.LeaveDays.AddRange(Mapping.Days(req.StartDate, req.EndDate).Where(d => !taken.Contains(d))
             .Select(d => new LeaveDay { PersonId = req.PersonId, Date = d, ApprovalId = approval.Id }));
         if (own.Count > 0)
-            warnings.Add($"{own.Count} day(s) {person.Name} had already marked as leave are now confirmed leave, so they no longer use points.");
+            warnings.Add($"{own.Count} day(s) {person.Name} had already marked as leave are now confirmed leave.");
 
         int preferred = await db.PreferredDates.Where(p => p.PersonId == req.PersonId && p.Date >= req.StartDate && p.Date <= req.EndDate)
             .ExecuteDeleteAsync(ct);
@@ -125,7 +125,7 @@ public static class AdminLeaveApprovalEndpoints
             ? $"Confirmed leave added: {Range(req.StartDate, req.EndDate)}"
             : $"Confirmed leave changed: {Range(req.StartDate, req.EndDate)}";
         string body = isNew
-            ? $"Reason: {reason}\nYou won't be put on call on these days. It doesn't use your leave points."
+            ? $"Reason: {reason}\nYou won't be put on call on these days. It uses your leave points and weekday allowance first, but is never refused."
             : $"It was {oldRange}. Reason: {reason}";
         await notify.ToPeopleAsync([req.PersonId], Notifier.ConfirmedLeave, title, body, "/leave", email: true, ct);
         Mapping.Log(db, http, isNew ? "confirmed-leave.create" : "confirmed-leave.update", req.PersonId,
@@ -165,6 +165,12 @@ public static class AdminLeaveApprovalEndpoints
                 warnings.Add($"{SwapEndpoints.Day(d)} now has {count} of {rules.OnCall} officers off (limit {cap}). " +
                              $"Also off: {string.Join(", ", others)}.");
             }
+
+            var mine = rules.LeaveByPerson.GetValueOrDefault(a.PersonId, []);
+            int points = rules.Policy.Points(mine), budget = rules.Budget(a.PersonId), weekdays = rules.Policy.Weekdays(mine);
+            if (points > budget || weekdays > rules.Policy.WeekdayAllowance)
+                warnings.Add($"With this leave {person.Name} uses {points} of {budget} point(s) and {weekdays} of " +
+                             $"{rules.Policy.WeekdayAllowance} weekday(s) in {period.Name}, so they can't add more leave there.");
 
             int periodDays = period.EndDate.DayNumber - period.StartDate.DayNumber + 1;
             int covered = to.DayNumber - from.DayNumber + 1;

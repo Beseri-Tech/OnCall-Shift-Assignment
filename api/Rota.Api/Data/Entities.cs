@@ -216,8 +216,8 @@ public sealed class LeaveDay
 /// <summary>
 /// Confirmed leave: an absence the department has already approved (e.g. an overseas trip), entered by an admin.
 /// Its days are ordinary <see cref="LeaveDay"/> rows linked by ApprovalId, so the rota, swaps and overrides treat them as
-/// leave. They cost no points, don't use the weekday allowance and are never refused because a day is full, but they
-/// still count toward a day being full for other officers.
+/// leave. They are never refused, but they use up the officer's points and weekday allowance first and count toward a
+/// day being full for other officers.
 /// </summary>
 public sealed class LeaveApproval
 {

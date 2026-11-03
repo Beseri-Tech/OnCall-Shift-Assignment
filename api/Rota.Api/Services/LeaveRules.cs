@@ -20,7 +20,7 @@ public sealed class LeaveRules
 
     public required Dictionary<Guid, PointGrant> Grants { get; init; }
 
-    /// <summary>The officer's own leave, which uses points and the weekday allowance: everything but confirmed leave.</summary>
+    /// <summary>The officer's own leave, everything but confirmed leave.</summary>
     public List<DateOnly> OwnLeave(Guid personId)
     {
         var confirmed = ConfirmedByPerson.GetValueOrDefault(personId);
@@ -43,9 +43,20 @@ public sealed class LeaveRules
         LeaveByPerson.Where(kv => kv.Key != personId).SelectMany(kv => kv.Value)
             .GroupBy(d => d).ToDictionary(g => g.Key, g => g.Count());
 
-    /// <summary>Checks a change to the officer's own leave; <paramref name="before"/> and <paramref name="after"/> exclude confirmed leave.</summary>
-    public List<string> Validate(Guid personId, IReadOnlyCollection<DateOnly> before, IReadOnlyCollection<DateOnly> after) =>
-        Policy.Validate(before, after, OthersOff(personId), Budget(personId), OnCall);
+    /// <summary>
+    /// Checks a change to the officer's own leave; <paramref name="before"/> and <paramref name="after"/> exclude confirmed
+    /// leave. Confirmed leave is never refused, but it uses up the officer's points and weekday allowance first, so a long
+    /// trip leaves little or nothing for other leave. It's in both sides, so it never counts as a change for the day limits.
+    /// </summary>
+    public List<string> Validate(Guid personId, IReadOnlyCollection<DateOnly> before, IReadOnlyCollection<DateOnly> after)
+    {
+        var confirmed = ConfirmedByPerson.GetValueOrDefault(personId) ?? [];
+        var errors = Policy.Validate(before.Union(confirmed).ToList(), after.Union(confirmed).ToList(), OthersOff(personId),
+            Budget(personId), OnCall);
+        if (errors.Count > 0 && confirmed.Count > 0)
+            errors.Add($"Your confirmed leave uses {Policy.Points(confirmed)} point(s) and {Policy.Weekdays(confirmed)} weekday(s) of this.");
+        return errors;
+    }
 
     public static async Task<LeaveRules> LoadAsync(RotaDbContext db, LeaveLimits limits, RotaPeriod period, CancellationToken ct)
     {

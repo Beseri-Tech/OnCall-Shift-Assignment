@@ -232,8 +232,9 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
 
   // Same "only refuse what gets worse" rule as the server, so lowering a budget never blocks edits.
   const r = rules.data
-  const used = r && usage(draft.leave.keys(), r, kindOf)
-  const was = r && usage(saved.leave.keys(), r, kindOf)
+  // Confirmed leave is never refused, but it uses up points and weekdays first.
+  const used = r && usage([...draft.leave.keys(), ...confirmed.keys()], r, kindOf)
+  const was = r && usage([...saved.leave.keys(), ...confirmed.keys()], r, kindOf)
   const budget = r ? r.budget + r.extra : 0
   const showBudget = !readOnly && !!r && !!used
   const overPoints = !byAdmin && !!used && !!was && used.points > budget && used.points > was.points
@@ -256,7 +257,10 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
         {showBudget && r && used && (
           <>
             <StatCard icon={IconCoins} color={overPoints ? 'red' : 'brand'} label="Leave points" value={`${used.points} / ${budget}`}
-              hint={r.extra > 0 ? `Includes +${r.extra} extra${r.extraReason ? `: ${r.extraReason}` : ''}` : 'Weekends, public holidays, peak days'}>
+              hint={[
+                r.extra > 0 ? `Includes +${r.extra} extra${r.extraReason ? `: ${r.extraReason}` : ''}` : 'Weekends, public holidays, peak days',
+                confirmed.size > 0 ? 'Used count includes confirmed leave' : null,
+              ].filter(Boolean).join(' · ')}>
               <Progress mt={6} size="sm" radius="xl" color={overPoints ? 'red' : 'brand'} value={budget ? Math.min(100, (used.points / budget) * 100) : 100} />
             </StatCard>
             <StatCard icon={IconBriefcase} color={overWeekdays ? 'red' : 'indigo'} label="Weekdays" value={`${used.weekdays} / ${r.weekdayAllowance}`}
@@ -285,8 +289,8 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
               </Text>
             ))}
             <Text size="xs" c="dimmed">
-              Approved leave entered by the admin. It doesn't use your points or weekday allowance, and you won't be put on call
-              on these days. Only the admin can change it.
+              Approved leave entered by the admin. You won't be put on call on these days. It uses your points and weekday
+              allowance first (it's never refused), so you may have little left for other leave. Only the admin can change it.
             </Text>
           </Stack>
         </Alert>

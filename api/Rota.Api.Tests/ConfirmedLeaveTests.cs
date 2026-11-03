@@ -4,7 +4,7 @@ using Rota.Api.Data;
 
 namespace Rota.Api.Tests;
 
-/// <summary>Confirmed leave: approved absences the admin enters, outside the points and day limits.</summary>
+/// <summary>Confirmed leave: approved absences the admin enters; never refused, but they use up the officer's own allowance.</summary>
 public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
     private static readonly DateOnly Oct16 = new(2026, 10, 16), Oct17 = new(2026, 10, 17), Oct18 = new(2026, 10, 18);
@@ -35,7 +35,7 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
             new EntriesDto(days.Select(d => new LeaveEntryDto(d, null)).ToList(), []), ApiFixture.Json);
 
     [Fact]
-    public async Task Confirmed_leave_skips_points_and_full_days_but_still_fills_the_day_for_others()
+    public async Task Confirmed_leave_is_never_refused_but_uses_points_and_fills_the_day_for_others()
     {
         await using var app = fixture.CreateApp();
         var admin = await ApiFixture.AdminClientAsync(app);
@@ -53,15 +53,18 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Contains(result.Warnings, w => w.Contains("Sat 17 Oct now has 4 of 10 officers off (limit 3)"));
         Assert.Empty(result.Approval.Conflicts);
 
-        // It costs no points, so the officer still has the full budget for their own leave.
-        (await Save(officers[4], people[4].Id, period.Id, new(2026, 10, 3), new(2026, 10, 4), new(2026, 10, 10)))
-            .EnsureSuccessStatusCode();
+        // The trip (Sat + Sun = 2 points) uses their budget of 3 first: only one more weekend day fits.
+        var over = await Save(officers[4], people[4].Id, period.Id, new(2026, 10, 3), new(2026, 10, 4));
+        Assert.Equal(HttpStatusCode.BadRequest, over.StatusCode);
+        Assert.Contains("Not enough points: 4 needed, 3 available", await over.Content.ReadAsStringAsync());
+        Assert.Contains("confirmed leave uses 2 point(s)", await over.Content.ReadAsStringAsync());
+        (await Save(officers[4], people[4].Id, period.Id, new(2026, 10, 3), new(2026, 10, 7))).EnsureSuccessStatusCode();
         var points = await Read<List<PointsRowDto>>(await admin.GetAsync($"/api/admin/periods/{period.Id}/points"));
-        Assert.Equal(3, points.Single(p => p.PersonId == people[4].Id).PointsUsed);
+        Assert.Equal((3, 2), points.Where(p => p.PersonId == people[4].Id).Select(p => (p.PointsUsed, p.WeekdaysUsed)).Single());
 
         // Saving their own leave doesn't touch the confirmed days, which come back separately.
         var entries = await Read<EntriesDto>(await officers[4].GetAsync($"/api/people/{people[4].Id}/entries?periodId={period.Id}"));
-        Assert.Equal(3, entries.Leave.Count);
+        Assert.Equal(2, entries.Leave.Count);
         Assert.Equal((Oct16, Oct18), entries.Confirmed!.Select(c => (c.StartDate, c.EndDate)).Single());
 
         // Confirmed days count for everyone else: when one officer cancels, the day stays full (2 + the trip = 3).
@@ -78,6 +81,11 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal((true, (string?)null), (seen.Confirmed, seen.Note));
         var own = await Read<OverviewDto>(await officers[4].GetAsync($"/api/periods/{period.Id}/overview"));
         Assert.Equal("Overseas trip, approved by HOD", own.People.Single(p => p.Id == people[4].Id).Leave.Single(l => l.Date == Oct17).Note);
+
+        // A trip costing more than the budget is still saved, and leaves nothing for other busy days.
+        var longTrip = await Read<LeaveApprovalResultDto>(await Confirm(admin, people[6].Id, new(2026, 10, 3), new(2026, 10, 11)));
+        Assert.Contains(longTrip.Warnings, w => w.Contains("uses 4 of 3 point(s)") && w.Contains("can't add more leave"));
+        Assert.Equal(HttpStatusCode.BadRequest, (await Save(officers[6], people[6].Id, period.Id, new DateOnly(2026, 10, 24))).StatusCode);
 
         // Officers can't use the admin endpoints.
         Assert.Equal(HttpStatusCode.Forbidden, (await Confirm(officers[4], people[4].Id, Oct16, Oct18)).StatusCode);
