@@ -154,11 +154,12 @@ public sealed record UpsertPeriodRequest(string Name, DateOnly StartDate, DateOn
 /// <summary>Leave limits for one officer in one period. Budget excludes Extra (admin top-up).</summary>
 public sealed record LeaveRulesDto(
     int Budget, int Extra, string? ExtraReason, int WeekdayAllowance, int BusyDayCap, int WeekdayCap, int OnCall,
-    int WeekendCost, int HolidayCost, int PeakCost, IReadOnlyList<HolidayDto> Peaks, IReadOnlyDictionary<DateOnly, int> OthersOff);
+    int WeekendCost, int HolidayCost, int PeakCost, IReadOnlyList<HolidayDto> Peaks, IReadOnlyDictionary<DateOnly, int> OthersOff,
+    int ConfirmedDays = 0, int PeriodDays = 0, int PointsDeducted = 0, int WeekdaysDeducted = 0);
 
 public sealed record PointsRowDto(
     Guid PersonId, string Code, string Name, int PointsUsed, int Budget, int Extra, string? Reason,
-    int WeekdaysUsed, int WeekdayAllowance);
+    int WeekdaysUsed, int WeekdayAllowance, int ConfirmedDays = 0, int PointsDeducted = 0, int WeekdaysDeducted = 0);
 
 public sealed record PointGrantRequest(int Points, string? Reason);
 

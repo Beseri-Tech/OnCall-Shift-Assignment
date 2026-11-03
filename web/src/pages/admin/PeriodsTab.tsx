@@ -146,6 +146,7 @@ function PointsModal({ period, onClose }: { period: Period; onClose: () => void 
           <Text size="sm" c="dimmed">
             Everyone gets {rows.data[0]?.budget ?? 0} points (weekend 1, public holiday 2, peak day 1) and{' '}
             {rows.data[0]?.weekdayAllowance ?? 0} free weekdays. Give extra points for outstation, family matters and similar.
+            * Reduced for confirmed leave by the share of the period it covers (hover for details).
           </Text>
           <Table.ScrollContainer minWidth={700}>
             <Table striped verticalSpacing={4}>
@@ -179,15 +180,20 @@ function PointsRowEditor({ periodId, row }: { periodId: string; row: PointsRow }
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin', 'points', periodId] }); notifyOk(`${row.name}: extra points saved.`) },
     onError: e => notifyError(e),
   })
-  const total = row.budget + row.extra
+  const total = row.budget + row.extra - row.pointsDeducted
+  const allowance = row.weekdayAllowance - row.weekdaysDeducted
+  const deduction = row.confirmedDays > 0
+    ? `Confirmed leave ${row.confirmedDays} day(s): −${row.pointsDeducted} point(s), −${row.weekdaysDeducted} weekday(s)` : undefined
   const changed = extra !== row.extra || (reason.trim() || null) !== row.reason
 
   return (
     <Table.Tr>
       <Table.Td fw={600}>{row.name} <Text span size="xs" c="dimmed">{row.code}</Text></Table.Td>
-      <Table.Td ta="center" c={row.pointsUsed > total ? 'red' : undefined}>{row.pointsUsed} / {total}</Table.Td>
-      <Table.Td ta="center" c={row.weekdaysUsed > row.weekdayAllowance ? 'red' : undefined}>
-        {row.weekdaysUsed} / {row.weekdayAllowance}
+      <Table.Td ta="center" c={row.pointsUsed > total ? 'red' : undefined} title={deduction}>
+        {row.pointsUsed} / {total}{deduction && ' *'}
+      </Table.Td>
+      <Table.Td ta="center" c={row.weekdaysUsed > allowance ? 'red' : undefined} title={deduction}>
+        {row.weekdaysUsed} / {allowance}{deduction && ' *'}
       </Table.Td>
       <Table.Td w={110}><NumberInput size="xs" min={0} max={100} value={extra} onChange={v => setExtra(Number(v) || 0)} /></Table.Td>
       <Table.Td><TextInput size="xs" placeholder="e.g. outstation" value={reason} maxLength={200}

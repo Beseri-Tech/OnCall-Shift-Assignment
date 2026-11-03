@@ -234,13 +234,15 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
   const r = rules.data
   const used = r && usage(draft.leave.keys(), r, kindOf)
   const was = r && usage(saved.leave.keys(), r, kindOf)
-  const budget = r ? r.budget + r.extra : 0
+  // Confirmed leave reduces both by the share of the period it covers.
+  const budget = r ? r.budget + r.extra - r.pointsDeducted : 0
+  const allowance = r ? r.weekdayAllowance - r.weekdaysDeducted : 0
   const showBudget = !readOnly && !!r && !!used
   const overPoints = !byAdmin && !!used && !!was && used.points > budget && used.points > was.points
-  const overWeekdays = !byAdmin && !!used && !!was && !!r && used.weekdays > r.weekdayAllowance && used.weekdays > was.weekdays
+  const overWeekdays = !byAdmin && !!used && !!was && !!r && used.weekdays > allowance && used.weekdays > was.weekdays
   const limitError = overPoints
     ? `Not enough points (${used!.points} needed, ${budget} available). Ask the admin for extra points.`
-    : overWeekdays ? `Too many weekdays (${used!.weekdays} marked, at most ${r!.weekdayAllowance}).` : null
+    : overWeekdays ? `Too many weekdays (${used!.weekdays} marked, at most ${allowance}).` : null
 
   return (
     <Stack gap="md" pb={dirty ? 80 : 0}>
@@ -256,13 +258,16 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
         {showBudget && r && used && (
           <>
             <StatCard icon={IconCoins} color={overPoints ? 'red' : 'brand'} label="Leave points" value={`${used.points} / ${budget}`}
-              hint={r.extra > 0 ? `Includes +${r.extra} extra${r.extraReason ? `: ${r.extraReason}` : ''}` : 'Weekends, public holidays, peak days'}>
+              hint={[
+                r.extra > 0 ? `Includes +${r.extra} extra${r.extraReason ? `: ${r.extraReason}` : ''}` : 'Weekends, public holidays, peak days',
+                r.pointsDeducted > 0 ? `−${r.pointsDeducted} for confirmed leave` : null,
+              ].filter(Boolean).join(' · ')}>
               <Progress mt={6} size="sm" radius="xl" color={overPoints ? 'red' : 'brand'} value={budget ? Math.min(100, (used.points / budget) * 100) : 100} />
             </StatCard>
-            <StatCard icon={IconBriefcase} color={overWeekdays ? 'red' : 'indigo'} label="Weekdays" value={`${used.weekdays} / ${r.weekdayAllowance}`}
-              hint="Free, no points">
+            <StatCard icon={IconBriefcase} color={overWeekdays ? 'red' : 'indigo'} label="Weekdays" value={`${used.weekdays} / ${allowance}`}
+              hint={r.weekdaysDeducted > 0 ? `Free, no points · −${r.weekdaysDeducted} for confirmed leave` : 'Free, no points'}>
               <Progress mt={6} size="sm" radius="xl" color={overWeekdays ? 'red' : 'indigo'}
-                value={r.weekdayAllowance ? Math.min(100, (used.weekdays / r.weekdayAllowance) * 100) : 100} />
+                value={allowance ? Math.min(100, (used.weekdays / allowance) * 100) : 100} />
             </StatCard>
           </>
         )}
@@ -285,8 +290,10 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
               </Text>
             ))}
             <Text size="xs" c="dimmed">
-              Approved leave entered by the admin. It doesn't use your points or weekday allowance, and you won't be put on call
-              on these days. Only the admin can change it.
+              Approved leave entered by the admin. You won't be put on call on these days, and only the admin can change it. It
+              doesn't cost points itself, but your points and weekday allowance are reduced by the share of the rota it covers
+              {rules.data && rules.data.confirmedDays > 0 && <> ({rules.data.confirmedDays} of {rules.data.periodDays} days:
+                −{rules.data.pointsDeducted} point(s), −{rules.data.weekdaysDeducted} weekday(s))</>}.
             </Text>
           </Stack>
         </Alert>

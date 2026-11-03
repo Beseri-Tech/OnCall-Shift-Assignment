@@ -66,8 +66,9 @@ public sealed class LeavePolicy(
     /// are refused, so lowering a budget never stops anyone from editing or removing leave.
     /// </summary>
     /// <param name="othersOff">Per day, how many other on-call officers are already off.</param>
+    /// <param name="weekdayAllowance">Overrides <see cref="WeekdayAllowance"/> (e.g. reduced for confirmed leave).</param>
     public List<string> Validate(IReadOnlyCollection<DateOnly> before, IReadOnlyCollection<DateOnly> after,
-        IReadOnlyDictionary<DateOnly, int> othersOff, int budget, int onCall)
+        IReadOnlyDictionary<DateOnly, int> othersOff, int budget, int onCall, int? weekdayAllowance = null)
     {
         var errors = new List<string>();
 
@@ -75,7 +76,7 @@ public sealed class LeavePolicy(
         if (points > budget && points > Points(before))
             errors.Add($"Not enough points: {points} needed, {budget} available. Ask the admin for extra points.");
 
-        int weekdays = Weekdays(after), allowance = WeekdayAllowance;
+        int weekdays = Weekdays(after), allowance = weekdayAllowance ?? WeekdayAllowance;
         if (weekdays > allowance && weekdays > Weekdays(before))
             errors.Add($"Too many weekdays: {weekdays} marked, at most {allowance} in this period.");
 

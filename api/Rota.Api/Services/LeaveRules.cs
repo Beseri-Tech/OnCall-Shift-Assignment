@@ -43,9 +43,44 @@ public sealed class LeaveRules
         LeaveByPerson.Where(kv => kv.Key != personId).SelectMany(kv => kv.Value)
             .GroupBy(d => d).ToDictionary(g => g.Key, g => g.Count());
 
+    public int PeriodDays => Period.EndDate.DayNumber - Period.StartDate.DayNumber + 1;
+
+    /// <summary>Days of confirmed leave the officer has in the period.</summary>
+    public int ConfirmedDays(Guid personId) => ConfirmedByPerson.GetValueOrDefault(personId)?.Count ?? 0;
+
+    /// <summary>
+    /// Confirmed leave doesn't use points itself, but it takes away the same share of the officer's points and weekday
+    /// allowance as the share of the period it covers: 15 days of a 60-day period removes 25% of each (rounded).
+    /// </summary>
+    public int PointsDeducted(Guid personId) => Share(Budget(personId), personId);
+
+    public int WeekdaysDeducted(Guid personId) => Share(Policy.WeekdayAllowance, personId);
+
+    private int Share(int amount, Guid personId) =>
+        Math.Min(amount, (int)Math.Round(amount * (double)ConfirmedDays(personId) / PeriodDays, MidpointRounding.AwayFromZero));
+
+    /// <summary>What the officer has for their own leave once confirmed leave is taken into account.</summary>
+    public int OwnBudget(Guid personId) => Budget(personId) - PointsDeducted(personId);
+
+    public int OwnWeekdayAllowance(Guid personId) => Policy.WeekdayAllowance - WeekdaysDeducted(personId);
+
     /// <summary>Checks a change to the officer's own leave; <paramref name="before"/> and <paramref name="after"/> exclude confirmed leave.</summary>
-    public List<string> Validate(Guid personId, IReadOnlyCollection<DateOnly> before, IReadOnlyCollection<DateOnly> after) =>
-        Policy.Validate(before, after, OthersOff(personId), Budget(personId), OnCall);
+    public List<string> Validate(Guid personId, IReadOnlyCollection<DateOnly> before, IReadOnlyCollection<DateOnly> after)
+    {
+        var errors = Policy.Validate(before, after, OthersOff(personId), OwnBudget(personId), OnCall, OwnWeekdayAllowance(personId));
+        if (errors.Count > 0 && ConfirmedDays(personId) > 0)
+            errors.Add(DeductionText(personId, "Your"));
+        return errors;
+    }
+
+    /// <summary>E.g. "Your confirmed leave covers 15 of 60 days (25%), so points are 5 - 1 = 4 and weekdays 21 - 5 = 16."</summary>
+    public string DeductionText(Guid personId, string whose)
+    {
+        int days = ConfirmedDays(personId);
+        return $"{whose} confirmed leave covers {days} of {PeriodDays} days ({(int)Math.Round(100.0 * days / PeriodDays)}%), " +
+               $"so points are {Budget(personId)} - {PointsDeducted(personId)} = {OwnBudget(personId)} and weekdays " +
+               $"{Policy.WeekdayAllowance} - {WeekdaysDeducted(personId)} = {OwnWeekdayAllowance(personId)}.";
+    }
 
     public static async Task<LeaveRules> LoadAsync(RotaDbContext db, LeaveLimits limits, RotaPeriod period, CancellationToken ct)
     {

@@ -276,7 +276,8 @@ public static class AdminEndpoints
                 var leave = rules.OwnLeave(p.Id);
                 var grant = rules.Grants.GetValueOrDefault(p.Id);
                 return new PointsRowDto(p.Id, p.Code, p.Name, rules.Policy.Points(leave), rules.BaseBudget, grant?.Points ?? 0,
-                    grant?.Reason, rules.Policy.Weekdays(leave), rules.Policy.WeekdayAllowance);
+                    grant?.Reason, rules.Policy.Weekdays(leave), rules.Policy.WeekdayAllowance,
+                    rules.ConfirmedDays(p.Id), rules.PointsDeducted(p.Id), rules.WeekdaysDeducted(p.Id));
             }).ToList());
         });
 

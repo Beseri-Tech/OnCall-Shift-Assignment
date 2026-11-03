@@ -113,10 +113,13 @@ export interface LeaveRules {
   busyDayCap: number; weekdayCap: number; onCall: number
   weekendCost: number; holidayCost: number; peakCost: number
   peaks: Holiday[]; othersOff: Record<IsoDate, number>
+  /** Confirmed leave takes away the share of points and weekdays equal to the share of the period it covers. */
+  confirmedDays: number; periodDays: number; pointsDeducted: number; weekdaysDeducted: number
 }
 export interface PointsRow {
   personId: string; code: string; name: string; pointsUsed: number; budget: number; extra: number; reason: string | null
   weekdaysUsed: number; weekdayAllowance: number
+  confirmedDays: number; pointsDeducted: number; weekdaysDeducted: number
 }
 
 export interface Run {

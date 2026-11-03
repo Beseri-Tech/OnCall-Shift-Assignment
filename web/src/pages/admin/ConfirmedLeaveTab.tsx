@@ -14,8 +14,9 @@ import { notifyError, notifyOk } from '../../lib'
 type Editing = { id: string | null; value: Partial<UpsertLeaveApproval> }
 
 /**
- * Confirmed leave: absences already approved by the department (e.g. an overseas trip). It costs no points, isn't
- * refused when a day is full and the officer can't change it, but it still counts toward a day being full for others.
+ * Confirmed leave: absences already approved by the department (e.g. an overseas trip). It's never refused and the
+ * officer can't change it. It reduces their points and weekday allowance by the share of the period it covers, and it
+ * counts toward a day being full for others.
  */
 export function ConfirmedLeaveTab() {
   const qc = useQueryClient()
@@ -58,9 +59,9 @@ export function ConfirmedLeaveTab() {
           </Group>
         </Group>
         <Text size="sm" c="dimmed" mb="sm">
-          For leave the department has already approved, such as an overseas trip. It doesn't use the officer's points or
-          weekday allowance and is never refused because a day is full. It still counts toward the daily limit for other
-          officers. The officer can see it but can't change it. You can enter it before the rota period exists.
+          For leave the department has already approved, such as an overseas trip. It's never refused, even when the officer
+          is out of points or the day is full. It reduces the officer's points and weekday allowance by the share of the
+          period it covers (15 days of a 60-day rota removes 25%), and it counts toward the daily limit for other officers. The officer can see it but can't change it. You can enter it before the rota period exists.
         </Text>
 
         {result && <ResultAlert result={result} onClose={() => setResult(null)} />}

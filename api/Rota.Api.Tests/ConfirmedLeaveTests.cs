@@ -4,7 +4,7 @@ using Rota.Api.Data;
 
 namespace Rota.Api.Tests;
 
-/// <summary>Confirmed leave: approved absences the admin enters, outside the points and day limits.</summary>
+/// <summary>Confirmed leave: approved absences the admin enters; never refused, but they shrink the officer's own allowance.</summary>
 public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
     private static readonly DateOnly Oct16 = new(2026, 10, 16), Oct17 = new(2026, 10, 17), Oct18 = new(2026, 10, 18);
@@ -35,7 +35,7 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
             new EntriesDto(days.Select(d => new LeaveEntryDto(d, null)).ToList(), []), ApiFixture.Json);
 
     [Fact]
-    public async Task Confirmed_leave_skips_points_and_full_days_but_still_fills_the_day_for_others()
+    public async Task Confirmed_leave_is_never_refused_shrinks_the_allowance_and_fills_the_day_for_others()
     {
         await using var app = fixture.CreateApp();
         var admin = await ApiFixture.AdminClientAsync(app);
@@ -53,7 +53,7 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Contains(result.Warnings, w => w.Contains("Sat 17 Oct now has 4 of 10 officers off (limit 3)"));
         Assert.Empty(result.Approval.Conflicts);
 
-        // It costs no points, so the officer still has the full budget for their own leave.
+        // A short trip (3 of 31 days) costs no points and takes none away, so the full budget is left.
         (await Save(officers[4], people[4].Id, period.Id, new(2026, 10, 3), new(2026, 10, 4), new(2026, 10, 10)))
             .EnsureSuccessStatusCode();
         var points = await Read<List<PointsRowDto>>(await admin.GetAsync($"/api/admin/periods/{period.Id}/points"));
@@ -78,6 +78,19 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal((true, (string?)null), (seen.Confirmed, seen.Note));
         var own = await Read<OverviewDto>(await officers[4].GetAsync($"/api/periods/{period.Id}/overview"));
         Assert.Equal("Overseas trip, approved by HOD", own.People.Single(p => p.Id == people[4].Id).Leave.Single(l => l.Date == Oct17).Note);
+
+        // A longer trip shrinks the officer's points and weekdays by the share of the period it covers:
+        // 9 of 31 days -> 3 points - 1 = 2, 11 weekdays - 3 = 8. The trip itself is never refused.
+        var longTrip = await Read<LeaveApprovalResultDto>(await Confirm(admin, people[6].Id, new(2026, 10, 3), new(2026, 10, 11)));
+        Assert.Contains(longTrip.Warnings, w => w.Contains("covers 9 of 31 days (29%), so points are 3 - 1 = 2 and weekdays 11 - 3 = 8"));
+        var over = await Save(officers[6], people[6].Id, period.Id, new(2026, 10, 24), new(2026, 10, 25), new(2026, 10, 31));
+        Assert.Equal(HttpStatusCode.BadRequest, over.StatusCode);
+        Assert.Contains("Not enough points: 3 needed, 2 available", await over.Content.ReadAsStringAsync());
+        (await Save(officers[6], people[6].Id, period.Id, new(2026, 10, 24), new(2026, 10, 25))).EnsureSuccessStatusCode();
+        var rules6 = await Read<LeaveRulesDto>(await officers[6].GetAsync($"/api/periods/{period.Id}/leave-rules?personId={people[6].Id}"));
+        Assert.Equal((9, 31, 1, 3), (rules6.ConfirmedDays, rules6.PeriodDays, rules6.PointsDeducted, rules6.WeekdaysDeducted));
+        var row6 = (await Read<List<PointsRowDto>>(await admin.GetAsync($"/api/admin/periods/{period.Id}/points"))).Single(p => p.PersonId == people[6].Id);
+        Assert.Equal((2, 1, 3), (row6.PointsUsed, row6.PointsDeducted, row6.WeekdaysDeducted));
 
         // Officers can't use the admin endpoints.
         Assert.Equal(HttpStatusCode.Forbidden, (await Confirm(officers[4], people[4].Id, Oct16, Oct18)).StatusCode);
