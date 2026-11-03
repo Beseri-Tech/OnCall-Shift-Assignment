@@ -84,10 +84,58 @@ body {
   box-shadow: 0 1px 3px rgb(8 51 68 / 0.25);
 }
 
-@media (max-width: 48em) {
-  .nav-label {
-    display: none;
-  }
+.brand-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.brand-text {
+  min-width: 0;
+}
+
+/* ---------------- side drawer (phones and tablets) ---------------- */
+
+.drawer-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px 12px 16px;
+  min-height: 60px;
+  background: linear-gradient(100deg, var(--brand-dark), var(--brand) 70%, #0891b2);
+}
+
+.drawer-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px; /* comfortable touch target */
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #334155;
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.drawer-link:hover {
+  background: #f1f5f9;
+}
+
+.drawer-link.active {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  box-shadow: inset 3px 0 0 var(--brand);
 }
 
 /* ---------------- page furniture ---------------- */
@@ -517,4 +565,161 @@ body {
   border-radius: 4px;
   border: 1px solid;
   vertical-align: middle;
+}
+
+/* Phone layout of the rota: one row per day. */
+.rota-list-month + .rota-list-month {
+  margin-top: 20px;
+}
+
+.rota-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rota-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--grid-line);
+  background: white;
+}
+
+.rota-row.day-weekend {
+  background: var(--weekend-bg);
+}
+
+.rota-row.mine {
+  background: var(--shift-bg);
+  border-color: var(--shift-border);
+  color: var(--shift-text);
+}
+
+.rota-row.unassigned {
+  background: var(--leave-bg);
+  border-color: var(--leave-border);
+  color: var(--leave-text);
+}
+
+.rota-row.manual {
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.rota-row.clickable {
+  cursor: pointer;
+}
+
+.rota-row-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 34px;
+  flex-shrink: 0;
+  line-height: 1.1;
+}
+
+.rota-row-dow {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.rota-row-num {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.rota-row-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------- phones ---------------- */
+
+/* Inputs with a fixed width (filters, pickers) never get wider than the screen. */
+.mantine-InputWrapper-root {
+  max-width: 100%;
+}
+
+/* A badge in a table cell keeps its full text instead of shrinking to "P…". */
+.mantine-Table-td .mantine-Badge-root {
+  min-width: max-content;
+}
+
+.tabs-scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.tabs-scroll .mantine-Tabs-tab {
+  flex-shrink: 0;
+}
+
+@media (max-width: 47.99em) {
+  /* Leave room for the days: a narrower name column, and the sheet fills the screen height under the header. */
+  .sheet col.name-w {
+    width: 128px;
+  }
+
+  .sheet .name-col {
+    min-width: 128px;
+    max-width: 128px;
+    padding: 0 8px;
+  }
+
+  .sheet .name-col .pname {
+    font-size: 12px;
+  }
+
+  .sheet-fit {
+    min-width: 760px;
+  }
+
+  .sheet-wrap {
+    max-height: calc(100dvh - 140px);
+    border-radius: 12px;
+  }
+}
+
+/* A row of options wider than a phone scrolls sideways instead of being cut off. */
+.mantine-SegmentedControl-root {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+@media (max-width: 47.99em) {
+  /* "PEAK" / "PH" text collides with the date in a phone-sized day: a dot instead (the date is coloured too). */
+  .day-holiday::after,
+  .day-peak::after {
+    content: '';
+    top: 5px;
+    right: 5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+}
+
+@media (max-width: 47.99em) {
+  /* iPhones zoom the page into any text field under 16px when it's tapped. */
+  input.mantine-Input-input,
+  textarea.mantine-Input-input,
+  .mantine-PillsInput-field {
+    font-size: 16px;
+  }
 }
