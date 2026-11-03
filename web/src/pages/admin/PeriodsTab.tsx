@@ -64,6 +64,7 @@ function Periods() {
       <Text size="sm" c="dimmed" mb="sm">
         People can enter leave while a period is <b>Open</b> (until its deadline). Lock it to freeze leave, then generate the rota.
       </Text>
+      <Table.ScrollContainer minWidth={560}>
       <Table highlightOnHover>
         <Table.Thead>
           <Table.Tr>
@@ -122,6 +123,7 @@ function Periods() {
           ))}
         </Table.Tbody>
       </Table>
+      </Table.ScrollContainer>
       {periods.data!.length === 0 && <Text size="sm" c="dimmed" ta="center" py="md">No periods yet.</Text>}
 
       {editing && <PeriodModal editing={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
