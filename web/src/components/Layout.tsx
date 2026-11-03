@@ -1,7 +1,7 @@
 import { Box, Container, Group, Menu, Text, UnstyledButton } from '@mantine/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconKey, IconLayoutGrid, IconLogout, IconShieldLock, IconUserCircle,
+  IconBook, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconKey, IconLayoutGrid, IconLogout, IconShieldLock, IconUserCircle,
 } from '@tabler/icons-react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { api } from '../api'
@@ -23,6 +23,7 @@ export function Layout() {
     ...(me?.personId ? [{ to: '/my-oncall', label: 'My on-call', icon: IconCalendarCheck, end: false }] : []),
     { to: '/overview', label: 'Overview', icon: IconLayoutGrid, end: false },
     { to: '/rota', label: 'Rota', icon: IconCalendarEvent, end: false },
+    { to: '/rules', label: 'Rules', icon: IconBook, end: false },
     ...(isAdmin(me) ? [{ to: '/admin', label: 'Admin', icon: IconShieldLock, end: false }] : []),
   ]
 

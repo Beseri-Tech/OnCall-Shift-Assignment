@@ -19,6 +19,7 @@ import { LeavePage } from './pages/LeavePage'
 import { MyOnCallPage } from './pages/MyOnCallPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { RotaPage } from './pages/RotaPage'
+import { RulesPage } from './pages/RulesPage'
 
 // Admin screens are only needed by the admin, so they load on demand.
 // oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
@@ -68,6 +69,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="my-oncall" element={<MyOnCallPage />} />
                   <Route path="overview" element={<OverviewPage />} />
                   <Route path="rota" element={<RotaPage />} />
+                  <Route path="rules" element={<RulesPage />} />
                   <Route element={<AdminOnly />}>
                     <Route path="leave" element={<LeavePage />} />
                     <Route path="admin/*" element={<Suspense fallback={<Loading />}><AdminPage /></Suspense>} />
