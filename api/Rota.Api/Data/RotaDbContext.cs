@@ -17,6 +17,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
     public DbSet<PeriodDay> PeriodDays => Set<PeriodDay>();
     public DbSet<PointGrant> PointGrants => Set<PointGrant>();
     public DbSet<LeaveDay> LeaveDays => Set<LeaveDay>();
+    public DbSet<LeaveApproval> LeaveApprovals => Set<LeaveApproval>();
     public DbSet<PreferredDate> PreferredDates => Set<PreferredDate>();
     public DbSet<RotaRun> Runs => Set<RotaRun>();
     public DbSet<ShiftAssignment> Assignments => Set<ShiftAssignment>();
@@ -128,6 +129,17 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasKey(l => new { l.PersonId, l.Date });
             e.HasIndex(l => l.Date);
             e.Property(l => l.Note).HasMaxLength(200);
+            e.HasIndex(l => l.ApprovalId);
+            e.HasOne<LeaveApproval>().WithMany().HasForeignKey(l => l.ApprovalId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<LeaveApproval>(e =>
+        {
+            e.ToTable("leave_approvals");
+            e.HasIndex(a => new { a.PersonId, a.StartDate });
+            e.Property(a => a.Reason).HasMaxLength(200);
+            e.Property(a => a.Reference).HasMaxLength(100);
+            e.HasOne<Person>().WithMany().HasForeignKey(a => a.PersonId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<PreferredDate>(e =>

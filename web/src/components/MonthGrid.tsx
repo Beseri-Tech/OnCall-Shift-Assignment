@@ -8,6 +8,8 @@ export interface DayState {
   leave?: boolean
   note?: string | null
   preferred?: boolean
+  /** Confirmed leave (entered by an admin): shown locked, never toggled. The string is its reason. */
+  confirmed?: string | null
 }
 
 interface Props {
@@ -43,7 +45,9 @@ export function MonthGrid({ month, min, max, holidays, peaks, full, today, readO
           const s = disabled ? {} : stateOf(date)
           const holiday = holidays.get(date)
           const peak = !holiday && !isWeekend(date) ? peaks?.get(date) : undefined
-          const isFull = !disabled && !s.leave && full?.has(date)
+          const confirmed = s.confirmed !== undefined
+          const isFull = !disabled && !s.leave && !confirmed && full?.has(date)
+          const locked = disabled || readOnly || confirmed
           const cls = [
             'day',
             isWeekend(date) && 'day-weekend',
@@ -51,6 +55,7 @@ export function MonthGrid({ month, min, max, holidays, peaks, full, today, readO
             peak && 'day-peak',
             isFull && 'day-full',
             s.leave && 'day-leave',
+            confirmed && 'day-confirmed',
             s.preferred && 'day-preferred',
             date === today && 'day-today',
             disabled && 'day-disabled',
@@ -60,6 +65,7 @@ export function MonthGrid({ month, min, max, holidays, peaks, full, today, readO
           const label = [
             holiday, peak && `Peak day: ${peak}`, isFull ? 'Full – too many officers are already off' : null,
             s.leave ? `Leave${s.note ? `: ${s.note}` : ''}` : null, s.preferred ? 'Preferred on-call' : null,
+            confirmed ? `Confirmed leave${s.confirmed ? `: ${s.confirmed}` : ''} – only the admin can change it` : null,
           ].filter(Boolean).join(' · ')
 
           const cell = (
@@ -68,20 +74,21 @@ export function MonthGrid({ month, min, max, holidays, peaks, full, today, readO
               type="button"
               className={cls}
               disabled={disabled}
-              aria-pressed={!!(s.leave || s.preferred)}
+              aria-pressed={!!(s.leave || s.preferred || confirmed)}
               aria-label={`${date}${label ? ` (${label})` : ''}`}
               onPointerDown={e => {
-                if (disabled || readOnly) return
+                if (locked) return
                 e.preventDefault()
                 ;(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId)
                 onDayDown?.(date)
               }}
-              onPointerEnter={() => { if (!disabled && !readOnly) onDayEnter?.(date) }}
+              onPointerEnter={() => { if (!locked) onDayEnter?.(date) }}
               // Releasing over a day ends the drag there even if its enter event was skipped.
-              onPointerUp={() => { if (!disabled && !readOnly) onDayEnter?.(date) }}
+              onPointerUp={() => { if (!locked) onDayEnter?.(date) }}
             >
               <span className="day-num">{dayOfMonth(date)}</span>
               {s.leave && s.note && <span className="day-note">{s.note}</span>}
+              {confirmed && <span className="day-note">Confirmed</span>}
             </button>
           )
 

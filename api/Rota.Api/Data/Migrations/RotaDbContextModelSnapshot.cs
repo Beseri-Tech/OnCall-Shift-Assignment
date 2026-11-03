@@ -252,6 +252,46 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("feedback", (string)null);
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.LeaveApproval", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedByAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonId", "StartDate");
+
+                    b.ToTable("leave_approvals", (string)null);
+                });
+
             modelBuilder.Entity("Rota.Api.Data.LeaveDay", b =>
                 {
                     b.Property<Guid>("PersonId")
@@ -260,11 +300,16 @@ namespace Rota.Api.Data.Migrations
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
+                    b.Property<Guid?>("ApprovalId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Note")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
                     b.HasKey("PersonId", "Date");
+
+                    b.HasIndex("ApprovalId");
 
                     b.HasIndex("Date");
 
@@ -744,8 +789,22 @@ namespace Rota.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.LeaveApproval", b =>
+                {
+                    b.HasOne("Rota.Api.Data.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Rota.Api.Data.LeaveDay", b =>
                 {
+                    b.HasOne("Rota.Api.Data.LeaveApproval", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovalId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("Rota.Api.Data.Person", null)
                         .WithMany("Leave")
                         .HasForeignKey("PersonId")

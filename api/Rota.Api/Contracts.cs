@@ -13,7 +13,11 @@ public sealed record PeriodDto(
 
 public sealed record HolidayDto(DateOnly Date, string Name);
 
-public sealed record LeaveEntryDto(DateOnly Date, string? Note);
+/// <param name="Confirmed">Confirmed leave (approved by the department, entered by an admin): the officer can't change it.</param>
+public sealed record LeaveEntryDto(DateOnly Date, string? Note, bool Confirmed = false);
+
+/// <summary>One confirmed-leave range as its officer sees it.</summary>
+public sealed record ConfirmedLeaveDto(Guid Id, DateOnly StartDate, DateOnly EndDate, string Reason, string? Reference);
 
 public sealed record RotaDayDto(
     DateOnly Date, bool IsWeekendHoliday, string? HolidayName, Guid? PersonId, string? PersonName, bool IsManual);
@@ -29,7 +33,10 @@ public sealed record PersonProfileDto(Guid Id, string Code, string Name, TotalsD
 public sealed record ShiftDto(DateOnly Date, bool IsWeekendHoliday, string? HolidayName, Guid PeriodId, string PeriodName, bool InReview,
     Guid RunId);
 
-public sealed record EntriesDto(IReadOnlyList<LeaveEntryDto> Leave, IReadOnlyList<DateOnly> Preferred);
+/// <param name="Leave">The officer's own leave (confirmed leave is listed separately and ignored when saving).</param>
+/// <param name="Confirmed">Confirmed leave overlapping the period; read only.</param>
+public sealed record EntriesDto(IReadOnlyList<LeaveEntryDto> Leave, IReadOnlyList<DateOnly> Preferred,
+    IReadOnlyList<ConfirmedLeaveDto>? Confirmed = null);
 
 public sealed record ParseRequest(string Text, DateOnly Reference);
 
@@ -147,11 +154,12 @@ public sealed record UpsertPeriodRequest(string Name, DateOnly StartDate, DateOn
 /// <summary>Leave limits for one officer in one period. Budget excludes Extra (admin top-up).</summary>
 public sealed record LeaveRulesDto(
     int Budget, int Extra, string? ExtraReason, int WeekdayAllowance, int BusyDayCap, int WeekdayCap, int OnCall,
-    int WeekendCost, int HolidayCost, int PeakCost, IReadOnlyList<HolidayDto> Peaks, IReadOnlyDictionary<DateOnly, int> OthersOff);
+    int WeekendCost, int HolidayCost, int PeakCost, IReadOnlyList<HolidayDto> Peaks, IReadOnlyDictionary<DateOnly, int> OthersOff,
+    int ConfirmedDays = 0, int PeriodDays = 0, int PointsDeducted = 0, int WeekdaysDeducted = 0);
 
 public sealed record PointsRowDto(
     Guid PersonId, string Code, string Name, int PointsUsed, int Budget, int Extra, string? Reason,
-    int WeekdaysUsed, int WeekdayAllowance);
+    int WeekdaysUsed, int WeekdayAllowance, int ConfirmedDays = 0, int PointsDeducted = 0, int WeekdaysDeducted = 0);
 
 public sealed record PointGrantRequest(int Points, string? Reason);
 
@@ -178,6 +186,22 @@ public sealed record RunDetailDto(RunDto Run, IReadOnlyList<RotaDayDto> Days, IR
 public sealed record OverrideRequest(Guid? PersonId);
 
 public sealed record OverrideResponse(RotaDayDto Day, IReadOnlyList<string> Warnings);
+
+public sealed record UpsertLeaveApprovalRequest(Guid PersonId, DateOnly StartDate, DateOnly EndDate, string? Reason, string? Reference);
+
+/// <summary>Someone who could take a shift instead: on call, not on leave that day and not working the day before or after.</summary>
+public sealed record ShiftCandidateDto(Guid PersonId, string Name, int Shifts);
+
+/// <summary>A shift in a published or in-review rota that falls on the officer's confirmed leave.</summary>
+public sealed record ApprovalConflictDto(
+    Guid RunId, Guid PeriodId, string PeriodName, DateOnly Date, bool IsPublished, IReadOnlyList<ShiftCandidateDto> Candidates);
+
+public sealed record LeaveApprovalDto(
+    Guid Id, Guid PersonId, string PersonCode, string PersonName, DateOnly StartDate, DateOnly EndDate, string Reason,
+    string? Reference, string? CreatedBy, DateTimeOffset CreatedAt, IReadOnlyList<ApprovalConflictDto> Conflicts);
+
+/// <param name="Warnings">Days now over the leave limit, ordinary leave that became confirmed, and similar notes for the admin.</param>
+public sealed record LeaveApprovalResultDto(LeaveApprovalDto Approval, IReadOnlyList<string> Warnings);
 
 
 /// <summary>One audit entry. Detail, Before and After are the JSON the change was logged with.</summary>

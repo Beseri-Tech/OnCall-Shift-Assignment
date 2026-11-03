@@ -16,7 +16,9 @@ export interface Holiday { date: IsoDate; name: string }
 /** A public holiday or peak day applied to one rota period. */
 export type PeriodDayKind = 'Holiday' | 'Peak'
 export interface PeriodDay { date: IsoDate; kind: PeriodDayKind; name: string }
-export interface LeaveEntry { date: IsoDate; note: string | null }
+/** confirmed: confirmed leave entered by an admin (approved absence); officers can't change it. */
+export interface LeaveEntry { date: IsoDate; note: string | null; confirmed?: boolean }
+export interface ConfirmedLeave { id: string; startDate: IsoDate; endDate: IsoDate; reason: string; reference: string | null }
 export interface RotaDay {
   date: IsoDate; isWeekendHoliday: boolean; holidayName: string | null
   personId: string | null; personName: string | null; isManual: boolean
@@ -36,12 +38,24 @@ export interface Swap {
 }
 export interface AppNotification { id: number; kind: string; title: string; body: string | null; link: string | null; createdAt: string; read: boolean }
 export interface Notifications { items: AppNotification[]; unread: number }
-export interface Entries { leave: LeaveEntry[]; preferred: IsoDate[] }
+/** leave: the officer's own leave. confirmed: read only, ignored when saving. */
+export interface Entries { leave: LeaveEntry[]; preferred: IsoDate[]; confirmed?: ConfirmedLeave[] }
 export interface ParseResponse { dates: IsoDate[]; error: string | null }
 export interface OverviewDay { date: IsoDate; isWeekendHoliday: boolean; holidayName: string | null; available: number }
 export interface OverviewPerson { id: string; code: string; name: string; leave: LeaveEntry[]; preferred: IsoDate[] }
 export interface Overview { period: Period; days: OverviewDay[]; people: OverviewPerson[] }
 export interface PublishedRota { period: Period; runId: string; days: RotaDay[]; inReview: boolean }
+
+export interface ShiftCandidate { personId: string; name: string; shifts: number }
+export interface ApprovalConflict {
+  runId: string; periodId: string; periodName: string; date: IsoDate; isPublished: boolean; candidates: ShiftCandidate[]
+}
+export interface LeaveApproval {
+  id: string; personId: string; personCode: string; personName: string; startDate: IsoDate; endDate: IsoDate
+  reason: string; reference: string | null; createdBy: string | null; createdAt: string; conflicts: ApprovalConflict[]
+}
+export interface UpsertLeaveApproval { personId: string; startDate: IsoDate; endDate: IsoDate; reason: string; reference: string | null }
+export interface LeaveApprovalResult { approval: LeaveApproval; warnings: string[] }
 
 export interface AdminPerson {
   id: string; code: string; name: string; status: OfficerStatus; statusReason: string | null; excludedUntil: IsoDate | null
@@ -99,10 +113,13 @@ export interface LeaveRules {
   busyDayCap: number; weekdayCap: number; onCall: number
   weekendCost: number; holidayCost: number; peakCost: number
   peaks: Holiday[]; othersOff: Record<IsoDate, number>
+  /** Confirmed leave takes away the share of points and weekdays equal to the share of the period it covers. */
+  confirmedDays: number; periodDays: number; pointsDeducted: number; weekdaysDeducted: number
 }
 export interface PointsRow {
   personId: string; code: string; name: string; pointsUsed: number; budget: number; extra: number; reason: string | null
   weekdaysUsed: number; weekdayAllowance: number
+  confirmedDays: number; pointsDeducted: number; weekdaysDeducted: number
 }
 
 export interface Run {
@@ -288,6 +305,11 @@ export const api = {
     withdrawReview: (runId: string) => post<void>(`/api/admin/runs/${runId}/withdraw-review`),
     unpublish: (runId: string) => post<void>(`/api/admin/runs/${runId}/unpublish`),
     deleteRun: (runId: string) => del<void>(`/api/admin/runs/${runId}`),
+
+    leaveApprovals: (personId?: string) => get<LeaveApproval[]>(`/api/admin/leave-approvals${q({ personId })}`),
+    createLeaveApproval: (a: UpsertLeaveApproval) => post<LeaveApprovalResult>('/api/admin/leave-approvals', a),
+    updateLeaveApproval: (id: string, a: UpsertLeaveApproval) => put<LeaveApprovalResult>(`/api/admin/leave-approvals/${id}`, a),
+    deleteLeaveApproval: (id: string) => del<void>(`/api/admin/leave-approvals/${id}`),
 
     audit: ({ page, pageSize, ...f }: AuditQuery) =>
       get<AuditPage>(`/api/admin/audit${q({ ...f, page: page?.toString(), pageSize: pageSize?.toString() })}`),
