@@ -14,6 +14,7 @@ internal static class Audit
         p.Name, p.Code, p.Status, p.StatusReason, p.ExcludedUntil,
         Clinic = await ClinicNameAsync(db, p.ClinicId, ct),
         p.Phone, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight,
+        Blocked = p.BlockedWeekdays == 0 ? null : Rota.Core.Leave.BlockedDays.Describe(p.BlockedWeekdays), p.BlockedReason,
     };
 
     public static object Period(RotaPeriod p) => new

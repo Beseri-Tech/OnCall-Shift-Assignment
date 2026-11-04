@@ -15,7 +15,7 @@ import { isAdmin, useMe } from '../auth'
 import { ErrorBox, Legend, Loading, PageHeader, PeriodSelect, StatCard } from '../components/common'
 import { defaultPeriod, notifyError, notifyOk, pick } from '../lib'
 import { MonthGrid } from '../components/MonthGrid'
-import { diffDays, eachDay, formatLong, formatRange, monthsBetween, todayIso, toRanges } from '../dates'
+import { dayOfWeek, diffDays, eachDay, formatLong, formatRange, monthsBetween, todayIso, toRanges } from '../dates'
 import { dayCap, dayKind, usage } from '../leaveRules'
 
 type Mode = 'leave' | 'preferred'
@@ -150,6 +150,16 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
   const [note, setNote] = useState<string | null>('Annual')
   const [customNote, setCustomNote] = useState('')
 
+  // Weekdays the admin blocked for this officer (e.g. every Sunday): nothing to mark there.
+  const blocked = useMemo(() => {
+    const weekdays = profile.data?.blockedWeekdays ?? []
+    if (weekdays.length === 0) return undefined
+    return {
+      days: new Set(eachDay(period.startDate, period.endDate).filter(d => weekdays.includes(dayOfWeek(d)))),
+      reason: profile.data?.blockedReason ?? null,
+    }
+  }, [profile.data, period.startDate, period.endDate])
+
   const dirty = !sameDraft(draft, saved)
   const readOnly = !period.isEditable && !byAdmin
   const effectiveNote = note === 'Other' ? (customNote.trim() || null) : note
@@ -237,7 +247,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
   const used = r && usage(draft.leave.keys(), r, kindOf)
   const was = r && usage(saved.leave.keys(), r, kindOf)
   // Confirmed leave reduces both by the share of the period it covers.
-  const budget = r ? r.budget + r.extra - r.pointsDeducted : 0
+  const budget = r ? r.budget + r.extra + r.reward - r.pointsDeducted : 0
   const allowance = r ? r.weekdayAllowance - r.weekdaysDeducted : 0
   const showBudget = !readOnly && !!r && !!used
   const unchanged = draft.leave.size === saved.leave.size && [...draft.leave.keys()].every(d => saved.leave.has(d))
@@ -278,6 +288,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
             <StatCard icon={IconCoins} color={overPoints ? 'red' : 'brand'} label="Leave points" value={`${used.points} / ${budget}`}
               hint={[
                 r.extra > 0 ? `Includes +${r.extra} extra${r.extraReason ? `: ${r.extraReason}` : ''}` : 'Weekends, public holidays, peak days',
+                r.reward > 0 ? `+${r.reward} reward for ${r.rewardDetail} in ${r.rewardFrom}` : null,
                 r.pointsDeducted > 0 ? `−${r.pointsDeducted} for confirmed leave` : null,
               ].filter(Boolean).join(' · ')}>
               <Progress mt={6} size="sm" radius="xl" color={overPoints ? 'red' : 'brand'} value={budget ? Math.min(100, (used.points / budget) * 100) : 100} />
@@ -391,6 +402,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
               holidays={holidayMap}
               peaks={peakMap}
               full={readOnly || mode !== 'leave' ? undefined : full}
+              blocked={blocked}
               today={today}
               readOnly={readOnly}
               stateOf={date => ({

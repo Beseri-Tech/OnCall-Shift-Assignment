@@ -42,6 +42,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.Property(p => p.Status).HasConversion<string>().HasMaxLength(16);
             e.Property(p => p.StatusReason).HasMaxLength(200);
             e.Property(p => p.Phone).HasMaxLength(32);
+            e.Property(p => p.BlockedReason).HasMaxLength(200);
             e.HasOne(p => p.Clinic).WithMany().HasForeignKey(p => p.ClinicId).OnDelete(DeleteBehavior.SetNull);
             e.HasMany(p => p.Leave).WithOne().HasForeignKey(l => l.PersonId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(p => p.PreferredDates).WithOne().HasForeignKey(p => p.PersonId).OnDelete(DeleteBehavior.Cascade);

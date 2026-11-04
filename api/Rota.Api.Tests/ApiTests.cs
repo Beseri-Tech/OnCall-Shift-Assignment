@@ -219,6 +219,43 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Blocked_weekdays_cannot_be_marked_and_the_officer_is_never_put_on_call_then()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        var (people, period) = await SeedAsync(admin);
+        var officer = people[0];
+        (await admin.PutAsJsonAsync($"/api/admin/people/{officer.Id}",
+            new UpsertPersonRequest(officer.Name, officer.Code, BlockedWeekdays: [(int)DayOfWeek.Sunday], BlockedReason: "Works in Kedah"),
+            ApiFixture.Json)).EnsureSuccessStatusCode();
+        var listed = (await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"))).Single(p => p.Id == officer.Id);
+        Assert.Equal([0], listed.BlockedWeekdays.ToArray());
+        Assert.Equal("Works in Kedah", listed.BlockedReason);
+
+        var user = await ApiFixture.OfficerClientAsync(app, admin, officer.Id);
+        var url = $"/api/people/{officer.Id}/entries?periodId={period.Id}";
+        var sunday = new EntriesDto([new(new DateOnly(2026, 10, 4), null)], []);
+        var res = await user.PutAsJsonAsync(url, sunday, ApiFixture.Json);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        Assert.Contains("Sundays", await res.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await user.PutAsJsonAsync(url, new EntriesDto([], [new DateOnly(2026, 10, 11)]), ApiFixture.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await user.PutAsJsonAsync(url, new EntriesDto([new(new DateOnly(2026, 10, 3), null)], []), ApiFixture.Json)).StatusCode);
+
+        (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
+        var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(1)));
+        Assert.DoesNotContain(run.Days, d => d.PersonId == officer.Id && d.Date.DayOfWeek == DayOfWeek.Sunday);
+        Assert.Contains(run.Days, d => d.PersonId == officer.Id);
+
+        // The admin can still put them on a blocked day by hand, with a warning.
+        var sundaySlot = run.Days.First(d => d.Date.DayOfWeek == DayOfWeek.Sunday);
+        var forced = await Read<OverrideResponse>(await admin.PutAsJsonAsync($"/api/admin/runs/{run.Run.Id}/assignments/{sundaySlot.Date:yyyy-MM-dd}",
+            new OverrideRequest(officer.Id), ApiFixture.Json));
+        Assert.Contains(forced.Warnings, w => w.Contains("can't be on call on Sundays"));
+    }
+
+    [Fact]
     public async Task Leave_can_be_saved_while_open_and_is_refused_after_lock_or_outside_the_period()
     {
         await using var app = fixture.CreateApp();
@@ -239,6 +276,52 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Conflict, (await user.PutAsJsonAsync(url, body, ApiFixture.Json)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Busy_day_shifts_in_a_published_rota_earn_reward_points_for_the_next_rota_only()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        var (people, period) = await SeedAsync(admin);
+        (await admin.PutAsJsonAsync($"/api/admin/periods/{period.Id}/days",
+            new PeriodDayDto(new DateOnly(2026, 10, 5), PeriodDayKind.Holiday, "Test holiday"), ApiFixture.Json)).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync($"/api/admin/periods/{period.Id}/days",
+            new PeriodDayDto(new DateOnly(2026, 10, 7), PeriodDayKind.Peak, "Test peak"), ApiFixture.Json)).EnsureSuccessStatusCode();
+        (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
+        var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(1)));
+
+        var nov = await Read<PeriodDto>(await admin.PostAsJsonAsync("/api/admin/periods",
+            new UpsertPeriodRequest("Nov 2026", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30), null), ApiFixture.Json));
+        async Task<LeaveRulesDto> Rules(Guid periodId, Guid personId) =>
+            await Read<LeaveRulesDto>(await admin.GetAsync($"/api/periods/{periodId}/leave-rules?personId={personId}"));
+
+        // Nothing is earned until the rota is published.
+        foreach (var p in people) Assert.Equal(0, (await Rules(nov.Id, p.Id)).Reward);
+
+        (await admin.PostAsync($"/api/admin/runs/{run.Run.Id}/publish", null)).EnsureSuccessStatusCode();
+        int Expected(Guid id) => run.Days.Where(d => d.PersonId == id).Sum(d =>
+            d.Date == new DateOnly(2026, 10, 5) ? 3 : d.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? 2 : d.Date == new DateOnly(2026, 10, 7) ? 1 : 0);
+        Assert.True(people.Sum(p => Expected(p.Id)) > 0);
+        foreach (var p in people)
+        {
+            var rules = await Rules(nov.Id, p.Id);
+            Assert.Equal(Expected(p.Id), rules.Reward);
+            if (rules.Reward > 0) Assert.Equal("Oct 2026", rules.RewardFrom);
+            Assert.Equal(0, (await Rules(period.Id, p.Id)).Reward);   // the rota that was worked gets nothing
+        }
+        var row = (await Read<List<PointsRowDto>>(await admin.GetAsync($"/api/admin/periods/{nov.Id}/points"))).First(r => r.Reward > 0);
+        Assert.Equal("Oct 2026", row.RewardFrom);
+
+        // A rota in between means last month's shifts no longer count: only the rota right before earns the reward.
+        (await admin.PostAsJsonAsync("/api/admin/periods",
+            new UpsertPeriodRequest("Dec 2026", new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 31), null), ApiFixture.Json)).EnsureSuccessStatusCode();
+        var dec = (await Read<List<PeriodDto>>(await admin.GetAsync("/api/admin/periods"))).Single(x => x.Name == "Dec 2026");
+        foreach (var p in people) Assert.Equal(0, (await Rules(dec.Id, p.Id)).Reward);
+
+        // Unpublishing takes the reward away again.
+        (await admin.PostAsync($"/api/admin/runs/{run.Run.Id}/unpublish", null)).EnsureSuccessStatusCode();
+        foreach (var p in people) Assert.Equal(0, (await Rules(nov.Id, p.Id)).Reward);
     }
 
     [Fact]

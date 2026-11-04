@@ -25,7 +25,11 @@ export interface RotaDay {
 }
 
 export interface PersonSummary { id: string; code: string; name: string }
-export interface PersonProfile { id: string; code: string; name: string; totals: Totals; totalsKnown: boolean }
+export interface PersonProfile {
+  id: string; code: string; name: string; totals: Totals; totalsKnown: boolean
+  /** Weekdays (0 = Sunday ... 6 = Saturday) the officer can never be on call, with the admin's reason. */
+  blockedWeekdays: number[]; blockedReason: string | null
+}
 /** inReview: from a rota still in review (can change before it's published). */
 export interface Shift {
   date: IsoDate; isWeekendHoliday: boolean; holidayName: string | null; periodId: string; periodName: string
@@ -64,12 +68,14 @@ export interface AdminPerson {
   sortOrder: number; extraShift: boolean; preferWeekendHoliday: boolean; weekendWeight: number
   /** Sign-in email and role, once the officer has an account. invitePending: hasn't signed in and set a password yet. */
   email: string | null; role: AccountRole | null; invitePending: boolean; accountEnabled: boolean
+  blockedWeekdays: number[]; blockedReason: string | null
 }
 /** email invites the officer in the same step (only while they have no account). */
 export interface UpsertPerson {
   name: string; code: string | null; status: OfficerStatus; extraShift: boolean; preferWeekendHoliday: boolean
   weekendWeight: number; statusReason: string | null; excludedUntil: IsoDate | null; clinicId: string | null; phone: string | null
   email: string | null; role: AccountRole
+  blockedWeekdays: number[]; blockedReason: string | null
 }
 /** invite is set when an email was given. */
 export interface SavePersonResult { id: string; invite: InviteResult | null }
@@ -115,11 +121,14 @@ export interface LeaveRules {
   peaks: Holiday[]; othersOff: Record<IsoDate, number>
   /** Confirmed leave takes away the share of points and weekdays equal to the share of the period it covers. */
   confirmedDays: number; periodDays: number; pointsDeducted: number; weekdaysDeducted: number
+  /** Bonus points for busy-day shifts in the previous rota: reward is the points, rewardFrom that rota's name, rewardDetail what earned it. */
+  reward: number; rewardFrom: string | null; rewardDetail: string | null
 }
 export interface PointsRow {
   personId: string; code: string; name: string; pointsUsed: number; budget: number; extra: number; reason: string | null
   weekdaysUsed: number; weekdayAllowance: number
   confirmedDays: number; pointsDeducted: number; weekdaysDeducted: number
+  reward: number; rewardFrom: string | null; rewardDetail: string | null
 }
 
 export interface Run {

@@ -76,6 +76,8 @@ public static class AdminRotaEndpoints
                 if (person.Status != OfficerStatus.OnCall) warnings.Add($"{person.Name} is not on call ({person.StatusReason ?? person.Status.ToString()}).");
                 if (await db.LeaveDays.AnyAsync(l => l.PersonId == pid && l.Date == date, ct))
                     warnings.Add($"{person.Name} is on leave on {LeaveText.Format(date)}.");
+                if (BlockedDays.IsBlocked(person.BlockedWeekdays, date))
+                    warnings.Add($"{person.Name} can't be on call on {date.DayOfWeek}s{(person.BlockedReason is null ? "" : $" ({person.BlockedReason})")}.");
 
                 var neighbours = run.Assignments.Where(a => a.PersonId == pid && Math.Abs(a.Date.DayNumber - date.DayNumber) == 1);
                 warnings.AddRange(neighbours.Select(a => $"{person.Name} also works {LeaveText.Format(a.Date)} (back-to-back)."));
@@ -250,7 +252,7 @@ public static class AdminRotaEndpoints
         var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
             .Select(p => new
             {
-                p.Id, p.Name, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight,
+                p.Id, p.Name, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight, p.BlockedWeekdays,
                 Leave = p.Leave.Where(l => l.Date >= period.StartDate && l.Date <= period.EndDate).Select(l => l.Date).ToList(),
                 Preferred = p.PreferredDates.Where(d => d.Date >= period.StartDate && d.Date <= period.EndDate).Select(d => d.Date).ToList(),
             })
@@ -259,7 +261,9 @@ public static class AdminRotaEndpoints
         var rotaPeople = people.Select(p =>
         {
             var t = totals.GetValueOrDefault(p.Id, PersonTotals.Unknown);
-            return new RotaPerson(p.Id, p.Name, p.Leave.ToHashSet(), p.Preferred.ToHashSet(), p.ExtraShift,
+            // Blocked weekdays are days the officer can't work: to the generator they are leave.
+            var unavailable = p.Leave.Concat(BlockedDays.Dates(p.BlockedWeekdays, period.StartDate, period.EndDate)).ToHashSet();
+            return new RotaPerson(p.Id, p.Name, unavailable, p.Preferred.ToHashSet(), p.ExtraShift,
                 p.PreferWeekendHoliday, p.WeekendWeight, t.Known ? t.WeekendHoliday : null);
         }).ToList();
 

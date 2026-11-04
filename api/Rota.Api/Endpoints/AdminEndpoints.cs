@@ -126,7 +126,8 @@ public static class AdminEndpoints
             return new AdminPersonDto(p.Id, p.Code, p.Name, p.Status, p.StatusReason, p.ExcludedUntil,
                 p.ClinicId, p.Clinic?.Name, p.Clinic?.DistrictId, p.Clinic?.District?.Name, p.Clinic?.District?.StateId,
                 p.Clinic?.District?.State?.Name, p.Phone, p.SortOrder, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight,
-                account?.Email, account?.Role, account?.MustChangePassword ?? false, account?.Enabled ?? false);
+                account?.Email, account?.Role, account?.MustChangePassword ?? false, account?.Enabled ?? false,
+                BlockedDays.FromMask(p.BlockedWeekdays), p.BlockedReason);
         }).ToList();
     }
 
@@ -145,6 +146,8 @@ public static class AdminEndpoints
         p.ExtraShift = req.ExtraShift;
         p.PreferWeekendHoliday = req.PreferWeekendHoliday;
         p.WeekendWeight = req.WeekendWeight;
+        p.BlockedWeekdays = BlockedDays.ToMask(req.BlockedWeekdays);
+        p.BlockedReason = p.BlockedWeekdays == 0 ? null : Clean(req.BlockedReason);
     }
 
     private static async Task<IResult?> ValidateAsync(RotaDbContext db, UpsertPersonRequest req, Guid? id, CancellationToken ct)
@@ -277,7 +280,8 @@ public static class AdminEndpoints
                 var grant = rules.Grants.GetValueOrDefault(p.Id);
                 return new PointsRowDto(p.Id, p.Code, p.Name, rules.Policy.Points(leave), rules.BaseBudget, grant?.Points ?? 0,
                     grant?.Reason, rules.Policy.Weekdays(leave), rules.Policy.WeekdayAllowance,
-                    rules.ConfirmedDays(p.Id), rules.PointsDeducted(p.Id), rules.WeekdaysDeducted(p.Id));
+                    rules.ConfirmedDays(p.Id), rules.PointsDeducted(p.Id), rules.WeekdaysDeducted(p.Id),
+                    rules.Reward(p.Id).Points, rules.RewardFrom, rules.Reward(p.Id).Points > 0 ? rules.Reward(p.Id).Describe() : null);
             }).ToList());
         });
 

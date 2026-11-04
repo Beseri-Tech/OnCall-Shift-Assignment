@@ -182,17 +182,18 @@ function PointsRowEditor({ periodId, row }: { periodId: string; row: PointsRow }
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin', 'points', periodId] }); notifyOk(`${row.name}: extra points saved.`) },
     onError: e => notifyError(e),
   })
-  const total = row.budget + row.extra - row.pointsDeducted
+  const total = row.budget + row.extra + row.reward - row.pointsDeducted
   const allowance = row.weekdayAllowance - row.weekdaysDeducted
   const deduction = row.confirmedDays > 0
     ? `Confirmed leave ${row.confirmedDays} day(s): −${row.pointsDeducted} point(s), −${row.weekdaysDeducted} weekday(s)` : undefined
+  const rewardNote = row.reward > 0 ? `Includes +${row.reward} reward for ${row.rewardDetail} in ${row.rewardFrom}` : undefined
   const changed = extra !== row.extra || (reason.trim() || null) !== row.reason
 
   return (
     <Table.Tr>
       <Table.Td fw={600}>{row.name} <Text span size="xs" c="dimmed">{row.code}</Text></Table.Td>
-      <Table.Td ta="center" c={row.pointsUsed > total ? 'red' : undefined} title={deduction}>
-        {row.pointsUsed} / {total}{deduction && ' *'}
+      <Table.Td ta="center" c={row.pointsUsed > total ? 'red' : undefined} title={[rewardNote, deduction].filter(Boolean).join(' · ') || undefined}>
+        {row.pointsUsed} / {total}{(deduction || rewardNote) && ' *'}
       </Table.Td>
       <Table.Td ta="center" c={row.weekdaysUsed > allowance ? 'red' : undefined} title={deduction}>
         {row.weekdaysUsed} / {allowance}{deduction && ' *'}

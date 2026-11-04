@@ -7,6 +7,9 @@ namespace Rota.Core.Leave;
 /// <param name="WeekdayPercent">Free weekday leave = this share of the period's ordinary weekdays.</param>
 /// <param name="BusyDayCapPercent">At most this share of on-call officers off on the same weekend/public holiday/peak day.</param>
 /// <param name="WeekdayCapPercent">At most this share of on-call officers off on the same ordinary weekday.</param>
+/// <param name="HolidayReward">Bonus leave points, in the next rota, for working a public holiday.</param>
+/// <param name="WeekendReward">Bonus leave points, in the next rota, for working a Saturday or Sunday.</param>
+/// <param name="PeakReward">Bonus leave points, in the next rota, for working a peak day.</param>
 /// <param name="ConfirmedLeavePercent">Confirmed leave takes this share of what its days would have cost as ordinary leave.</param>
 public sealed record LeaveLimits(
     double PointsPercent = 0.30,
@@ -16,7 +19,10 @@ public sealed record LeaveLimits(
     double WeekdayPercent = 0.50,
     double BusyDayCapPercent = 0.30,
     double WeekdayCapPercent = 0.50,
-    double ConfirmedLeavePercent = 0.33);
+    double ConfirmedLeavePercent = 0.33,
+    int HolidayReward = 3,
+    int WeekendReward = 2,
+    int PeakReward = 1);
 
 public enum DayKind { Weekday, Weekend, Holiday, Peak }
 

@@ -113,6 +113,11 @@ export function RulesPage() {
             <b>Points budget:</b> about 30% of the weekend, public holiday and peak days in the period (10 such days give 3 points).
             The admin may set a different number. <b>Need more? Ask the admin.</b>
           </List.Item>
+          <List.Item>
+            <b>Reward points for busy-day shifts:</b> if you work a public holiday, a weekend day or a peak day in a published rota,
+            you get extra leave points in the <b>next</b> rota: <b>3 for a public holiday, 2 for a weekend day, 1 for a peak day</b>.
+            They are added automatically, show on My leave, and only last for that next rota.
+          </List.Item>
           <List.Item><b>Weekday allowance:</b> up to half of the normal weekdays in the period.</List.Item>
           <List.Item>
             <b>Daily limit, first come first served:</b> at most 30% of on-call officers off on a weekend, public holiday or
@@ -195,6 +200,11 @@ export function RulesPage() {
           <Text size="sm">
             If you're away for a while (for example maternity leave), the admin can mark you as <b>excluded</b>. You won't get
             shifts. Tell the admin when you're back.
+          </Text>
+          <Text size="sm" mt="xs">
+            If there's a weekday you can <b>never</b> do on call, for example because you work in another state where Sunday is a
+            working day, ask the admin to <b>block</b> it. You won't be given that weekday, it shows as "Not on call" on your leave
+            calendar, and it doesn't use any leave points or change your points.
           </Text>
         </Section>
 

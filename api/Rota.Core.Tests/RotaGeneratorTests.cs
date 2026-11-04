@@ -1,4 +1,5 @@
 using Rota.Core.Generation;
+using Rota.Core.Leave;
 
 namespace Rota.Core.Tests;
 
@@ -145,5 +146,19 @@ public class RotaGeneratorTests
 
         Assert.Null(result.Assignments.Single(a => a.Date == gap).PersonId);
         Assert.Contains(result.Warnings, w => w.Contains("could not be assigned"));
+    }
+
+    [Fact]
+    public void An_officer_with_blocked_sundays_is_never_given_a_sunday_and_still_gets_one_shift()
+    {
+        var end = new DateOnly(2026, 10, 31);
+        var blocked = BlockedDays.Dates(BlockedDays.ToMask([(int)DayOfWeek.Sunday]), Oct1, end);
+        var people = Enumerable.Range(1, 30).Select(i => P(i, leave: i == 1 ? blocked : null)).ToList();
+        var result = Run(people, Oct1, end);
+
+        var mine = ByPerson(result).GetValueOrDefault(people[0].Id, []);
+        Assert.NotEmpty(mine);
+        Assert.DoesNotContain(mine, d => d.DayOfWeek == DayOfWeek.Sunday);
+        Assert.Equal(1, result.Stats.Single(s => s.PersonId == people[0].Id).Total);
     }
 }
