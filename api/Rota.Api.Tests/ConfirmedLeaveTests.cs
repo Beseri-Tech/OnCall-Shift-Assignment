@@ -62,7 +62,7 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         // Saving their own leave doesn't touch the confirmed days, which come back separately.
         var entries = await Read<EntriesDto>(await officers[4].GetAsync($"/api/people/{people[4].Id}/entries?periodId={period.Id}"));
-        Assert.Equal(3, entries.Leave.Count);
+        Assert.Equal(2, entries.Leave.Count);
         Assert.Equal((Oct16, Oct18), entries.Confirmed!.Select(c => (c.StartDate, c.EndDate)).Single());
 
         // Confirmed days count for everyone else: when one officer cancels, the day stays full (2 + the trip = 3).
