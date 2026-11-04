@@ -214,7 +214,7 @@ export function RulesPage() {
           </Text>
           <Text size="sm" mt="xs">
             If there's a weekday you can <b>never</b> do on call, for example because you work in another state where Sunday is a
-            working day, ask the admin to <b>block</b> it. You won't be given that weekday, it shows as "Not on call" on your leave
+            working day, ask the admin to <b>block</b> it. You won't be given that weekday, it shows as "No duty" on your leave
             calendar, and it doesn't use any leave points or change your points. The block has no end date, so ask the admin to lift it when it no longer applies.
           </Text>
         </Section>

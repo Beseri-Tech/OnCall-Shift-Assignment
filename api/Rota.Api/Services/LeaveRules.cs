@@ -20,6 +20,20 @@ public sealed class LeaveRules
 
     public required Dictionary<Guid, PointGrant> Grants { get; init; }
 
+    /// <summary>Weekdays each on-call officer can never be on call (bitmask, see <see cref="BlockedDays"/>).</summary>
+    public Dictionary<Guid, int> BlockedWeekdays { get; init; } = [];
+
+    /// <summary>
+    /// Leave that makes the officer unavailable on a day they could otherwise work: leave on a weekday the admin blocked for them
+    /// (e.g. confirmed leave over a blocked Sunday) changes nothing, they weren't available anyway.
+    /// </summary>
+    private IEnumerable<DateOnly> EffectiveOff(Guid personId) =>
+        LeaveByPerson.GetValueOrDefault(personId, []).Where(d => !BlockedDays.IsBlocked(BlockedWeekdays.GetValueOrDefault(personId), d));
+
+    /// <summary>The number of officers off on <paramref name="date"/>, apart from <paramref name="except"/>, as counted for the daily limit.</summary>
+    public List<Guid> OffOn(DateOnly date, Guid? except = null) =>
+        LeaveByPerson.Keys.Where(id => id != except && EffectiveOff(id).Contains(date)).ToList();
+
     /// <summary>The rota just before this one (if it was published) and what each officer earned there for working busy days.</summary>
     public string? RewardFrom { get; init; }
     public Dictionary<Guid, ShiftReward> Rewards { get; init; } = [];
@@ -35,7 +49,7 @@ public sealed class LeaveRules
 
     /// <summary>Per day, how many on-call officers are off in total (confirmed leave included).</summary>
     public Dictionary<DateOnly, int> AllOff() =>
-        LeaveByPerson.SelectMany(kv => kv.Value).GroupBy(d => d).ToDictionary(g => g.Key, g => g.Count());
+        LeaveByPerson.Keys.SelectMany(EffectiveOff).GroupBy(d => d).ToDictionary(g => g.Key, g => g.Count());
 
     public int OnCall => LeaveByPerson.Count;
     public int BaseBudget => Period.PointsBudget ?? Policy.DefaultBudget;
@@ -46,7 +60,7 @@ public sealed class LeaveRules
     /// day filled partly by approved trips is full for everyone else.
     /// </summary>
     public Dictionary<DateOnly, int> OthersOff(Guid personId) =>
-        LeaveByPerson.Where(kv => kv.Key != personId).SelectMany(kv => kv.Value)
+        LeaveByPerson.Keys.Where(id => id != personId).SelectMany(EffectiveOff)
             .GroupBy(d => d).ToDictionary(g => g.Key, g => g.Count());
 
     public int PeriodDays => Period.EndDate.DayNumber - Period.StartDate.DayNumber + 1;
@@ -63,7 +77,9 @@ public sealed class LeaveRules
 
     public int WeekdaysDeducted(Guid personId) => Policy.ConfirmedWeekdayDeduction(ConfirmedDates(personId), Policy.WeekdayAllowance);
 
-    private IEnumerable<DateOnly> ConfirmedDates(Guid personId) => ConfirmedByPerson.GetValueOrDefault(personId) ?? [];
+    /// <summary>Confirmed leave that counts for the deduction: blocked weekdays inside a trip could never have been marked as leave.</summary>
+    private IEnumerable<DateOnly> ConfirmedDates(Guid personId) =>
+        (ConfirmedByPerson.GetValueOrDefault(personId) ?? []).Where(d => !BlockedDays.IsBlocked(BlockedWeekdays.GetValueOrDefault(personId), d));
 
     /// <summary>What the officer has for their own leave once confirmed leave is taken into account.</summary>
     public int OwnBudget(Guid personId) => Budget(personId) - PointsDeducted(personId);
@@ -96,7 +112,8 @@ public sealed class LeaveRules
         var peaks = await db.PeriodDays.Where(d => d.PeriodId == period.Id && d.Kind == PeriodDayKind.Peak)
             .OrderBy(d => d.Date).ToListAsync(ct);
 
-        var onCall = await db.People.Where(p => p.Status == OfficerStatus.OnCall).Select(p => p.Id).ToListAsync(ct);
+        var onCallPeople = await db.People.Where(p => p.Status == OfficerStatus.OnCall).Select(p => new { p.Id, p.BlockedWeekdays }).ToListAsync(ct);
+        var onCall = onCallPeople.Select(p => p.Id).ToList();
         var leave = await db.LeaveDays
             .Where(l => l.Date >= period.StartDate && l.Date <= period.EndDate)
             .Select(l => new { l.PersonId, l.Date, l.ApprovalId }).ToListAsync(ct);
@@ -131,6 +148,7 @@ public sealed class LeaveRules
         return new LeaveRules
         {
             RewardFrom = previous?.Name,
+            BlockedWeekdays = onCallPeople.Where(p => p.BlockedWeekdays != 0).ToDictionary(p => p.Id, p => p.BlockedWeekdays),
             Rewards = rewards,
             Policy = new LeavePolicy(limits, period.StartDate, period.EndDate, holidays, peaks.Select(p => p.Date).ToHashSet()),
             Period = period,

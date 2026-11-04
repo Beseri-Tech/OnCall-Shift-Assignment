@@ -103,6 +103,28 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Blocked_weekdays_inside_a_confirmed_trip_cost_nothing_and_do_not_fill_the_day()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        var (people, period) = await SeedAsync(admin, 10);   // Oct 2026: 3 points
+        var kedah = people[7];
+        (await admin.PutAsJsonAsync($"/api/admin/people/{kedah.Id}",
+            new UpsertPersonRequest(kedah.Name, kedah.Code, BlockedWeekdays: [(int)DayOfWeek.Sunday]), ApiFixture.Json)).EnsureSuccessStatusCode();
+
+        // Sat 3 to Sun 11 Oct: Sundays 4 and 11 are never on call for them, so only Sat 3 and Sat 10 cost points (2, not 4).
+        // 33% of 2 rounds up to 1 point; the 5 weekdays still cost 2: points 3 - 1 = 2, weekdays 11 - 2 = 9.
+        var trip = await Read<LeaveApprovalResultDto>(await Confirm(admin, kedah.Id, new(2026, 10, 3), new(2026, 10, 11)));
+        Assert.Contains(trip.Warnings, w => w.Contains("covers 2 point(s)") && w.Contains("and 5 weekday(s)") && w.Contains("points are 3 - 1 = 2 and weekdays 11 - 2 = 9"));
+
+        // They don't count as off on their blocked Sunday for anyone else's daily limit, but do on the Saturday.
+        var officer = await ApiFixture.OfficerClientAsync(app, admin, people[1].Id);
+        var rules = await Read<LeaveRulesDto>(await officer.GetAsync($"/api/periods/{period.Id}/leave-rules?personId={people[1].Id}"));
+        Assert.False(rules.OthersOff.ContainsKey(new DateOnly(2026, 10, 4)));
+        Assert.Equal(1, rules.OthersOff[new DateOnly(2026, 10, 3)]);
+    }
+
+    [Fact]
     public async Task Confirmed_leave_needs_a_reason_does_not_overlap_and_takes_over_leave_already_marked()
     {
         await using var app = fixture.CreateApp();

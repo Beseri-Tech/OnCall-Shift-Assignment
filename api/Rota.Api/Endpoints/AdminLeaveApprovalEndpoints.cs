@@ -160,8 +160,8 @@ public static class AdminLeaveApprovalEndpoints
             {
                 int count = off.GetValueOrDefault(d), cap = rules.Policy.DayCap(d, rules.OnCall);
                 if (count <= cap) continue;
-                var others = rules.LeaveByPerson.Where(kv => kv.Key != a.PersonId && kv.Value.Contains(d))
-                    .Select(kv => names.GetValueOrDefault(kv.Key, "?")).Order().ToList();
+                var others = rules.OffOn(d, a.PersonId)
+                    .Select(id => names.GetValueOrDefault(id, "?")).Order().ToList();
                 warnings.Add($"{SwapEndpoints.Day(d)} now has {count} of {rules.OnCall} officers off (limit {cap}). " +
                              $"Also off: {string.Join(", ", others)}.");
             }

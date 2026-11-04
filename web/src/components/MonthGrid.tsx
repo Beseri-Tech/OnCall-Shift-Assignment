@@ -93,7 +93,7 @@ export function MonthGrid({ month, min, max, holidays, peaks, full, blocked, tod
               <span className="day-num">{dayOfMonth(date)}</span>
               {s.leave && s.note && <span className="day-note">{s.note}</span>}
               {confirmed && <span className="day-note">Confirmed</span>}
-              {isBlocked && <span className="day-note">Not on call</span>}
+              {isBlocked && !confirmed && <span className="day-note">No duty</span>}
             </button>
           )
 
