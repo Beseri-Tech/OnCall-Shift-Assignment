@@ -1,6 +1,6 @@
-import { Alert, Anchor, Badge, Button, List, Paper, SimpleGrid, Stack, Table, Text, ThemeIcon, Title } from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Group, List, Paper, SimpleGrid, Stack, Table, Text, ThemeIcon, Title } from '@mantine/core'
 import {
-  IconArrowsExchange, IconBeach, IconBell, IconBook, IconDownload, IconCalendarStar, IconCalendarTime, IconListCheck, IconPlaneDeparture, IconScale, IconStar,
+  IconArrowsExchange, IconBeach, IconBell, IconBook, IconDownload, IconGift, IconCalendarStar, IconCalendarTime, IconListCheck, IconPlaneDeparture, IconScale, IconStar,
   IconSum, IconUserOff, type Icon,
 } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
@@ -35,7 +35,7 @@ const POINTS = [
 
 export function RulesPage() {
   return (
-    <Stack gap="lg" maw={900}>
+    <Stack gap="lg" maw={900} mx="auto">
       <PageHeader icon={IconBook} title="Rules and guidelines" description="How the on-call rota is shared out, and what you need to know.">
         <Button component="a" href="/assets/Rota-OC-user-manual.pdf" download variant="light" leftSection={<IconDownload size={18} />}>
           Download user manual (PDF)
@@ -73,7 +73,7 @@ export function RulesPage() {
       <Section icon={IconScale} title="How shifts are shared out">
         <Text size="sm">The app builds the rota automatically, following these rules in order of importance:</Text>
         <Items>
-          <List.Item><b>Everyone gets the same number of shifts.</b> If the days don't divide evenly, a few officers get one extra.</List.Item>
+          <List.Item><b>Everyone gets the same number of shifts</b>, normally one each per rota. If the days don't divide evenly, a few officers get one extra.</List.Item>
           <List.Item><b>Nobody works two days in a row</b>, unless truly no one else is available. The app also tries to avoid shifts only 2 or 3 days apart.</List.Item>
           <List.Item>
             <b>Weekend and public holiday shifts even out over time.</b> The app looks at how many weekend/PH shifts you've
@@ -113,21 +113,32 @@ export function RulesPage() {
             <b>Points budget:</b> about 30% of the weekend, public holiday and peak days in the period (10 such days give 3 points).
             The admin may set a different number. <b>Need more? Ask the admin.</b>
           </List.Item>
-          <List.Item>
-            <b>Reward points for busy-day shifts:</b> if you work a public holiday, a weekend day or a peak day in a published rota,
-            you get extra leave points in the <b>next</b> rota: <b>3 for a public holiday, 2 for a weekend day, 1 for a peak day</b>.
-            They are added automatically, show on My leave, and only last for that next rota.
-          </List.Item>
           <List.Item><b>Weekday allowance:</b> up to half of the normal weekdays in the period.</List.Item>
           <List.Item>
             <b>Daily limit, first come first served:</b> at most 30% of on-call officers off on a weekend, public holiday or
             peak day, and 50% on other days. Full days show <b>striped</b> on the calendar.
           </List.Item>
-          <List.Item>Lowering a limit never forces you to remove leave you already have. If you end up over your points or weekday allowance, you can keep your leave or remove days, but you can’t add or swap days until you are within the limit.</List.Item>
+          <List.Item>Lowering a limit never forces you to remove leave you already have. If you end up over your points or weekday allowance, you can keep your leave or remove days, but you can’t add or swap days until you are within the limit. Removing days is always allowed.</List.Item>
           <List.Item>After the leave deadline, ask the admin, who can still edit leave for you.</List.Item>
           <List.Item>Other officers can see your leave and its note on the Overview page, so keep notes short and general.</List.Item>
         </Items>
       </Section>
+
+      <Alert color="teal" variant="light" radius="md" icon={<IconGift />} title="Reward points: work a busy day, earn leave points"
+        styles={{ root: { borderWidth: 2, borderStyle: 'solid', borderColor: 'var(--mantine-color-teal-5)' }, title: { fontSize: 'var(--mantine-font-size-lg)', fontWeight: 700 } }}>
+        <Text size="sm">
+          Work a busy day in a published rota and you get <b>extra leave points in the next rota</b>:
+        </Text>
+        <Group gap="sm" my="sm">
+          <Badge size="xl" color="teal" variant="filled">Public holiday +3</Badge>
+          <Badge size="xl" color="brand" variant="filled">Weekend day +2</Badge>
+          <Badge size="xl" color="orange" variant="filled">Peak day +1</Badge>
+        </Group>
+        <List size="sm" spacing={4}>
+          <List.Item>They are added automatically and show on My leave.</List.Item>
+          <List.Item><b>Next rota only.</b> Unused points are not saved for later.</List.Item>
+        </List>
+      </Alert>
 
       <Section icon={IconPlaneDeparture} title="Approved leave (confirmed leave)">
         <Text size="sm">
@@ -165,7 +176,7 @@ export function RulesPage() {
           <Items>
             <List.Item>Each rota period has its own list, set by the admin.</List.Item>
             <List.Item><b>Public holidays (PH)</b> count as weekend shifts in the rota and cost 2 points.</List.Item>
-            <List.Item><b>Peak days (PEAK)</b> are busy weekdays: leave costs 1 point and the stricter daily limit applies. They count as normal weekdays in the rota.</List.Item>
+            <List.Item><b>Peak days (PEAK)</b> are busy weekdays: leave costs 1 point and the stricter daily limit applies. They count towards the points budget, and as normal weekdays in the rota.</List.Item>
           </Items>
         </Section>
 
@@ -204,7 +215,7 @@ export function RulesPage() {
           <Text size="sm" mt="xs">
             If there's a weekday you can <b>never</b> do on call, for example because you work in another state where Sunday is a
             working day, ask the admin to <b>block</b> it. You won't be given that weekday, it shows as "Not on call" on your leave
-            calendar, and it doesn't use any leave points or change your points.
+            calendar, and it doesn't use any leave points or change your points. The block has no end date, so ask the admin to lift it when it no longer applies.
           </Text>
         </Section>
 
@@ -212,7 +223,7 @@ export function RulesPage() {
           <Items>
             <List.Item>The <b>bell</b> shows rota and swap updates.</List.Item>
             <List.Item>You get an email for swap requests, confirmed leave and when the final rota is published.</List.Item>
-            <List.Item>Report a problem or share an idea with <b>Send feedback</b> in the header.</List.Item>
+            <List.Item>Report a problem or share an idea with <b>Send feedback</b>: the speech-bubble icon in the header, or <b>Send feedback</b> in the side menu on a phone.</List.Item>
           </Items>
         </Section>
       </SimpleGrid>
