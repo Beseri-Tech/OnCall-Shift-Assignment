@@ -53,11 +53,12 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Contains(result.Warnings, w => w.Contains("Sat 17 Oct now has 4 of 10 officers off (limit 3)"));
         Assert.Empty(result.Approval.Conflicts);
 
-        // A short trip (3 of 31 days) costs no points and takes none away, so the full budget is left.
-        (await Save(officers[4], people[4].Id, period.Id, new(2026, 10, 3), new(2026, 10, 4), new(2026, 10, 10)))
-            .EnsureSuccessStatusCode();
+        // Even a short trip (3 of 31 days, 3 x 10% of 3 points = 0.29) takes one point away because the share rounds up: 2 left.
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await Save(officers[4], people[4].Id, period.Id, new(2026, 10, 3), new(2026, 10, 4), new(2026, 10, 10))).StatusCode);
+        (await Save(officers[4], people[4].Id, period.Id, new(2026, 10, 3), new(2026, 10, 4))).EnsureSuccessStatusCode();
         var points = await Read<List<PointsRowDto>>(await admin.GetAsync($"/api/admin/periods/{period.Id}/points"));
-        Assert.Equal(3, points.Single(p => p.PersonId == people[4].Id).PointsUsed);
+        Assert.Equal(2, points.Single(p => p.PersonId == people[4].Id).PointsUsed);
 
         // Saving their own leave doesn't touch the confirmed days, which come back separately.
         var entries = await Read<EntriesDto>(await officers[4].GetAsync($"/api/people/{people[4].Id}/entries?periodId={period.Id}"));
