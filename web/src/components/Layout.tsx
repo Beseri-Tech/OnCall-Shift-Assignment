@@ -2,13 +2,13 @@ import { Box, Burger, Container, Divider, Drawer, Group, Menu, ScrollArea, Stack
 import { useDisclosure } from '@mantine/hooks'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  IconBook, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconKey, IconLayoutGrid, IconLogout, IconShieldLock, IconUserCircle,
+  IconBook, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconKey, IconLayoutGrid, IconLogout, IconMessage2, IconShieldLock, IconUserCircle,
 } from '@tabler/icons-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { api } from '../api'
 import { isAdmin, useMe } from '../auth'
-import { FeedbackButton } from './FeedbackButton'
+import { FeedbackButton, FeedbackModal } from './FeedbackButton'
 import { NotificationBell } from './NotificationBell'
 
 /** Below this the header nav moves into a side drawer (Mantine's md: 62em, about 992px), so phones and tablets get the menu. */
@@ -20,6 +20,7 @@ export function Layout() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [drawer, { toggle, close }] = useDisclosure(false)
+  const [feedback, setFeedback] = useState(false)
   const logout = useMutation({ mutationFn: api.auth.logout, onSuccess: () => { qc.clear(); navigate('/login') } })
 
   // Following a link closes the drawer.
@@ -61,7 +62,7 @@ export function Layout() {
                   </UnstyledButton>
                 ))}
               </Group>
-              <FeedbackButton />
+              <FeedbackButton onClick={() => setFeedback(true)} />
               <NotificationBell />
               <Box visibleFrom={DRAWER_BELOW}>
                 <Menu position="bottom-end" withinPortal>
@@ -116,6 +117,10 @@ export function Layout() {
                 <Text size="xs" c="dimmed" truncate>{me?.personName ? `${me.email} · ${me.role}` : me?.role}</Text>
               </div>
             </Group>
+            <UnstyledButton className="drawer-link" onClick={() => { close(); setFeedback(true) }}>
+              <IconMessage2 size={20} stroke={1.8} />
+              <span>Send feedback</span>
+            </UnstyledButton>
             <UnstyledButton component={Link} to="/account/password" className="drawer-link">
               <IconKey size={20} stroke={1.8} />
               <span>Change password</span>
@@ -127,6 +132,8 @@ export function Layout() {
           </Box>
         </ScrollArea>
       </Drawer>
+
+      <FeedbackModal opened={feedback} onClose={() => setFeedback(false)} />
 
       <Container size="xl" py={{ base: 'md', sm: 'lg' }} px={{ base: 'sm', sm: 'md' }}>
         <Outlet />

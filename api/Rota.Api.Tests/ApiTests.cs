@@ -197,6 +197,28 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Officer_who_was_put_over_budget_can_remove_days_but_not_swap_them()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        var (people, period) = await SeedAsync(admin);
+        (await admin.PutAsJsonAsync($"/api/admin/periods/{period.Id}", new UpsertPeriodRequest(period.Name, period.StartDate, period.EndDate, null, 1),
+            ApiFixture.Json)).EnsureSuccessStatusCode();
+        var user = await ApiFixture.OfficerClientAsync(app, admin, people[0].Id);
+        var url = $"/api/people/{people[0].Id}/entries?periodId={period.Id}";
+        EntriesDto Days(params int[] days) => new([.. days.Select(d => new LeaveEntryDto(new DateOnly(2026, 10, d), null))], []);
+
+        // The admin saves 3 weekend days on a budget of 1 point (admins skip the limits).
+        (await admin.PutAsJsonAsync(url, Days(3, 4, 10), ApiFixture.Json)).EnsureSuccessStatusCode();
+
+        Assert.Equal(HttpStatusCode.OK, (await user.PutAsJsonAsync(url, Days(3, 4, 10), ApiFixture.Json)).StatusCode);     // unchanged
+        Assert.Equal(HttpStatusCode.BadRequest, (await user.PutAsJsonAsync(url, Days(3, 4, 11), ApiFixture.Json)).StatusCode); // swap
+        Assert.Equal(HttpStatusCode.BadRequest, (await user.PutAsJsonAsync(url, Days(3, 4, 10, 11), ApiFixture.Json)).StatusCode); // add
+        Assert.Equal(HttpStatusCode.OK, (await user.PutAsJsonAsync(url, Days(3, 4), ApiFixture.Json)).StatusCode);        // remove
+        Assert.Equal(HttpStatusCode.OK, (await user.PutAsJsonAsync(url, Days(3), ApiFixture.Json)).StatusCode);           // within budget
+    }
+
+    [Fact]
     public async Task Leave_can_be_saved_while_open_and_is_refused_after_lock_or_outside_the_period()
     {
         await using var app = fixture.CreateApp();

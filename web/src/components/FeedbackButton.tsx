@@ -4,7 +4,7 @@ import { IconMessage2 } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useLocation } from 'react-router'
 import { api, type FeedbackCategory } from '../api'
-import { notifyError, notifyOk } from '../lib'
+import { notifyError, notifyOk, usePhone } from '../lib'
 
 const MAX = 2000
 
@@ -14,15 +14,26 @@ const CATEGORIES: { value: FeedbackCategory; label: string; hint: string }[] = [
   { value: 'Other', label: 'Other', hint: 'Anything else you’d like the admins to know.' },
 ]
 
-/** Header button: anyone signed in can send feedback to the admins. The current page is sent along with it. */
-export function FeedbackButton() {
+/** Header icon: opens the feedback dialog, which lives in the layout so the phone menu can open it too. */
+export function FeedbackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Tooltip label="Send feedback" withinPortal>
+      <UnstyledButton className="nav-link" aria-label="Send feedback" onClick={onClick}>
+        <IconMessage2 size={20} stroke={1.8} />
+      </UnstyledButton>
+    </Tooltip>
+  )
+}
+
+/** Anyone signed in can send feedback to the admins. The current page is sent along with it. */
+export function FeedbackModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const qc = useQueryClient()
   const { pathname } = useLocation()
-  const [opened, setOpened] = useState(false)
+  const phone = usePhone()
   const [category, setCategory] = useState<FeedbackCategory>('Bug')
   const [message, setMessage] = useState('')
 
-  const close = () => setOpened(false)
+  const close = onClose
   const send = useMutation({
     mutationFn: () => api.sendFeedback(category, message.trim(), pathname),
     onSuccess: () => {
@@ -41,12 +52,7 @@ export function FeedbackButton() {
 
   return (
     <>
-      <Tooltip label="Send feedback" withinPortal>
-        <UnstyledButton className="nav-link" aria-label="Send feedback" onClick={() => setOpened(true)}>
-          <IconMessage2 size={20} stroke={1.8} />
-        </UnstyledButton>
-      </Tooltip>
-      <Modal opened={opened} onClose={close} title="Send feedback" size="lg">
+      <Modal opened={opened} onClose={close} title="Send feedback" size="lg" fullScreen={phone}>
         <form onSubmit={e => { e.preventDefault(); if (message.trim() && !tooLong) send.mutate() }}>
           <Stack gap="md">
             <SegmentedControl fullWidth value={category} onChange={v => setCategory(v as FeedbackCategory)}
