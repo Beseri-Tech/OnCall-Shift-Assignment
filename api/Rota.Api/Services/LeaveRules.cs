@@ -20,6 +20,12 @@ public sealed class LeaveRules
 
     public required Dictionary<Guid, PointGrant> Grants { get; init; }
 
+    /// <summary>The rota just before this one (if it was published) and what each officer earned there for working busy days.</summary>
+    public string? RewardFrom { get; init; }
+    public Dictionary<Guid, ShiftReward> Rewards { get; init; } = [];
+
+    public ShiftReward Reward(Guid personId) => Rewards.GetValueOrDefault(personId) ?? ShiftReward.None;
+
     /// <summary>The officer's own leave, which uses points and the weekday allowance: everything but confirmed leave.</summary>
     public List<DateOnly> OwnLeave(Guid personId)
     {
@@ -33,7 +39,7 @@ public sealed class LeaveRules
 
     public int OnCall => LeaveByPerson.Count;
     public int BaseBudget => Period.PointsBudget ?? Policy.DefaultBudget;
-    public int Budget(Guid personId) => BaseBudget + (Grants.GetValueOrDefault(personId)?.Points ?? 0);
+    public int Budget(Guid personId) => BaseBudget + (Grants.GetValueOrDefault(personId)?.Points ?? 0) + Reward(personId).Points;
 
     /// <summary>
     /// Per day, how many on-call officers other than <paramref name="personId"/> are off. Confirmed leave counts too, so a
@@ -103,8 +109,29 @@ public sealed class LeaveRules
             if (l.ApprovalId is not null) confirmed[l.PersonId].Add(l.Date);
         }
 
+        // Reward points: busy-day shifts in the rota right before this one, if it was published. They are for this rota only.
+        var previous = await db.Periods.Where(p => p.EndDate < period.StartDate).OrderByDescending(p => p.EndDate).FirstOrDefaultAsync(ct);
+        if (previous is not null && !await db.Runs.AnyAsync(r => r.PeriodId == previous.Id && r.IsPublished, ct)) previous = null;
+        var rewards = new Dictionary<Guid, ShiftReward>();
+        if (previous is not null)
+        {
+            var prevHolidays = (await Mapping.HolidaysAsync(db, previous.Id, ct)).Keys.ToHashSet();
+            var prevPeaks = (await db.PeriodDays.Where(d => d.PeriodId == previous.Id && d.Kind == PeriodDayKind.Peak)
+                .Select(d => d.Date).ToListAsync(ct)).ToHashSet();
+            var worked = await db.Assignments
+                .Where(a => a.PersonId != null && db.Runs.Any(r => r.Id == a.RunId && r.PeriodId == previous.Id && r.IsPublished))
+                .Select(a => new { PersonId = a.PersonId!.Value, a.Date }).ToListAsync(ct);
+            foreach (var g in worked.GroupBy(a => a.PersonId))
+            {
+                var reward = ShiftRewardPolicy.For(limits, g.Select(a => a.Date), prevHolidays, prevPeaks);
+                if (reward.Points > 0) rewards[g.Key] = reward;
+            }
+        }
+
         return new LeaveRules
         {
+            RewardFrom = previous?.Name,
+            Rewards = rewards,
             Policy = new LeavePolicy(limits, period.StartDate, period.EndDate, holidays, peaks.Select(p => p.Date).ToHashSet()),
             Period = period,
             Peaks = peaks,

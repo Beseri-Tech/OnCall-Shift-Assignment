@@ -95,7 +95,8 @@ public static class PublicEndpoints
                 rules.BaseBudget, grant?.Points ?? 0, grant?.Reason, rules.Policy.WeekdayAllowance,
                 rules.Policy.BusyDayCap(rules.OnCall), rules.Policy.WeekdayCap(rules.OnCall), rules.OnCall, limits.WeekendCost, limits.HolidayCost, limits.PeakCost,
                 rules.Peaks.Select(p => new HolidayDto(p.Date, p.Name)).ToList(), rules.OthersOff(personId),
-                rules.ConfirmedDays(personId), rules.PeriodDays, rules.PointsDeducted(personId), rules.WeekdaysDeducted(personId)));
+                rules.ConfirmedDays(personId), rules.PeriodDays, rules.PointsDeducted(personId), rules.WeekdaysDeducted(personId),
+                rules.Reward(personId).Points, rules.RewardFrom, rules.Reward(personId).Points > 0 ? rules.Reward(personId).Describe() : null));
         });
 
         api.MapPut("/people/{id:guid}/entries", async (Guid id, Guid periodId, EntriesDto body, RotaDbContext db,

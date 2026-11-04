@@ -135,4 +135,21 @@ public class LeavePolicyTests
         Assert.Equal(0, p.ConfirmedPointsDeduction([Sat], 0));
         Assert.Equal(1, p.ConfirmedPointsDeduction([Sat], 3));   // 33% of 1 point rounds up to 1
     }
+
+    [Fact]
+    public void Busy_day_shifts_earn_reward_points_for_the_next_rota()
+    {
+        var holidays = new HashSet<DateOnly> { new(2026, 10, 5), new(2026, 10, 10) };   // Mon, and a Saturday that is also a holiday
+        var peaks = new HashSet<DateOnly> { Tue, new DateOnly(2026, 10, 3) };            // a peak weekday, and a Saturday
+        var limits = new LeaveLimits();
+
+        // Holiday 3, Saturday (also marked peak) is just a weekend 2, Sunday 2, peak weekday 1, ordinary weekday 0.
+        var reward = ShiftRewardPolicy.For(limits, [Mon, Sat, Sun, Tue, new DateOnly(2026, 10, 7), Tue], holidays, peaks);
+        Assert.Equal((1, 2, 1, 3 + 2 + 2 + 1), (reward.Holidays, reward.Weekends, reward.Peaks, reward.Points));
+        Assert.Equal("1 public holiday, 2 weekend days, 1 peak day", reward.Describe());
+
+        // A public holiday on a weekend earns the holiday reward, not both.
+        Assert.Equal(3, ShiftRewardPolicy.For(limits, [new DateOnly(2026, 10, 10)], holidays, peaks).Points);
+        Assert.Equal(ShiftReward.None, ShiftRewardPolicy.For(limits, [], holidays, peaks));
+    }
 }

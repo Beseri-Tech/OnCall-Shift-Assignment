@@ -280,7 +280,8 @@ public static class AdminEndpoints
                 var grant = rules.Grants.GetValueOrDefault(p.Id);
                 return new PointsRowDto(p.Id, p.Code, p.Name, rules.Policy.Points(leave), rules.BaseBudget, grant?.Points ?? 0,
                     grant?.Reason, rules.Policy.Weekdays(leave), rules.Policy.WeekdayAllowance,
-                    rules.ConfirmedDays(p.Id), rules.PointsDeducted(p.Id), rules.WeekdaysDeducted(p.Id));
+                    rules.ConfirmedDays(p.Id), rules.PointsDeducted(p.Id), rules.WeekdaysDeducted(p.Id),
+                    rules.Reward(p.Id).Points, rules.RewardFrom, rules.Reward(p.Id).Points > 0 ? rules.Reward(p.Id).Describe() : null);
             }).ToList());
         });
 

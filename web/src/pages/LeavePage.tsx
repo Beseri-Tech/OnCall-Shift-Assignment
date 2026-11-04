@@ -247,7 +247,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
   const used = r && usage(draft.leave.keys(), r, kindOf)
   const was = r && usage(saved.leave.keys(), r, kindOf)
   // Confirmed leave reduces both by the share of the period it covers.
-  const budget = r ? r.budget + r.extra - r.pointsDeducted : 0
+  const budget = r ? r.budget + r.extra + r.reward - r.pointsDeducted : 0
   const allowance = r ? r.weekdayAllowance - r.weekdaysDeducted : 0
   const showBudget = !readOnly && !!r && !!used
   const unchanged = draft.leave.size === saved.leave.size && [...draft.leave.keys()].every(d => saved.leave.has(d))
@@ -288,6 +288,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
             <StatCard icon={IconCoins} color={overPoints ? 'red' : 'brand'} label="Leave points" value={`${used.points} / ${budget}`}
               hint={[
                 r.extra > 0 ? `Includes +${r.extra} extra${r.extraReason ? `: ${r.extraReason}` : ''}` : 'Weekends, public holidays, peak days',
+                r.reward > 0 ? `+${r.reward} reward for ${r.rewardDetail} in ${r.rewardFrom}` : null,
                 r.pointsDeducted > 0 ? `−${r.pointsDeducted} for confirmed leave` : null,
               ].filter(Boolean).join(' · ')}>
               <Progress mt={6} size="sm" radius="xl" color={overPoints ? 'red' : 'brand'} value={budget ? Math.min(100, (used.points / budget) * 100) : 100} />
