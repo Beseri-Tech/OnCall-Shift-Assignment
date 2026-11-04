@@ -309,9 +309,9 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
             ))}
             <Text size="xs" c="dimmed">
               Approved leave entered by the admin. You won't be put on call on these days, and only the admin can change it. It
-              doesn't cost points itself, but your points and weekday allowance are reduced by the share of the rota it covers
-              {rules.data && rules.data.confirmedDays > 0 && <> ({rules.data.confirmedDays} of {rules.data.periodDays} days:
-                −{rules.data.pointsDeducted} point(s), −{rules.data.weekdaysDeducted} weekday(s))</>}.
+              doesn't cost points itself, but your points and weekday allowance are reduced by about a third of what those days would have cost as ordinary leave
+              {rules.data && rules.data.confirmedDays > 0 && <> ({rules.data.confirmedDays} day(s): −{rules.data.pointsDeducted} point(s),
+                −{rules.data.weekdaysDeducted} weekday(s))</>}.
             </Text>
           </Stack>
         </Alert>

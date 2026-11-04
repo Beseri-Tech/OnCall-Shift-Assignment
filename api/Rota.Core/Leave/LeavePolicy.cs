@@ -7,6 +7,7 @@ namespace Rota.Core.Leave;
 /// <param name="WeekdayPercent">Free weekday leave = this share of the period's ordinary weekdays.</param>
 /// <param name="BusyDayCapPercent">At most this share of on-call officers off on the same weekend/public holiday/peak day.</param>
 /// <param name="WeekdayCapPercent">At most this share of on-call officers off on the same ordinary weekday.</param>
+/// <param name="ConfirmedLeavePercent">Confirmed leave takes this share of what its days would have cost as ordinary leave.</param>
 public sealed record LeaveLimits(
     double PointsPercent = 0.30,
     int WeekendCost = 1,
@@ -14,7 +15,8 @@ public sealed record LeaveLimits(
     int PeakCost = 1,
     double WeekdayPercent = 0.50,
     double BusyDayCapPercent = 0.30,
-    double WeekdayCapPercent = 0.50);
+    double WeekdayCapPercent = 0.50,
+    double ConfirmedLeavePercent = 0.33);
 
 public enum DayKind { Weekday, Weekend, Holiday, Peak }
 
@@ -42,6 +44,19 @@ public sealed class LeavePolicy(
     public int Points(IEnumerable<DateOnly> dates) => dates.Distinct().Sum(Cost);
 
     public int Weekdays(IEnumerable<DateOnly> dates) => dates.Distinct().Count(d => Kind(d) == DayKind.Weekday);
+
+    /// <summary>
+    /// Points taken off an officer's budget for confirmed leave: <see cref="LeaveLimits.ConfirmedLeavePercent"/> of what those
+    /// days would have cost as ordinary leave (weekend/peak 1, public holiday 2), rounded up, never more than the budget.
+    /// </summary>
+    public int ConfirmedPointsDeduction(IEnumerable<DateOnly> confirmed, int budget) =>
+        Math.Min(Math.Max(0, budget), CeilShare(Points(confirmed)));
+
+    /// <summary>Weekdays taken off the weekday allowance: the same share of the ordinary weekdays in the confirmed leave.</summary>
+    public int ConfirmedWeekdayDeduction(IEnumerable<DateOnly> confirmed, int allowance) =>
+        Math.Min(Math.Max(0, allowance), CeilShare(Weekdays(confirmed)));
+
+    private int CeilShare(int amount) => (int)Math.Ceiling(amount * limits.ConfirmedLeavePercent - 1e-9);
 
     private IEnumerable<DateOnly> Days()
     {

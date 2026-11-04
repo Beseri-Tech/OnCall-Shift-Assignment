@@ -68,8 +68,9 @@ export function ConfirmedLeaveTab() {
         </Group>
         <Text size="sm" c="dimmed" mb="sm">
           For leave the department has already approved, such as an overseas trip. It's never refused, even when the officer
-          is out of points or the day is full. It reduces the officer's points and weekday allowance by the share of the
-          period it covers (15 days of a 60-day rota removes 25%), and it counts toward the daily limit for other officers. The officer can see it but can't change it. You can enter it before the rota period exists.
+          is out of points or the day is full. It reduces the officer's points and weekday allowance by 33% of what its days would
+          have cost as ordinary leave (weekend and peak days 1 point, public holidays 2, each weekday 1 weekday), rounded up,
+          and it counts toward the daily limit for other officers. The officer can see it but can't change it. You can enter it before the rota period exists.
         </Text>
 
         {result && <ResultAlert result={result} onClose={() => setResult(null)} />}

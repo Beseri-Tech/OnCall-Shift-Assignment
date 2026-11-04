@@ -132,8 +132,11 @@ export function RulesPage() {
         <Items>
           <List.Item>It's <b>never refused</b>, even if you're out of points or the day is full, and you won't be put on call on those days.</List.Item>
           <List.Item>
-            It doesn't cost points itself, but your <b>points and weekday allowance are reduced by the share of the rota it
-            covers</b>. For example, 15 days of a 60-day rota is 25%, so a budget of 5 points becomes 3 and 21 weekdays become 15. The reduction is always rounded up, so even a short trip takes at least 1 point and 1 weekday.
+            It doesn't cost points itself, but your <b>points and weekday allowance are reduced by about a third (33%) of what
+            those days would have cost as ordinary leave</b>, rounded up. Weekend and peak days cost 1 point, a public holiday 2,
+            and each ordinary weekday uses 1 weekday. For example, a 9-day trip over Christmas (4 weekend days, the 25 Dec public
+            holiday, 4 weekdays) would have cost 6 points, so it takes 2 points and 2 weekdays off. A trip of weekdays only takes
+            no points. Any trip that includes such days takes at least 1.
           </List.Item>
           <List.Item>It still counts toward the daily limit for other officers, so a day may fill up sooner for them.</List.Item>
           <List.Item>The admin can enter it before the rota period opens. You get a notification and an email.</List.Item>
