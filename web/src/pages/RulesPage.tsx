@@ -1,6 +1,6 @@
-import { Alert, Anchor, Badge, Button, List, Paper, SimpleGrid, Stack, Table, Text, ThemeIcon, Title } from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Group, List, Paper, SimpleGrid, Stack, Table, Text, ThemeIcon, Title } from '@mantine/core'
 import {
-  IconArrowsExchange, IconBeach, IconBell, IconBook, IconDownload, IconCalendarStar, IconCalendarTime, IconListCheck, IconPlaneDeparture, IconScale, IconStar,
+  IconArrowsExchange, IconBeach, IconBell, IconBook, IconDownload, IconGift, IconCalendarStar, IconCalendarTime, IconListCheck, IconPlaneDeparture, IconScale, IconStar,
   IconSum, IconUserOff, type Icon,
 } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
@@ -35,7 +35,7 @@ const POINTS = [
 
 export function RulesPage() {
   return (
-    <Stack gap="lg" maw={900}>
+    <Stack gap="lg" maw={900} mx="auto">
       <PageHeader icon={IconBook} title="Rules and guidelines" description="How the on-call rota is shared out, and what you need to know.">
         <Button component="a" href="/assets/Rota-OC-user-manual.pdf" download variant="light" leftSection={<IconDownload size={18} />}>
           Download user manual (PDF)
@@ -113,12 +113,6 @@ export function RulesPage() {
             <b>Points budget:</b> about 30% of the weekend, public holiday and peak days in the period (10 such days give 3 points).
             The admin may set a different number. <b>Need more? Ask the admin.</b>
           </List.Item>
-          <List.Item>
-            <b>Reward points for busy-day shifts:</b> if you work a public holiday, a weekend day or a peak day in a published rota,
-            you get extra leave points in the <b>next</b> rota: <b>3 for a public holiday, 2 for a weekend day, 1 for a peak day</b>.
-            Only the rota right before counts. They are added automatically, show on My leave, and last for that next rota only,
-            so unused points are not saved for later. In your first rota you start with none.
-          </List.Item>
           <List.Item><b>Weekday allowance:</b> up to half of the normal weekdays in the period.</List.Item>
           <List.Item>
             <b>Daily limit, first come first served:</b> at most 30% of on-call officers off on a weekend, public holiday or
@@ -129,6 +123,23 @@ export function RulesPage() {
           <List.Item>Other officers can see your leave and its note on the Overview page, so keep notes short and general.</List.Item>
         </Items>
       </Section>
+
+      <Alert color="teal" variant="light" radius="md" icon={<IconGift />} title="Reward points: work a busy day, earn leave points"
+        styles={{ root: { borderWidth: 2, borderStyle: 'solid', borderColor: 'var(--mantine-color-teal-5)' }, title: { fontSize: 'var(--mantine-font-size-lg)', fontWeight: 700 } }}>
+        <Text size="sm">
+          Work a busy day in a published rota and you get <b>extra leave points in the next rota</b>:
+        </Text>
+        <Group gap="sm" my="sm">
+          <Badge size="xl" color="teal" variant="filled">Public holiday +3</Badge>
+          <Badge size="xl" color="brand" variant="filled">Weekend day +2</Badge>
+          <Badge size="xl" color="orange" variant="filled">Peak day +1</Badge>
+        </Group>
+        <List size="sm" spacing={4}>
+          <List.Item>Only the rota <b>right before</b> counts. In your first rota you start with none.</List.Item>
+          <List.Item>They are added automatically and show on My leave.</List.Item>
+          <List.Item><b>Next rota only.</b> Unused points are not saved for later.</List.Item>
+        </List>
+      </Alert>
 
       <Section icon={IconPlaneDeparture} title="Approved leave (confirmed leave)">
         <Text size="sm">
