@@ -107,4 +107,32 @@ public class LeavePolicyTests
         var swap = p.Validate(before, [Mon, Tue, new DateOnly(2026, 10, 8)], none, 5, 10, weekdayAllowance: 1);
         Assert.StartsWith("You are over your weekdays (3 of 1)", Assert.Single(swap));
     }
+
+    [Theory]
+    [InlineData("2026-12-07", "2026-12-11", 0, 2)]   // Mon-Fri: no busy days, 5 weekdays * 33% rounded up
+    [InlineData("2026-12-18", "2026-12-21", 1, 1)]   // Fri-Mon with a weekend: 2 points * 33%, 2 weekdays * 33%
+    [InlineData("2027-01-11", "2027-01-17", 1, 2)]
+    [InlineData("2026-12-19", "2026-12-27", 2, 2)]   // includes 25 Dec (public holiday): 6 points * 33% = 1.98
+    [InlineData("2026-12-21", "2027-01-03", 3, 3)]   // 25 Dec and 1 Jan: 8 points * 33% = 2.64, 8 weekdays
+    public void Confirmed_leave_takes_a_third_of_what_its_days_would_cost(string from, string to, int points, int weekdays)
+    {
+        var p = new LeavePolicy(new LeaveLimits(), new DateOnly(2026, 12, 1), new DateOnly(2027, 1, 31),
+            new HashSet<DateOnly> { new(2026, 12, 25), new(2027, 1, 1) }, new HashSet<DateOnly>());
+        var days = Enumerable.Range(0, DateOnly.Parse(to).DayNumber - DateOnly.Parse(from).DayNumber + 1)
+            .Select(i => DateOnly.Parse(from).AddDays(i)).ToList();
+
+        Assert.Equal(6, p.DefaultBudget);
+        Assert.Equal(21, p.WeekdayAllowance);
+        Assert.Equal((points, weekdays), (p.ConfirmedPointsDeduction(days, 6), p.ConfirmedWeekdayDeduction(days, 21)));
+    }
+
+    [Fact]
+    public void Confirmed_leave_deduction_never_exceeds_what_the_officer_has_and_is_zero_without_leave()
+    {
+        var p = Policy();
+        Assert.Equal((0, 0), (p.ConfirmedPointsDeduction([], 3), p.ConfirmedWeekdayDeduction([], 10)));
+        Assert.Equal(1, p.ConfirmedPointsDeduction([Sat, Sun, new DateOnly(2026, 10, 10), new DateOnly(2026, 10, 11)], 1));
+        Assert.Equal(0, p.ConfirmedPointsDeduction([Sat], 0));
+        Assert.Equal(1, p.ConfirmedPointsDeduction([Sat], 3));   // 33% of 1 point rounds up to 1
+    }
 }
