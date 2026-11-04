@@ -133,7 +133,7 @@ export function RulesPage() {
           <List.Item>It's <b>never refused</b>, even if you're out of points or the day is full, and you won't be put on call on those days.</List.Item>
           <List.Item>
             It doesn't cost points itself, but your <b>points and weekday allowance are reduced by the share of the rota it
-            covers</b>. For example, 15 days of a 60-day rota is 25%, so a budget of 5 points becomes 4 and 21 weekdays become 16.
+            covers</b>. For example, 15 days of a 60-day rota is 25%, so a budget of 5 points becomes 3 and 21 weekdays become 15. The reduction is always rounded up, so even a short trip takes at least 1 point and 1 weekday.
           </List.Item>
           <List.Item>It still counts toward the daily limit for other officers, so a day may fill up sooner for them.</List.Item>
           <List.Item>The admin can enter it before the rota period opens. You get a notification and an email.</List.Item>
