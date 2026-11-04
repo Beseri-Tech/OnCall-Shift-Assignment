@@ -263,7 +263,7 @@ function PeriodModal({ editing, onClose, onSaved }: {
           />
           <NumberInput
             label="Leave points per officer"
-            description="Leave empty for automatic: 30% of the period's weekend and public holiday days."
+            description="Leave empty for automatic: 30% of the period's weekend, public holiday and peak days."
             placeholder="Automatic"
             min={0}
             max={100}

@@ -110,7 +110,7 @@ export function RulesPage() {
         </Table>
         <Items>
           <List.Item>
-            <b>Points budget:</b> about 30% of the weekend and public holiday days in the period (10 such days give 3 points).
+            <b>Points budget:</b> about 30% of the weekend, public holiday and peak days in the period (10 such days give 3 points).
             The admin may set a different number. <b>Need more? Ask the admin.</b>
           </List.Item>
           <List.Item><b>Weekday allowance:</b> up to half of the normal weekdays in the period.</List.Item>
