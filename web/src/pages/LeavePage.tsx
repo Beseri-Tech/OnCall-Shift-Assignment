@@ -15,7 +15,7 @@ import { isAdmin, useMe } from '../auth'
 import { ErrorBox, Legend, Loading, PageHeader, PeriodSelect, StatCard } from '../components/common'
 import { defaultPeriod, notifyError, notifyOk, pick } from '../lib'
 import { MonthGrid } from '../components/MonthGrid'
-import { diffDays, eachDay, formatLong, formatRange, monthsBetween, todayIso, toRanges } from '../dates'
+import { dayOfWeek, diffDays, eachDay, formatLong, formatRange, monthsBetween, todayIso, toRanges } from '../dates'
 import { dayCap, dayKind, usage } from '../leaveRules'
 
 type Mode = 'leave' | 'preferred'
@@ -149,6 +149,16 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
   const [mode, setMode] = useState<Mode>('leave')
   const [note, setNote] = useState<string | null>('Annual')
   const [customNote, setCustomNote] = useState('')
+
+  // Weekdays the admin blocked for this officer (e.g. every Sunday): nothing to mark there.
+  const blocked = useMemo(() => {
+    const weekdays = profile.data?.blockedWeekdays ?? []
+    if (weekdays.length === 0) return undefined
+    return {
+      days: new Set(eachDay(period.startDate, period.endDate).filter(d => weekdays.includes(dayOfWeek(d)))),
+      reason: profile.data?.blockedReason ?? null,
+    }
+  }, [profile.data, period.startDate, period.endDate])
 
   const dirty = !sameDraft(draft, saved)
   const readOnly = !period.isEditable && !byAdmin
@@ -391,6 +401,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
               holidays={holidayMap}
               peaks={peakMap}
               full={readOnly || mode !== 'leave' ? undefined : full}
+              blocked={blocked}
               today={today}
               readOnly={readOnly}
               stateOf={date => ({

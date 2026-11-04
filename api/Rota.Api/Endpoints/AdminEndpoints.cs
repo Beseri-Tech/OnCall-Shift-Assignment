@@ -126,7 +126,8 @@ public static class AdminEndpoints
             return new AdminPersonDto(p.Id, p.Code, p.Name, p.Status, p.StatusReason, p.ExcludedUntil,
                 p.ClinicId, p.Clinic?.Name, p.Clinic?.DistrictId, p.Clinic?.District?.Name, p.Clinic?.District?.StateId,
                 p.Clinic?.District?.State?.Name, p.Phone, p.SortOrder, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight,
-                account?.Email, account?.Role, account?.MustChangePassword ?? false, account?.Enabled ?? false);
+                account?.Email, account?.Role, account?.MustChangePassword ?? false, account?.Enabled ?? false,
+                BlockedDays.FromMask(p.BlockedWeekdays), p.BlockedReason);
         }).ToList();
     }
 
@@ -145,6 +146,8 @@ public static class AdminEndpoints
         p.ExtraShift = req.ExtraShift;
         p.PreferWeekendHoliday = req.PreferWeekendHoliday;
         p.WeekendWeight = req.WeekendWeight;
+        p.BlockedWeekdays = BlockedDays.ToMask(req.BlockedWeekdays);
+        p.BlockedReason = p.BlockedWeekdays == 0 ? null : Clean(req.BlockedReason);
     }
 
     private static async Task<IResult?> ValidateAsync(RotaDbContext db, UpsertPersonRequest req, Guid? id, CancellationToken ct)

@@ -196,6 +196,11 @@ export function RulesPage() {
             If you're away for a while (for example maternity leave), the admin can mark you as <b>excluded</b>. You won't get
             shifts. Tell the admin when you're back.
           </Text>
+          <Text size="sm" mt="xs">
+            If there's a weekday you can <b>never</b> do on call, for example because you work in another state where Sunday is a
+            working day, ask the admin to <b>block</b> it. You won't be given that weekday, it shows as "Not on call" on your leave
+            calendar, and it doesn't use any leave points or change your points.
+          </Text>
         </Section>
 
         <Section icon={IconBell} title="Notifications and feedback">

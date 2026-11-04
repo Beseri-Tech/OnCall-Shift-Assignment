@@ -455,6 +455,13 @@ namespace Rota.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("BlockedReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("BlockedWeekdays")
+                        .HasColumnType("integer");
+
                     b.Property<Guid?>("ClinicId")
                         .HasColumnType("uuid");
 

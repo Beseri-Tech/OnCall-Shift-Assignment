@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Rota.Api.Auth;
 using Rota.Api.Data;
+using Rota.Core.Leave;
 using Rota.Api.Services;
 
 namespace Rota.Api.Endpoints;
@@ -186,6 +187,10 @@ public static class SwapEndpoints
             return $"{await NameAsync(db, from, ct)} is on leave on {Day(toDate)}.";
         if (await db.LeaveDays.AnyAsync(l => l.PersonId == to && l.Date == fromDate, ct))
             return $"{await NameAsync(db, to, ct)} is on leave on {Day(fromDate)}.";
+        if (BlockedDays.IsBlocked(await db.People.Where(p => p.Id == from).Select(p => p.BlockedWeekdays).FirstOrDefaultAsync(ct), toDate))
+            return $"{await NameAsync(db, from, ct)} can't be on call on {toDate.DayOfWeek}s.";
+        if (BlockedDays.IsBlocked(await db.People.Where(p => p.Id == to).Select(p => p.BlockedWeekdays).FirstOrDefaultAsync(ct), fromDate))
+            return $"{await NameAsync(db, to, ct)} can't be on call on {fromDate.DayOfWeek}s.";
         return null;
     }
 

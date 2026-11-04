@@ -292,6 +292,13 @@ body {
   outline-offset: -2px;
 }
 
+.day-blocked,
+.day-blocked:disabled {
+  background: repeating-linear-gradient(135deg, #f1f5f9, #f1f5f9 4px, #e2e8f0 4px, #e2e8f0 8px);
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
 .day-disabled {
   background: transparent;
   border-color: transparent;

@@ -22,6 +22,14 @@ public sealed class Person
     public string? Phone { get; set; }
     public int SortOrder { get; set; }
 
+    /// <summary>
+    /// Weekdays this officer can never be on call (e.g. works in another state where Sunday is a working day): a bitmask with
+    /// bit n set for <see cref="DayOfWeek"/> n. Set by the admin; no leave points are involved. 0 = none.
+    /// </summary>
+    public int BlockedWeekdays { get; set; }
+
+    public string? BlockedReason { get; set; }
+
     public bool ExtraShift { get; set; }
     public bool PreferWeekendHoliday { get; set; }
     public int WeekendWeight { get; set; } = 1;

@@ -26,7 +26,8 @@ public sealed record RotaDayDto(
 
 public sealed record PersonSummaryDto(Guid Id, string Code, string Name);
 
-public sealed record PersonProfileDto(Guid Id, string Code, string Name, TotalsDto Totals, bool TotalsKnown);
+public sealed record PersonProfileDto(Guid Id, string Code, string Name, TotalsDto Totals, bool TotalsKnown,
+    IReadOnlyList<int> BlockedWeekdays, string? BlockedReason);
 
 /// <summary>One of an officer's shifts in a published rota.</summary>
 /// <param name="InReview">From a rota still in review: it can change before it's published.</param>
@@ -87,19 +88,20 @@ public sealed record InviteResult(Guid AccountId, bool EmailSent, string? TempPa
 public sealed record UpdateAccountRequest(string Email, AccountRole Role, Guid? PersonId, bool Enabled);
 
 /// <param name="Email">The officer's sign-in email, if they have an account.</param>
+/// <param name="BlockedWeekdays">Weekdays (0 = Sunday ... 6 = Saturday) the officer can never be on call.</param>
 /// <param name="InvitePending">Invited but hasn't signed in and set their own password yet.</param>
 public sealed record AdminPersonDto(
     Guid Id, string Code, string Name, OfficerStatus Status, string? StatusReason, DateOnly? ExcludedUntil,
     Guid? ClinicId, string? ClinicName, Guid? DistrictId, string? District, Guid? StateId, string? State, string? Phone, int SortOrder,
     bool ExtraShift, bool PreferWeekendHoliday, int WeekendWeight, string? Email, AccountRole? Role, bool InvitePending,
-    bool AccountEnabled);
+    bool AccountEnabled, IReadOnlyList<int> BlockedWeekdays, string? BlockedReason);
 
 /// <param name="Email">Invites the officer in the same step (Role: Officer or Admin). Only used while the officer has no
 /// account; change an existing account's email on the Accounts tab.</param>
 public sealed record UpsertPersonRequest(
     string Name, string? Code, OfficerStatus Status = OfficerStatus.OnCall, bool ExtraShift = false, bool PreferWeekendHoliday = false,
     int WeekendWeight = 1, string? StatusReason = null, DateOnly? ExcludedUntil = null, Guid? ClinicId = null, string? Phone = null,
-    string? Email = null, AccountRole Role = AccountRole.Officer);
+    string? Email = null, AccountRole Role = AccountRole.Officer, IReadOnlyList<int>? BlockedWeekdays = null, string? BlockedReason = null);
 
 /// <summary>Invite is set when an email was given.</summary>
 public sealed record SavePersonResult(Guid Id, InviteResult? Invite);

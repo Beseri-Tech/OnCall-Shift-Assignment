@@ -19,6 +19,7 @@ interface Props {
   holidays: Map<IsoDate, string>
   peaks?: Map<IsoDate, string>          // busy weekdays (e.g. eve of Raya)
   full?: Set<IsoDate>                   // days where the leave cap is reached
+  blocked?: { days: Set<IsoDate>; reason: string | null }   // days the admin says this officer can never be on call
   today: IsoDate
   readOnly?: boolean
   stateOf: (date: IsoDate) => DayState
@@ -27,7 +28,7 @@ interface Props {
 }
 
 /** One month as a Monday-first grid; the parent owns selection and drag painting. */
-export function MonthGrid({ month, min, max, holidays, peaks, full, today, readOnly, stateOf, onDayDown, onDayEnter }: Props) {
+export function MonthGrid({ month, min, max, holidays, peaks, full, blocked, today, readOnly, stateOf, onDayDown, onDayEnter }: Props) {
   const last = endOfMonth(month)
   const leadingBlanks = (dayOfWeek(month) + 6) % 7   // Monday = 0
 
@@ -47,7 +48,8 @@ export function MonthGrid({ month, min, max, holidays, peaks, full, today, readO
           const peak = !holiday && !isWeekend(date) ? peaks?.get(date) : undefined
           const confirmed = s.confirmed !== undefined
           const isFull = !disabled && !s.leave && !confirmed && full?.has(date)
-          const locked = disabled || readOnly || confirmed
+          const isBlocked = !disabled && !!blocked?.days.has(date)
+          const locked = disabled || readOnly || confirmed || isBlocked
           const cls = [
             'day',
             isWeekend(date) && 'day-weekend',
@@ -56,6 +58,7 @@ export function MonthGrid({ month, min, max, holidays, peaks, full, today, readO
             isFull && 'day-full',
             s.leave && 'day-leave',
             confirmed && 'day-confirmed',
+            isBlocked && 'day-blocked',
             s.preferred && 'day-preferred',
             date === today && 'day-today',
             disabled && 'day-disabled',
@@ -65,6 +68,7 @@ export function MonthGrid({ month, min, max, holidays, peaks, full, today, readO
           const label = [
             holiday, peak && `Peak day: ${peak}`, isFull ? 'Full – too many officers are already off' : null,
             s.leave ? `Leave${s.note ? `: ${s.note}` : ''}` : null, s.preferred ? 'Preferred on-call' : null,
+            isBlocked ? `Can't be on call on this day${blocked?.reason ? `: ${blocked.reason}` : ''}` : null,
             confirmed ? `Confirmed leave${s.confirmed ? `: ${s.confirmed}` : ''} – only the admin can change it` : null,
           ].filter(Boolean).join(' · ')
 
@@ -89,6 +93,7 @@ export function MonthGrid({ month, min, max, holidays, peaks, full, today, readO
               <span className="day-num">{dayOfMonth(date)}</span>
               {s.leave && s.note && <span className="day-note">{s.note}</span>}
               {confirmed && <span className="day-note">Confirmed</span>}
+              {isBlocked && <span className="day-note">Not on call</span>}
             </button>
           )
 

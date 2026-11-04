@@ -1,5 +1,5 @@
 import {
-  ActionIcon, Anchor, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack,
+  ActionIcon, Anchor, Badge, Button, Checkbox, Chip, Group, Modal, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack,
   Table, Text, TextInput, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
@@ -20,7 +20,10 @@ import { type IssuedLogin, TempPasswordsModal } from './TempPasswords'
 const blank: UpsertPerson = {
   name: '', code: null, status: 'OnCall', extraShift: false, preferWeekendHoliday: false, weekendWeight: 1,
   statusReason: null, excludedUntil: null, clinicId: null, phone: null, email: null, role: 'Officer',
+  blockedWeekdays: [], blockedReason: null,
 }
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 const STATUS_LABEL: Record<OfficerStatus, string> = { OnCall: 'On call', Excluded: 'Excluded', Left: 'Left' }
 const STATUS_COLOR: Record<OfficerStatus, string> = { OnCall: 'green', Excluded: 'orange', Left: 'gray' }
@@ -234,6 +237,11 @@ export function PeopleTab() {
                       {p.preferWeekendHoliday && <Badge color="green" variant="light">Prefers weekends</Badge>}
                       {p.extraShift && <Badge color="violet" variant="light">Extra</Badge>}
                       {p.weekendWeight > 1 && <Badge variant="light">Weight {p.weekendWeight}</Badge>}
+                      {p.blockedWeekdays.length > 0 && (
+                        <Tooltip label={p.blockedReason ?? 'Never on call on these days'} withArrow>
+                          <Badge color="red" variant="light">No {p.blockedWeekdays.map(d => WEEKDAYS[d].slice(0, 3)).join(', ')}</Badge>
+                        </Tooltip>
+                      )}
                     </Group>
                   </Table.Td>
                   <Table.Td>
@@ -302,6 +310,7 @@ const toUpsert = (p: AdminPerson): UpsertPerson => ({
   name: p.name, code: p.code, status: p.status, extraShift: p.extraShift, preferWeekendHoliday: p.preferWeekendHoliday,
   weekendWeight: p.weekendWeight, statusReason: p.statusReason, excludedUntil: p.excludedUntil,
   clinicId: p.clinicId, phone: p.phone, email: null, role: p.role ?? 'Officer',
+  blockedWeekdays: p.blockedWeekdays, blockedReason: p.blockedReason,
 })
 
 /** Clinics grouped under "District, State". */
@@ -432,6 +441,23 @@ function PersonModal({ editing, clinics, onClose, onSaved, onInvited }: {
           </Group>
           <NumberInput label="Weekend weight" description="Higher = larger share of weekend/PH shifts (1–5)" min={1} max={5}
             value={v.weekendWeight} onChange={x => set('weekendWeight', Number(x) || 1)} w={200} />
+          <Stack gap={6}>
+            <Chip.Group multiple value={v.blockedWeekdays.map(String)}
+              onChange={x => set('blockedWeekdays', x.map(Number).sort((a, b) => a - b))}>
+              <Text size="sm" fw={500}>Can never be on call on</Text>
+              <Text size="xs" c="dimmed">
+                For example an officer who works in another state, where Sunday is a working day. The rota never gives them these days.
+                No leave points are used.
+              </Text>
+              <Group gap={6}>
+                {[1, 2, 3, 4, 5, 6, 0].map(d => <Chip key={d} value={String(d)} size="xs">{WEEKDAYS[d].slice(0, 3)}</Chip>)}
+              </Group>
+            </Chip.Group>
+            {v.blockedWeekdays.length > 0 && (
+              <TextInput label="Reason" placeholder="e.g. Works in Kedah" maxLength={200} value={v.blockedReason ?? ''}
+                onChange={e => set('blockedReason', e.currentTarget.value || null)} />
+            )}
+          </Stack>
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancel</Button>

@@ -219,6 +219,42 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Blocked_weekdays_cannot_be_marked_and_the_officer_is_never_put_on_call_then()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        var (people, period) = await SeedAsync(admin);
+        var officer = people[0];
+        (await admin.PutAsJsonAsync($"/api/admin/people/{officer.Id}",
+            new UpsertPersonRequest(officer.Name, officer.Code, BlockedWeekdays: [(int)DayOfWeek.Sunday], BlockedReason: "Works in Kedah"),
+            ApiFixture.Json)).EnsureSuccessStatusCode();
+        var listed = (await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"))).Single(p => p.Id == officer.Id);
+        Assert.Equal(([0], "Works in Kedah"), (listed.BlockedWeekdays.ToList(), listed.BlockedReason));
+
+        var user = await ApiFixture.OfficerClientAsync(app, admin, officer.Id);
+        var url = $"/api/people/{officer.Id}/entries?periodId={period.Id}";
+        var sunday = new EntriesDto([new(new DateOnly(2026, 10, 4), null)], []);
+        var res = await user.PutAsJsonAsync(url, sunday, ApiFixture.Json);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        Assert.Contains("Sundays", await res.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await user.PutAsJsonAsync(url, new EntriesDto([], [new DateOnly(2026, 10, 11)]), ApiFixture.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await user.PutAsJsonAsync(url, new EntriesDto([new(new DateOnly(2026, 10, 3), null)], []), ApiFixture.Json)).StatusCode);
+
+        (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
+        var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(1)));
+        Assert.DoesNotContain(run.Days, d => d.PersonId == officer.Id && d.Date.DayOfWeek == DayOfWeek.Sunday);
+        Assert.Contains(run.Days, d => d.PersonId == officer.Id);
+
+        // The admin can still put them on a blocked day by hand, with a warning.
+        var sundaySlot = run.Days.First(d => d.Date.DayOfWeek == DayOfWeek.Sunday);
+        var forced = await Read<OverrideResponse>(await admin.PutAsJsonAsync($"/api/admin/runs/{run.Run.Id}/assignments/{sundaySlot.Date:yyyy-MM-dd}",
+            new OverrideRequest(officer.Id), ApiFixture.Json));
+        Assert.Contains(forced.Warnings, w => w.Contains("can't be on call on Sundays"));
+    }
+
+    [Fact]
     public async Task Leave_can_be_saved_while_open_and_is_refused_after_lock_or_outside_the_period()
     {
         await using var app = fixture.CreateApp();

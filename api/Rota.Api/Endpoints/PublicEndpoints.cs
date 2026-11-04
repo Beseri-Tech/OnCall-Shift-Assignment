@@ -28,7 +28,7 @@ public static class PublicEndpoints
             if (p is null) return Results.NotFound();
 
             var totals = (await Totals.ForPeopleAsync(db, ct: ct)).GetValueOrDefault(id, PersonTotals.Unknown);
-            return Results.Ok(new PersonProfileDto(p.Id, p.Code, p.Name, totals.ToDto(), totals.Known));
+            return Results.Ok(new PersonProfileDto(p.Id, p.Code, p.Name, totals.ToDto(), totals.Known, BlockedDays.FromMask(p.BlockedWeekdays), p.BlockedReason));
         });
 
         // Shifts in published rotas, plus rotas in review (flagged: they can still change).
@@ -116,6 +116,21 @@ public static class PublicEndpoints
                 {
                     ["dates"] = [$"Dates outside {period.Name}: {LeaveText.Compact(outside)}"],
                 });
+
+            // Days the admin blocked for this officer (e.g. every Sunday): nothing to ask for there, no points involved.
+            // Leave they already had on such days is left alone.
+            var blocked = BlockedDays.Dates(person.BlockedWeekdays, period.StartDate, period.EndDate).ToHashSet();
+            if (blocked.Count > 0)
+            {
+                var existing = (await LoadEntriesAsync(db, id, period, ct)).Leave.Select(l => l.Date).ToHashSet();
+                var clash = body.Leave.Select(l => l.Date).Where(d => !existing.Contains(d)).Concat(body.Preferred)
+                    .Where(blocked.Contains).Distinct().Order().ToList();
+                if (clash.Count > 0)
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["dates"] = [$"You can't be on call on {BlockedDays.Describe(person.BlockedWeekdays)}, so there is nothing to mark on {LeaveText.Compact(clash)}."],
+                    });
+            }
 
             if (body.Leave.Any(l => l.Note?.Length > MaxNoteLength))
                 return Results.ValidationProblem(new Dictionary<string, string[]>
