@@ -9,7 +9,7 @@ import { useState } from 'react'
 import { api, type ApprovalConflict, type LeaveApproval, type LeaveApprovalResult, type UpsertLeaveApproval } from '../../api'
 import { ErrorBox, Loading } from '../../components/common'
 import { diffDays, formatLong, formatRange, todayIso } from '../../dates'
-import { notifyError, notifyOk } from '../../lib'
+import { notifyError, notifyOk, usePhone } from '../../lib'
 
 type Editing = { id: string | null; value: Partial<UpsertLeaveApproval> }
 
@@ -44,6 +44,14 @@ export function ConfirmedLeaveTab() {
   const today = todayIso()
   const rows = (approvals.data ?? []).filter(a => show === 'all' || a.endDate >= today)
     .sort((a, b) => a.startDate.localeCompare(b.startDate))
+  // One card per officer (sorted by name) with their leave listed under the name.
+  const byPerson = new Map<string, { personId: string; name: string; code: string; items: LeaveApproval[] }>()
+  for (const a of rows) {
+    const g = byPerson.get(a.personId) ?? { personId: a.personId, name: a.personName, code: a.personCode, items: [] }
+    g.items.push(a)
+    byPerson.set(a.personId, g)
+  }
+  const groups = [...byPerson.values()].sort((x, y) => x.name.localeCompare(y.name))
 
   return (
     <Stack gap="md">
@@ -70,7 +78,15 @@ export function ConfirmedLeaveTab() {
           <Text size="sm" c="dimmed">{show === 'upcoming' ? 'No current or upcoming confirmed leave.' : 'No confirmed leave yet.'}</Text>
         ) : (
           <Stack gap="sm">
-            {rows.map(a => (
+            {groups.map(g => (
+              <Paper key={g.personId} withBorder p="sm" radius="md">
+                <Group gap="xs" mb="xs" align="baseline">
+                  <Text fw={700}>{g.name}</Text>
+                  <Text size="xs" c="dimmed">{g.code}</Text>
+                  <Badge variant="light" size="sm">{g.items.length} {g.items.length === 1 ? 'entry' : 'entries'}</Badge>
+                </Group>
+                <Stack gap="xs">
+                  {g.items.map(a => (
               <Row key={a.id} a={a}
                 onEdit={() => {
                   setResult(null)
@@ -89,6 +105,9 @@ export function ConfirmedLeaveTab() {
                   onConfirm: () => remove.mutate(a.id),
                 })}
               />
+                  ))}
+                </Stack>
+              </Paper>
             ))}
           </Stack>
         )}
@@ -108,10 +127,6 @@ function Row({ a, onEdit, onDelete }: { a: LeaveApproval; onEdit: () => void; on
     <Paper withBorder p="sm" radius="md" style={a.conflicts.length ? { borderColor: 'var(--mantine-color-red-4)' } : undefined}>
       <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
         <Group gap="xl" align="flex-start" wrap="wrap" style={{ flex: 1, minWidth: 0, rowGap: 6 }}>
-          <Stack gap={0} w={150}>
-            <Text fw={700} size="sm">{a.personName}</Text>
-            <Text size="xs" c="dimmed">{a.personCode}</Text>
-          </Stack>
           <Stack gap={0} w={150}>
             <Text size="sm" fw={600}>{formatRange([a.startDate, a.endDate])}</Text>
             <Text size="xs" c="dimmed">{days} day{days === 1 ? '' : 's'}</Text>
@@ -201,6 +216,7 @@ function ResultAlert({ result, onClose }: { result: LeaveApprovalResult; onClose
 function ApprovalModal({ editing, onClose, onSaved }: {
   editing: Editing; onClose: () => void; onSaved: (r: LeaveApprovalResult) => void
 }) {
+  const phone = usePhone()
   const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people })
   const [v, setV] = useState(editing.value)
   const save = useMutation({
@@ -220,12 +236,12 @@ function ApprovalModal({ editing, onClose, onSaved }: {
     .map(p => ({ value: p.id, label: `${p.name} (${p.code})${p.status === 'Excluded' ? ' – excluded' : ''}` }))
 
   return (
-    <Modal opened onClose={onClose} title={editing.id ? 'Edit confirmed leave' : 'Add confirmed leave'} size="md">
+    <Modal opened onClose={onClose} title={editing.id ? 'Edit confirmed leave' : 'Add confirmed leave'} size="md" fullScreen={phone}>
       <Stack gap="sm">
         <Select label="Officer" placeholder="Pick an officer" searchable required data={officers} value={v.personId ?? null}
           disabled={!!editing.id} onChange={id => setV({ ...v, personId: id ?? undefined })} />
         <DatePickerInput type="range" label="Dates" placeholder="First and last day away" required valueFormat="D MMM YYYY"
-          numberOfColumns={2} allowSingleDateInRange
+          numberOfColumns={phone ? 1 : 2} allowSingleDateInRange
           value={[v.startDate ?? null, v.endDate ?? null]}
           onChange={r => { const [s, e] = r as [string | null, string | null]; setV({ ...v, startDate: s ?? undefined, endDate: e ?? undefined }) }} />
         <TextInput label="Reason" required placeholder="e.g. Overseas trip, approved by HOD" maxLength={200}
