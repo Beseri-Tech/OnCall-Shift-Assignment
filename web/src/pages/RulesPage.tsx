@@ -135,7 +135,6 @@ export function RulesPage() {
           <Badge size="xl" color="orange" variant="filled">Peak day +1</Badge>
         </Group>
         <List size="sm" spacing={4}>
-          <List.Item>Only the rota <b>right before</b> counts. In your first rota you start with none.</List.Item>
           <List.Item>They are added automatically and show on My leave.</List.Item>
           <List.Item><b>Next rota only.</b> Unused points are not saved for later.</List.Item>
         </List>
