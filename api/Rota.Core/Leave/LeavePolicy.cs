@@ -3,7 +3,7 @@ using System.Globalization;
 namespace Rota.Core.Leave;
 
 /// <summary>Limits on self-service leave; every officer does one shift per period, so leave only picks the day.</summary>
-/// <param name="PointsPercent">Points per officer = this share of the period's weekend/public holiday days.</param>
+/// <param name="PointsPercent">Points per officer = this share of the period's weekend, public holiday and peak days.</param>
 /// <param name="WeekdayPercent">Free weekday leave = this share of the period's ordinary weekdays.</param>
 /// <param name="BusyDayCapPercent">At most this share of on-call officers off on the same weekend/public holiday/peak day.</param>
 /// <param name="WeekdayCapPercent">At most this share of on-call officers off on the same ordinary weekday.</param>
@@ -49,7 +49,7 @@ public sealed class LeavePolicy(
     }
 
     public int DefaultBudget =>
-        (int)Math.Round(Days().Count(d => Kind(d) is DayKind.Weekend or DayKind.Holiday) * limits.PointsPercent,
+        (int)Math.Round(Days().Count(d => Kind(d) != DayKind.Weekday) * limits.PointsPercent,
             MidpointRounding.AwayFromZero);
 
     public int WeekdayAllowance => (int)Math.Floor(Days().Count(d => Kind(d) == DayKind.Weekday) * limits.WeekdayPercent);

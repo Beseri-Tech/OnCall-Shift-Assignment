@@ -53,15 +53,16 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Contains(result.Warnings, w => w.Contains("Sat 17 Oct now has 4 of 10 officers off (limit 3)"));
         Assert.Empty(result.Approval.Conflicts);
 
-        // A short trip (3 of 31 days) costs no points and takes none away, so the full budget is left.
-        (await Save(officers[4], people[4].Id, period.Id, new(2026, 10, 3), new(2026, 10, 4), new(2026, 10, 10)))
-            .EnsureSuccessStatusCode();
+        // Even a short trip (3 of 31 days, 3 x 10% of 3 points = 0.29) takes one point away because the share rounds up: 2 left.
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await Save(officers[4], people[4].Id, period.Id, new(2026, 10, 3), new(2026, 10, 4), new(2026, 10, 10))).StatusCode);
+        (await Save(officers[4], people[4].Id, period.Id, new(2026, 10, 3), new(2026, 10, 4))).EnsureSuccessStatusCode();
         var points = await Read<List<PointsRowDto>>(await admin.GetAsync($"/api/admin/periods/{period.Id}/points"));
-        Assert.Equal(3, points.Single(p => p.PersonId == people[4].Id).PointsUsed);
+        Assert.Equal(2, points.Single(p => p.PersonId == people[4].Id).PointsUsed);
 
         // Saving their own leave doesn't touch the confirmed days, which come back separately.
         var entries = await Read<EntriesDto>(await officers[4].GetAsync($"/api/people/{people[4].Id}/entries?periodId={period.Id}"));
-        Assert.Equal(3, entries.Leave.Count);
+        Assert.Equal(2, entries.Leave.Count);
         Assert.Equal((Oct16, Oct18), entries.Confirmed!.Select(c => (c.StartDate, c.EndDate)).Single());
 
         // Confirmed days count for everyone else: when one officer cancels, the day stays full (2 + the trip = 3).
@@ -80,17 +81,17 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal("Overseas trip, approved by HOD", own.People.Single(p => p.Id == people[4].Id).Leave.Single(l => l.Date == Oct17).Note);
 
         // A longer trip shrinks the officer's points and weekdays by the share of the period it covers:
-        // 9 of 31 days -> 3 points - 1 = 2, 11 weekdays - 3 = 8. The trip itself is never refused.
+        // 9 of 31 days -> 3 points - 1 = 2, 11 weekdays - 4 = 7 (shares round up). The trip itself is never refused.
         var longTrip = await Read<LeaveApprovalResultDto>(await Confirm(admin, people[6].Id, new(2026, 10, 3), new(2026, 10, 11)));
-        Assert.Contains(longTrip.Warnings, w => w.Contains("covers 9 of 31 days (29%), so points are 3 - 1 = 2 and weekdays 11 - 3 = 8"));
+        Assert.Contains(longTrip.Warnings, w => w.Contains("covers 9 of 31 days (29%), so points are 3 - 1 = 2 and weekdays 11 - 4 = 7"));
         var over = await Save(officers[6], people[6].Id, period.Id, new(2026, 10, 24), new(2026, 10, 25), new(2026, 10, 31));
         Assert.Equal(HttpStatusCode.BadRequest, over.StatusCode);
         Assert.Contains("Not enough points: 3 needed, 2 available", await over.Content.ReadAsStringAsync());
         (await Save(officers[6], people[6].Id, period.Id, new(2026, 10, 24), new(2026, 10, 25))).EnsureSuccessStatusCode();
         var rules6 = await Read<LeaveRulesDto>(await officers[6].GetAsync($"/api/periods/{period.Id}/leave-rules?personId={people[6].Id}"));
-        Assert.Equal((9, 31, 1, 3), (rules6.ConfirmedDays, rules6.PeriodDays, rules6.PointsDeducted, rules6.WeekdaysDeducted));
+        Assert.Equal((9, 31, 1, 4), (rules6.ConfirmedDays, rules6.PeriodDays, rules6.PointsDeducted, rules6.WeekdaysDeducted));
         var row6 = (await Read<List<PointsRowDto>>(await admin.GetAsync($"/api/admin/periods/{period.Id}/points"))).Single(p => p.PersonId == people[6].Id);
-        Assert.Equal((2, 1, 3), (row6.PointsUsed, row6.PointsDeducted, row6.WeekdaysDeducted));
+        Assert.Equal((2, 1, 4), (row6.PointsUsed, row6.PointsDeducted, row6.WeekdaysDeducted));
 
         // Officers can't use the admin endpoints.
         Assert.Equal(HttpStatusCode.Forbidden, (await Confirm(officers[4], people[4].Id, Oct16, Oct18)).StatusCode);

@@ -36,6 +36,16 @@ public class LeavePolicyTests
     }
 
     [Fact]
+    public void Peak_days_count_in_the_default_budget_but_not_in_the_weekday_allowance()
+    {
+        var plain = Policy(holidays: [Mon]);
+        var withPeaks = Policy(holidays: [Mon], peaks: [Tue, new DateOnly(2026, 10, 7), new DateOnly(2026, 10, 8)]);
+        Assert.Equal(3, plain.DefaultBudget);       // 10 busy days * 30%
+        Assert.Equal(4, withPeaks.DefaultBudget);   // 13 busy days * 30% = 3.9, rounded
+        Assert.Equal(plain.WeekdayAllowance - 1, withPeaks.WeekdayAllowance);   // 3 peak days leave the ordinary weekdays: 18 * 50%
+    }
+
+    [Fact]
     public void Over_budget_or_allowance_is_refused()
     {
         var p = Policy();

@@ -50,14 +50,15 @@ public sealed class LeaveRules
 
     /// <summary>
     /// Confirmed leave doesn't use points itself, but it takes away the same share of the officer's points and weekday
-    /// allowance as the share of the period it covers: 15 days of a 60-day period removes 25% of each (rounded).
+    /// allowance as the share of the period it covers: 15 days of a 60-day period removes 25% of each. The share is rounded up, so
+    /// any confirmed leave costs at least 1 point (and 1 weekday) when the officer has some to lose.
     /// </summary>
     public int PointsDeducted(Guid personId) => Share(Budget(personId), personId);
 
     public int WeekdaysDeducted(Guid personId) => Share(Policy.WeekdayAllowance, personId);
 
     private int Share(int amount, Guid personId) =>
-        Math.Min(amount, (int)Math.Round(amount * (double)ConfirmedDays(personId) / PeriodDays, MidpointRounding.AwayFromZero));
+        Math.Min(amount, (int)(((long)amount * ConfirmedDays(personId) + PeriodDays - 1) / PeriodDays));
 
     /// <summary>What the officer has for their own leave once confirmed leave is taken into account.</summary>
     public int OwnBudget(Guid personId) => Budget(personId) - PointsDeducted(personId);
