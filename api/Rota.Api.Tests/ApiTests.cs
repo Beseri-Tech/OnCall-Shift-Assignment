@@ -229,7 +229,8 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
             new UpsertPersonRequest(officer.Name, officer.Code, BlockedWeekdays: [(int)DayOfWeek.Sunday], BlockedReason: "Works in Kedah"),
             ApiFixture.Json)).EnsureSuccessStatusCode();
         var listed = (await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"))).Single(p => p.Id == officer.Id);
-        Assert.Equal(([0], "Works in Kedah"), (listed.BlockedWeekdays.ToList(), listed.BlockedReason));
+        Assert.Equal([0], listed.BlockedWeekdays.ToArray());
+        Assert.Equal("Works in Kedah", listed.BlockedReason);
 
         var user = await ApiFixture.OfficerClientAsync(app, admin, officer.Id);
         var url = $"/api/people/{officer.Id}/entries?periodId={period.Id}";
