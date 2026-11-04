@@ -109,11 +109,6 @@ public static class PublicEndpoints
             var person = await db.People.FindAsync([id], ct);
             if (period is null || person is null || person.Status != OfficerStatus.OnCall) return Results.NotFound();
 
-            if (!byAdmin && !period.IsEditable(clock.Today))
-                return Results.Problem(
-                    period.Status == PeriodStatus.Open ? "The leave deadline for this period has passed." : "This period is locked.",
-                    statusCode: StatusCodes.Status409Conflict);
-
             var outside = body.Leave.Select(l => l.Date).Concat(body.Preferred)
                 .Where(d => d < period.StartDate || d > period.EndDate).Distinct().Order().ToList();
             if (outside.Count > 0)
@@ -132,6 +127,14 @@ public static class PublicEndpoints
 
             // One save per period at a time (released on commit/rollback), so two officers can't both take the last spot on a day.
             await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({period.Id.ToString()}, 0))", ct);
+
+            // Check the period only now, under the lock: locking the period takes the same lock, so a save can't slip through
+            // while the admin is locking it.
+            await db.Entry(period).ReloadAsync(ct);
+            if (!byAdmin && !period.IsEditable(clock.Today))
+                return Results.Problem(
+                    period.Status == PeriodStatus.Open ? "The leave deadline for this period has passed." : "This period was locked, so leave can no longer be changed. Ask the admin.",
+                    statusCode: StatusCodes.Status409Conflict);
 
             // Read after the lock so we see what the previous save just committed.
             var before = await LoadEntriesAsync(db, id, period, ct);

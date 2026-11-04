@@ -61,4 +61,40 @@ public class LeavePolicyTests
         Assert.Equal(["Already full (at most 3 of 10 officers off on a weekend/public holiday/peak day, 5 on other days): 3 Oct, 5 Oct."],
             p.Validate([], [Sat, Mon, Tue], full, 5, 10));
     }
+
+    [Fact]
+    public void Officer_who_is_over_can_remove_days_but_not_swap_or_add()
+    {
+        var p = Policy();
+        var none = new Dictionary<DateOnly, int>();
+        DateOnly[] before = [Sat, Sun, new DateOnly(2026, 10, 10)];   // 3 points on a budget of 1
+
+        Assert.Empty(p.Validate(before, before, none, 1, 10));                       // unchanged (e.g. only a note changed)
+        Assert.Empty(p.Validate(before, [Sat, Sun], none, 1, 10));                   // removing is fine, even if still over
+        Assert.Empty(p.Validate(before, [Sat], none, 1, 10));                        // back within budget
+
+        // Swapping a day for another weekend day keeps the same points: no longer allowed.
+        var swap = p.Validate(before, [Sat, Sun, new DateOnly(2026, 10, 11)], none, 1, 10);
+        Assert.Single(swap);
+        Assert.StartsWith("You are over your points (3 of 1)", swap[0]);
+
+        // Adding a day is refused with the plain message.
+        Assert.StartsWith("Not enough points: 4 needed", Assert.Single(p.Validate(before, [.. before, new DateOnly(2026, 10, 17)], none, 1, 10)));
+
+        // Adding a weekday while over on points is still a change that does not reduce points.
+        Assert.Single(p.Validate(before, [.. before, Mon], none, 1, 10));
+    }
+
+    [Fact]
+    public void Officer_who_is_over_on_weekdays_can_only_remove_weekdays()
+    {
+        var p = Policy();
+        var none = new Dictionary<DateOnly, int>();
+        DateOnly[] before = [Mon, Tue, new DateOnly(2026, 10, 7)];   // 3 weekdays on an allowance of 1
+
+        Assert.Empty(p.Validate(before, before, none, 5, 10, weekdayAllowance: 1));
+        Assert.Empty(p.Validate(before, [Mon, Tue], none, 5, 10, weekdayAllowance: 1));
+        var swap = p.Validate(before, [Mon, Tue, new DateOnly(2026, 10, 8)], none, 5, 10, weekdayAllowance: 1);
+        Assert.StartsWith("You are over your weekdays (3 of 1)", Assert.Single(swap));
+    }
 }

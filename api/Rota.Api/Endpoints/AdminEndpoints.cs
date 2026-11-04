@@ -367,6 +367,11 @@ public static class AdminEndpoints
     {
         var period = await db.Periods.FindAsync([id], ct);
         if (period is null) return Results.NotFound();
+
+        // Same lock as an officer's leave save, so a save in flight finishes before the period locks.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({id.ToString()}, 0))", ct);
+        await db.Entry(period).ReloadAsync(ct);
         if (period.Status != from)
             return Results.Problem($"The period is {period.Status}, not {from}.", statusCode: StatusCodes.Status409Conflict);
 
@@ -374,6 +379,7 @@ public static class AdminEndpoints
         period.Status = to;
         Mapping.Log(db, http, $"period.{to.ToString().ToLowerInvariant()}", null, null, id, before, Audit.Period(period));
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return Results.Ok(period.ToDto(clock.Today));
     }
 

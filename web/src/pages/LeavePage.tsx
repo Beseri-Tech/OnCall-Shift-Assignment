@@ -10,7 +10,7 @@ import {
   IconLock, IconPlaneDeparture, IconStar, IconSum, IconTrash,
 } from '@tabler/icons-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, type ConfirmedLeave, type Entries, type IsoDate, type Period } from '../api'
+import { api, ApiError, type ConfirmedLeave, type Entries, type IsoDate, type Period } from '../api'
 import { isAdmin, useMe } from '../auth'
 import { ErrorBox, Legend, Loading, PageHeader, PeriodSelect, StatCard } from '../components/common'
 import { defaultPeriod, notifyError, notifyOk, pick } from '../lib'
@@ -176,6 +176,8 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
     onError: e => {
       // Someone may have taken a day since this page loaded: refresh caps and "Full" days, keep the draft.
       qc.invalidateQueries({ queryKey: ['leaveRules', period.id] })
+      // 409: the period was locked (or the deadline passed) since this page loaded: refresh it so the calendar goes read-only.
+      if (e instanceof ApiError && e.status === 409) qc.invalidateQueries({ queryKey: ['periods'] })
       notifyError(e, 'Could not save')
     },
   })
@@ -230,7 +232,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
 
   const totals = profile.data?.totalsKnown ? profile.data.totals : undefined
 
-  // Same "only refuse what gets worse" rule as the server, so lowering a budget never blocks edits.
+  // Same rule as the server: end within budget, unless already over, then only removing days is allowed.
   const r = rules.data
   const used = r && usage(draft.leave.keys(), r, kindOf)
   const was = r && usage(saved.leave.keys(), r, kindOf)
@@ -238,14 +240,30 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
   const budget = r ? r.budget + r.extra - r.pointsDeducted : 0
   const allowance = r ? r.weekdayAllowance - r.weekdaysDeducted : 0
   const showBudget = !readOnly && !!r && !!used
-  const overPoints = !byAdmin && !!used && !!was && used.points > budget && used.points > was.points
-  const overWeekdays = !byAdmin && !!used && !!was && !!r && used.weekdays > allowance && used.weekdays > was.weekdays
+  const unchanged = draft.leave.size === saved.leave.size && [...draft.leave.keys()].every(d => saved.leave.has(d))
+  const overPoints = !byAdmin && !!used && !!was && used.points > budget && !unchanged && used.points >= was.points
+  const overWeekdays = !byAdmin && !!used && !!was && !!r && used.weekdays > allowance && !unchanged && used.weekdays >= was.weekdays
+  const alreadyOver = !!was && (was.points > budget || was.weekdays > allowance)
   const limitError = overPoints
-    ? `Not enough points (${used!.points} needed, ${budget} available). Ask the admin for extra points.`
-    : overWeekdays ? `Too many weekdays (${used!.weekdays} marked, at most ${allowance}).` : null
+    ? (used!.points > was!.points
+      ? `Not enough points (${used!.points} needed, ${budget} available). Ask the admin for extra points.`
+      : `You are over your points (${used!.points} of ${budget}). You can only remove days until you are within budget.`)
+    : overWeekdays
+      ? (used!.weekdays > was!.weekdays
+        ? `Too many weekdays (${used!.weekdays} marked, at most ${allowance}).`
+        : `You are over your weekdays (${used!.weekdays} of ${allowance}). You can only remove days until you are within the allowance.`)
+      : null
+  // The limits couldn't be loaded, so nothing can be checked: don't allow a save (the server checks too).
+  const rulesMissing = !byAdmin && !readOnly && !r
 
   return (
     <Stack gap="md" pb={dirty ? 80 : 0}>
+      {!byAdmin && alreadyOver && !readOnly && (
+        <Alert color="orange" icon={<IconInfoCircle />} title="You are over your leave limit">
+          Your saved leave is over your points ({was!.points} of {budget}) or weekday allowance ({was!.weekdays} of {allowance}),
+          for example because the admin changed it for you. You can remove days, but not swap or add them until you are within the limit.
+        </Alert>
+      )}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: showBudget ? 4 : 2 }} spacing="md">
         <StatCard icon={readOnly ? IconLock : IconCalendarTime} color={readOnly ? 'red' : 'green'} label={period.name}>
           <Text fw={700} mt={2}>{formatLong(period.startDate)} – {formatLong(period.endDate)}</Text>
@@ -400,9 +418,11 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
         <Paper shadow="xl" p="sm" px="md" withBorder pos="fixed" bottom={16} left="50%" radius="xl"
           style={{ transform: 'translateX(-50%)', zIndex: 200, borderColor: limitError ? 'var(--leave-border)' : 'var(--shift-border)' }}>
           <Group gap="sm" wrap="nowrap">
-            <Text fw={600} size="sm" c={limitError ? 'red' : undefined}>{limitError ?? 'You have unsaved changes'}</Text>
+            <Text fw={600} size="sm" c={limitError ? 'red' : undefined}>
+              {limitError ?? (rulesMissing ? 'Your leave limits could not be loaded, so you can’t save yet. Reload the page.' : 'You have unsaved changes')}
+            </Text>
             <Button variant="default" onClick={() => setDraft(saved)}>Discard</Button>
-            <Button leftSection={<IconDeviceFloppy size={18} />} loading={save.isPending} disabled={!!limitError}
+            <Button leftSection={<IconDeviceFloppy size={18} />} loading={save.isPending} disabled={!!limitError || rulesMissing}
               onClick={() => save.mutate()}>
               Save
             </Button>

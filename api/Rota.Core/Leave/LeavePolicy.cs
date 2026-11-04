@@ -62,8 +62,10 @@ public sealed class LeavePolicy(
     private static int Cap(int onCall, double percent) => Math.Max(1, (int)Math.Floor(onCall * percent));
 
     /// <summary>
-    /// Errors for replacing <paramref name="before"/> with <paramref name="after"/>. Only changes that make things worse
-    /// are refused, so lowering a budget never stops anyone from editing or removing leave.
+    /// Errors for replacing <paramref name="before"/> with <paramref name="after"/>. A save must end within the points budget
+    /// and weekday allowance. The one exception is an officer who is already over (an admin edit, a lowered budget, a later
+    /// holiday...): they may leave things as they are or remove days (fewer points / weekdays than before), but never swap or
+    /// add days while over, so nobody can stay over by rearranging leave.
     /// </summary>
     /// <param name="othersOff">Per day, how many other on-call officers are already off.</param>
     /// <param name="weekdayAllowance">Overrides <see cref="WeekdayAllowance"/> (e.g. reduced for confirmed leave).</param>
@@ -71,14 +73,19 @@ public sealed class LeavePolicy(
         IReadOnlyDictionary<DateOnly, int> othersOff, int budget, int onCall, int? weekdayAllowance = null)
     {
         var errors = new List<string>();
+        bool unchanged = before.ToHashSet().SetEquals(after);
 
-        int points = Points(after);
-        if (points > budget && points > Points(before))
-            errors.Add($"Not enough points: {points} needed, {budget} available. Ask the admin for extra points.");
+        int points = Points(after), pointsBefore = Points(before);
+        if (points > budget && !unchanged && points >= pointsBefore)
+            errors.Add(points > pointsBefore || pointsBefore <= budget
+                ? $"Not enough points: {points} needed, {budget} available. Ask the admin for extra points."
+                : $"You are over your points ({points} of {budget}). You can only remove days until you are within budget.");
 
-        int weekdays = Weekdays(after), allowance = weekdayAllowance ?? WeekdayAllowance;
-        if (weekdays > allowance && weekdays > Weekdays(before))
-            errors.Add($"Too many weekdays: {weekdays} marked, at most {allowance} in this period.");
+        int weekdays = Weekdays(after), weekdaysBefore = Weekdays(before), allowance = weekdayAllowance ?? WeekdayAllowance;
+        if (weekdays > allowance && !unchanged && weekdays >= weekdaysBefore)
+            errors.Add(weekdays > weekdaysBefore || weekdaysBefore <= allowance
+                ? $"Too many weekdays: {weekdays} marked, at most {allowance} in this period."
+                : $"You are over your weekdays ({weekdays} of {allowance}). You can only remove days until you are within the allowance.");
 
         var full = after.Except(before).Distinct().Where(d => othersOff.GetValueOrDefault(d) >= DayCap(d, onCall)).Order().ToList();
         if (full.Count > 0)

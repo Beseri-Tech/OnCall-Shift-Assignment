@@ -118,7 +118,7 @@ export function RulesPage() {
             <b>Daily limit, first come first served:</b> at most 30% of on-call officers off on a weekend, public holiday or
             peak day, and 50% on other days. Full days show <b>striped</b> on the calendar.
           </List.Item>
-          <List.Item>Lowering a limit never forces you to remove leave you already have.</List.Item>
+          <List.Item>Lowering a limit never forces you to remove leave you already have. If you end up over your points or weekday allowance, you can keep your leave or remove days, but you can’t add or swap days until you are within the limit.</List.Item>
           <List.Item>After the leave deadline, ask the admin, who can still edit leave for you.</List.Item>
           <List.Item>Other officers can see your leave and its note on the Overview page, so keep notes short and general.</List.Item>
         </Items>
