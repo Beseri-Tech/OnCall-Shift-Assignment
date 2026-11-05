@@ -50,13 +50,13 @@ export function ClinicEventsModal({ opened, clinics, onClose }: { opened: boolea
           <Button onClick={() => add.mutate()} disabled={!clinicId || dates.length === 0} loading={add.isPending}>Block</Button>
         </Group>
 
-        {days.isLoading ? <Loading /> : days.error ? <ErrorBox error={days.error} /> : days.data!.length === 0 ? (
+        {days.error ? <ErrorBox error={days.error} /> : !days.data ? <Loading /> : days.data.length === 0 ? (
           <Text size="sm" c="dimmed">No upcoming blocked days.</Text>
         ) : (
           <Table>
             <Table.Thead><Table.Tr><Table.Th>Date</Table.Th><Table.Th>Clinic</Table.Th><Table.Th>Reason</Table.Th><Table.Th /></Table.Tr></Table.Thead>
             <Table.Tbody>
-              {days.data!.map(d => (
+              {days.data.map(d => (
                 <Table.Tr key={`${d.clinicId}-${d.date}`}>
                   <Table.Td>{formatLong(d.date)}</Table.Td>
                   <Table.Td>{d.clinicName}</Table.Td>
