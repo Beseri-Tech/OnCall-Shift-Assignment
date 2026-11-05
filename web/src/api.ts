@@ -29,6 +29,8 @@ export interface PersonProfile {
   id: string; code: string; name: string; totals: Totals; totalsKnown: boolean
   /** Weekdays (0 = Sunday ... 6 = Saturday) the officer can never be on call, with the admin's reason. */
   blockedWeekdays: number[]; blockedReason: string | null
+  /** Dates the admin blocked for the officer's whole clinic. */
+  clinicBlockedDays?: ClinicBlockedDay[]
 }
 /** inReview: from a rota still in review (can change before it's published). */
 export interface Shift {
@@ -100,6 +102,8 @@ export interface TallyRow {
 export interface District { id: string; name: string; clinics: number }
 export interface State { id: string; name: string; districts: District[] }
 export interface Clinic { id: string; name: string; districtId: string; district: string; state: string; people: number }
+/** A date nobody from the clinic can be on call (e.g. a clinic event). */
+export interface ClinicBlockedDay { clinicId: string; clinicName: string; date: IsoDate; reason: string | null }
 export interface UpsertClinic { name: string; districtId: string }
 export interface ImportRow {
   line: number; name: string; code: string | null; email: string | null; role: AccountRole | null; phone: string | null
@@ -281,6 +285,10 @@ export const api = {
     createClinic: (c: UpsertClinic) => post<string>('/api/admin/clinics', c),
     updateClinic: (id: string, c: UpsertClinic) => put<void>(`/api/admin/clinics/${id}`, c),
     deleteClinic: (id: string) => del<void>(`/api/admin/clinics/${id}`),
+    clinicBlockedDays: () => get<ClinicBlockedDay[]>('/api/admin/clinics/blocked-days'),
+    blockClinicDays: (id: string, dates: IsoDate[], reason: string | null) =>
+      post<void>(`/api/admin/clinics/${id}/blocked-days`, { dates, reason }),
+    unblockClinicDay: (id: string, date: IsoDate) => del<void>(`/api/admin/clinics/${id}/blocked-days/${date}`),
 
     periods: () => get<Period[]>('/api/admin/periods'),
     createPeriod: (p: UpsertPeriod) => post<Period>('/api/admin/periods', p),

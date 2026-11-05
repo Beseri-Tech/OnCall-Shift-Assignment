@@ -23,12 +23,18 @@ public sealed class LeaveRules
     /// <summary>Weekdays each on-call officer can never be on call (bitmask, see <see cref="BlockedDays"/>).</summary>
     public Dictionary<Guid, int> BlockedWeekdays { get; init; } = [];
 
+    /// <summary>Dates the admin blocked for each officer's whole clinic (e.g. a clinic event) in the period.</summary>
+    public Dictionary<Guid, HashSet<DateOnly>> ClinicBlocked { get; init; } = [];
+
+    private bool IsBlocked(Guid personId, DateOnly date) =>
+        BlockedDays.IsBlocked(BlockedWeekdays.GetValueOrDefault(personId), date) || ClinicBlocked.GetValueOrDefault(personId)?.Contains(date) == true;
+
     /// <summary>
     /// Leave that makes the officer unavailable on a day they could otherwise work: leave on a weekday the admin blocked for them
     /// (e.g. confirmed leave over a blocked Sunday) changes nothing, they weren't available anyway.
     /// </summary>
     private IEnumerable<DateOnly> EffectiveOff(Guid personId) =>
-        LeaveByPerson.GetValueOrDefault(personId, []).Where(d => !BlockedDays.IsBlocked(BlockedWeekdays.GetValueOrDefault(personId), d));
+        LeaveByPerson.GetValueOrDefault(personId, []).Where(d => !IsBlocked(personId, d));
 
     /// <summary>The number of officers off on <paramref name="date"/>, apart from <paramref name="except"/>, as counted for the daily limit.</summary>
     public List<Guid> OffOn(DateOnly date, Guid? except = null) =>
@@ -77,9 +83,9 @@ public sealed class LeaveRules
 
     public int WeekdaysDeducted(Guid personId) => Policy.ConfirmedWeekdayDeduction(ConfirmedDates(personId), Policy.WeekdayAllowance);
 
-    /// <summary>Confirmed leave that counts for the deduction: blocked weekdays inside a trip could never have been marked as leave.</summary>
+    /// <summary>Confirmed leave that counts for the deduction: blocked weekdays and clinic event days inside a trip could never have been marked as leave.</summary>
     private IEnumerable<DateOnly> ConfirmedDates(Guid personId) =>
-        (ConfirmedByPerson.GetValueOrDefault(personId) ?? []).Where(d => !BlockedDays.IsBlocked(BlockedWeekdays.GetValueOrDefault(personId), d));
+        (ConfirmedByPerson.GetValueOrDefault(personId) ?? []).Where(d => !IsBlocked(personId, d));
 
     /// <summary>What the officer has for their own leave once confirmed leave is taken into account.</summary>
     public int OwnBudget(Guid personId) => Budget(personId) - PointsDeducted(personId);
@@ -149,6 +155,7 @@ public sealed class LeaveRules
         {
             RewardFrom = previous?.Name,
             BlockedWeekdays = onCallPeople.Where(p => p.BlockedWeekdays != 0).ToDictionary(p => p.Id, p => p.BlockedWeekdays),
+            ClinicBlocked = await ClinicBlocks.ByPersonAsync(db, period.StartDate, period.EndDate, ct),
             Rewards = rewards,
             Policy = new LeavePolicy(limits, period.StartDate, period.EndDate, holidays, peaks.Select(p => p.Date).ToHashSet()),
             Period = period,

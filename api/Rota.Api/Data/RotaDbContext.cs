@@ -11,6 +11,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
     public DbSet<State> States => Set<State>();
     public DbSet<District> Districts => Set<District>();
     public DbSet<Clinic> Clinics => Set<Clinic>();
+    public DbSet<ClinicBlockedDay> ClinicBlockedDays => Set<ClinicBlockedDay>();
     public DbSet<RotaPeriod> Periods => Set<RotaPeriod>();
     public DbSet<PublicHoliday> Holidays => Set<PublicHoliday>();
     public DbSet<PeakDay> PeakDays => Set<PeakDay>();
@@ -82,6 +83,15 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.ToTable("clinics");
             e.HasIndex(c => c.Name).IsUnique();
             e.Property(c => c.Name).HasMaxLength(100);
+        });
+
+        b.Entity<ClinicBlockedDay>(e =>
+        {
+            e.ToTable("clinic_blocked_days");
+            e.HasKey(d => new { d.ClinicId, d.Date });
+            e.HasIndex(d => d.Date);
+            e.Property(d => d.Reason).HasMaxLength(200);
+            e.HasOne<Clinic>().WithMany().HasForeignKey(d => d.ClinicId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<RotaPeriod>(e =>

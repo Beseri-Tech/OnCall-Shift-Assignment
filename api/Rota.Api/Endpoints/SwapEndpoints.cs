@@ -191,6 +191,10 @@ public static class SwapEndpoints
             return $"{await NameAsync(db, from, ct)} can't be on call on {toDate.DayOfWeek}s.";
         if (BlockedDays.IsBlocked(await db.People.Where(p => p.Id == to).Select(p => p.BlockedWeekdays).FirstOrDefaultAsync(ct), fromDate))
             return $"{await NameAsync(db, to, ct)} can't be on call on {fromDate.DayOfWeek}s.";
+        if ((await ClinicBlocks.OnAsync(db, from, toDate, ct)).Blocked)
+            return $"{await NameAsync(db, from, ct)}'s clinic is blocked on {Day(toDate)}.";
+        if ((await ClinicBlocks.OnAsync(db, to, fromDate, ct)).Blocked)
+            return $"{await NameAsync(db, to, ct)}'s clinic is blocked on {Day(fromDate)}.";
         return null;
     }
 

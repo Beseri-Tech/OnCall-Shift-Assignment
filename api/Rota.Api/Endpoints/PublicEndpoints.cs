@@ -28,7 +28,13 @@ public static class PublicEndpoints
             if (p is null) return Results.NotFound();
 
             var totals = (await Totals.ForPeopleAsync(db, ct: ct)).GetValueOrDefault(id, PersonTotals.Unknown);
-            return Results.Ok(new PersonProfileDto(p.Id, p.Code, p.Name, totals.ToDto(), totals.Known, BlockedDays.FromMask(p.BlockedWeekdays), p.BlockedReason));
+            var clinicDays = p.ClinicId is { } cid
+                ? await db.ClinicBlockedDays.Where(d => d.ClinicId == cid).OrderBy(d => d.Date)
+                    .Select(d => new ClinicBlockedDayDto(d.ClinicId, db.Clinics.Where(c => c.Id == d.ClinicId).Select(c => c.Name).First(), d.Date, d.Reason))
+                    .ToListAsync(ct)
+                : [];
+            return Results.Ok(new PersonProfileDto(p.Id, p.Code, p.Name, totals.ToDto(), totals.Known, BlockedDays.FromMask(p.BlockedWeekdays), p.BlockedReason,
+                clinicDays));
         });
 
         // Shifts in published rotas, plus rotas in review (flagged: they can still change).
@@ -130,6 +136,20 @@ public static class PublicEndpoints
                     return Results.ValidationProblem(new Dictionary<string, string[]>
                     {
                         ["dates"] = [$"You can't be on call on {BlockedDays.Describe(person.BlockedWeekdays)}, so there is nothing to mark on {LeaveText.Compact(clash)}."],
+                    });
+            }
+
+            // Days the admin blocked for the officer's whole clinic (e.g. a clinic event): same, nothing to mark.
+            var clinicBlocked = (await ClinicBlocks.ByPersonAsync(db, period.StartDate, period.EndDate, ct)).GetValueOrDefault(id) ?? [];
+            if (clinicBlocked.Count > 0)
+            {
+                var existing = (await LoadEntriesAsync(db, id, period, ct)).Leave.Select(l => l.Date).ToHashSet();
+                var clash = body.Leave.Select(l => l.Date).Where(d => !existing.Contains(d)).Concat(body.Preferred)
+                    .Where(clinicBlocked.Contains).Distinct().Order().ToList();
+                if (clash.Count > 0)
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["dates"] = [$"Your clinic can't be on call on {LeaveText.Compact(clash)}, so there is nothing to mark there."],
                     });
             }
 

@@ -27,7 +27,12 @@ public sealed record RotaDayDto(
 public sealed record PersonSummaryDto(Guid Id, string Code, string Name);
 
 public sealed record PersonProfileDto(Guid Id, string Code, string Name, TotalsDto Totals, bool TotalsKnown,
-    IReadOnlyList<int> BlockedWeekdays, string? BlockedReason);
+    IReadOnlyList<int> BlockedWeekdays, string? BlockedReason, IReadOnlyList<ClinicBlockedDayDto>? ClinicBlockedDays = null);
+
+/// <summary>A date nobody from the clinic can be on call.</summary>
+public sealed record ClinicBlockedDayDto(Guid ClinicId, string ClinicName, DateOnly Date, string? Reason);
+
+public sealed record AddClinicBlockedDaysRequest(IReadOnlyList<DateOnly> Dates, string? Reason);
 
 /// <summary>One of an officer's shifts in a published rota.</summary>
 /// <param name="InReview">From a rota still in review: it can change before it's published.</param>
