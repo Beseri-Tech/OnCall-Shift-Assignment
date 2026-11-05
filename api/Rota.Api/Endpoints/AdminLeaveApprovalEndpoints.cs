@@ -13,7 +13,7 @@ namespace Rota.Api.Endpoints;
 /// </summary>
 public static class AdminLeaveApprovalEndpoints
 {
-    private const int MaxDays = 366;
+    private const int MaxDays = 366, MaxRanges = 20;
 
     public static void MapLeaveApprovalEndpoints(this RouteGroupBuilder admin)
     {
@@ -33,6 +33,11 @@ public static class AdminLeaveApprovalEndpoints
             var approval = new LeaveApproval { CreatedByAccountId = http.User.AccountId() };
             return await SaveAsync(db, limits, notify, http, approval, req, isNew: true, ct);
         });
+
+        // Several date ranges for one officer in one go (e.g. a trip split over three periods): one entry per range,
+        // but a single notification and email.
+        g.MapPost("/batch", async (BatchLeaveApprovalRequest req, RotaDbContext db, LeaveLimits limits, Notifier notify,
+            HttpContext http, CancellationToken ct) => await SaveBatchAsync(db, limits, notify, http, req, ct));
 
         g.MapPut("/{id:guid}", async (Guid id, UpsertLeaveApprovalRequest req, RotaDbContext db, LeaveLimits limits,
             Notifier notify, HttpContext http, CancellationToken ct) =>
@@ -83,43 +88,11 @@ public static class AdminLeaveApprovalEndpoints
         await LockPeriodsAsync(db, Min(req.StartDate, isNew ? req.StartDate : approval.StartDate),
             Max(req.EndDate, isNew ? req.EndDate : approval.EndDate), ct);
 
-        var overlap = await db.LeaveApprovals.Where(a => a.PersonId == req.PersonId && a.Id != approval.Id &&
-                                                         a.StartDate <= req.EndDate && a.EndDate >= req.StartDate)
-            .OrderBy(a => a.StartDate).FirstOrDefaultAsync(ct);
-        if (overlap is not null)
-            return Problem("dates", $"{person.Name} already has confirmed leave on {Range(overlap.StartDate, overlap.EndDate)}. " +
-                                    "Change that one instead.");
-
         var before = isNew ? null : AuditOf(approval);
         var oldRange = isNew ? null : Range(approval.StartDate, approval.EndDate);
-        approval.PersonId = req.PersonId;
-        approval.StartDate = req.StartDate;
-        approval.EndDate = req.EndDate;
-        approval.Reason = reason;
-        approval.Reference = reference;
-        approval.UpdatedAt = DateTimeOffset.UtcNow;
-        if (isNew) db.LeaveApprovals.Add(approval);
-        else await db.LeaveDays.Where(l => l.ApprovalId == approval.Id).ExecuteDeleteAsync(ct);
-        await db.SaveChangesAsync(ct);   // the approval row must exist before its days point at it
-
         var warnings = new List<string>();
-
-        // Leave the officer already marked on these days becomes confirmed (it no longer uses their points itself).
-        var own = await db.LeaveDays.Where(l => l.PersonId == req.PersonId && l.ApprovalId == null &&
-                                               l.Date >= req.StartDate && l.Date <= req.EndDate).ToListAsync(ct);
-        foreach (var l in own) { l.ApprovalId = approval.Id; l.Note = null; }
-        var taken = own.Select(l => l.Date).ToHashSet();
-        db.LeaveDays.AddRange(Mapping.Days(req.StartDate, req.EndDate).Where(d => !taken.Contains(d))
-            .Select(d => new LeaveDay { PersonId = req.PersonId, Date = d, ApprovalId = approval.Id }));
-        if (own.Count > 0)
-            warnings.Add($"{own.Count} day(s) {person.Name} had already marked as leave are now confirmed leave, so they no longer use points.");
-
-        int preferred = await db.PreferredDates.Where(p => p.PersonId == req.PersonId && p.Date >= req.StartDate && p.Date <= req.EndDate)
-            .ExecuteDeleteAsync(ct);
-        if (preferred > 0) warnings.Add($"Removed {preferred} preferred on-call day(s) that fall on this leave.");
-
-        if (person.Status != OfficerStatus.OnCall)
-            warnings.Add($"{person.Name} is not on call at the moment ({person.StatusReason ?? person.Status.ToString()}).");
+        var failure = await ApplyAsync(db, approval, person, req.StartDate, req.EndDate, reason, reference, isNew, warnings, ct);
+        if (failure is not null) return failure;
 
         string title = isNew
             ? $"Confirmed leave added: {Range(req.StartDate, req.EndDate)}"
@@ -140,6 +113,103 @@ public static class AdminLeaveApprovalEndpoints
             warnings.Add($"{person.Name} is on call on {dto.Conflicts.Count} of these day(s) in a rota that's in review or published. " +
                          "Give those shifts to someone else.");
         return Results.Ok(new LeaveApprovalResultDto(dto, warnings));
+    }
+
+    /// <summary>Saves one range of confirmed leave (no transaction, lock or notification: the caller does those).</summary>
+    private static async Task<IResult?> ApplyAsync(RotaDbContext db, LeaveApproval approval, Person person, DateOnly start, DateOnly end,
+        string reason, string? reference, bool isNew, List<string> warnings, CancellationToken ct)
+    {
+        var overlap = await db.LeaveApprovals.Where(a => a.PersonId == person.Id && a.Id != approval.Id &&
+                                                         a.StartDate <= end && a.EndDate >= start)
+            .OrderBy(a => a.StartDate).FirstOrDefaultAsync(ct);
+        if (overlap is not null)
+            return Problem("dates", $"{person.Name} already has confirmed leave on {Range(overlap.StartDate, overlap.EndDate)}. " +
+                                    "Change that one instead.");
+
+        approval.PersonId = person.Id;
+        approval.StartDate = start;
+        approval.EndDate = end;
+        approval.Reason = reason;
+        approval.Reference = reference;
+        approval.UpdatedAt = DateTimeOffset.UtcNow;
+        if (isNew) db.LeaveApprovals.Add(approval);
+        else await db.LeaveDays.Where(l => l.ApprovalId == approval.Id).ExecuteDeleteAsync(ct);
+        await db.SaveChangesAsync(ct);   // the approval row must exist before its days point at it
+
+        // Leave the officer already marked on these days becomes confirmed (it no longer uses their points itself).
+        var own = await db.LeaveDays.Where(l => l.PersonId == person.Id && l.ApprovalId == null &&
+                                               l.Date >= start && l.Date <= end).ToListAsync(ct);
+        foreach (var l in own) { l.ApprovalId = approval.Id; l.Note = null; }
+        var taken = own.Select(l => l.Date).ToHashSet();
+        db.LeaveDays.AddRange(Mapping.Days(start, end).Where(d => !taken.Contains(d))
+            .Select(d => new LeaveDay { PersonId = person.Id, Date = d, ApprovalId = approval.Id }));
+        if (own.Count > 0)
+            warnings.Add($"{own.Count} day(s) {person.Name} had already marked as leave are now confirmed leave, so they no longer use points.");
+
+        int preferred = await db.PreferredDates.Where(p => p.PersonId == person.Id && p.Date >= start && p.Date <= end)
+            .ExecuteDeleteAsync(ct);
+        if (preferred > 0) warnings.Add($"Removed {preferred} preferred on-call day(s) that fall on {Range(start, end)}.");
+
+        if (person.Status != OfficerStatus.OnCall)
+            warnings.Add($"{person.Name} is not on call at the moment ({person.StatusReason ?? person.Status.ToString()}).");
+        return null;
+    }
+
+    private static async Task<IResult> SaveBatchAsync(RotaDbContext db, LeaveLimits limits, Notifier notify, HttpContext http,
+        BatchLeaveApprovalRequest req, CancellationToken ct)
+    {
+        string? reason = Clean(req.Reason), reference = Clean(req.Reference);
+        if (reason is null) return Problem("reason", "Give the reason, e.g. \"Overseas trip, approved by HOD\".");
+        if (reason.Length > 200) return Problem("reason", "The reason can be at most 200 characters.");
+        if (reference?.Length > 100) return Problem("reference", "The reference can be at most 100 characters.");
+        var ranges = (req.Ranges ?? []).OrderBy(r => r.StartDate).ToList();
+        if (ranges.Count == 0) return Problem("dates", "Add at least one date range.");
+        if (ranges.Count > MaxRanges) return Problem("dates", $"At most {MaxRanges} date ranges at a time.");
+        foreach (var r in ranges)
+        {
+            if (r.EndDate < r.StartDate) return Problem("dates", $"The range starting {LeaveText.Format(r.StartDate)} ends before it starts.");
+            if (r.EndDate.DayNumber - r.StartDate.DayNumber + 1 > MaxDays)
+                return Problem("dates", $"At most {MaxDays} days in one range. For a long absence, mark the officer as excluded.");
+        }
+        for (int i = 1; i < ranges.Count; i++)
+            if (ranges[i].StartDate <= ranges[i - 1].EndDate)
+                return Problem("dates", $"{Range(ranges[i - 1].StartDate, ranges[i - 1].EndDate)} and " +
+                                        $"{Range(ranges[i].StartDate, ranges[i].EndDate)} overlap. Merge them into one range.");
+
+        var person = await db.People.FindAsync([req.PersonId], ct);
+        if (person is null) return Results.NotFound();
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await LockPeriodsAsync(db, ranges[0].StartDate, ranges.Max(r => r.EndDate), ct);
+
+        var warnings = new List<string>();
+        var created = new List<LeaveApproval>();
+        foreach (var r in ranges)
+        {
+            var approval = new LeaveApproval { CreatedByAccountId = http.User.AccountId() };
+            var failure = await ApplyAsync(db, approval, person, r.StartDate, r.EndDate, reason, reference, isNew: true, warnings, ct);
+            if (failure is not null) return failure;   // the transaction is rolled back on dispose
+            created.Add(approval);
+        }
+
+        // One notification and email for the whole set.
+        string list = string.Join(", ", created.Select(a => Range(a.StartDate, a.EndDate)));
+        string title = $"Confirmed leave added: {list}";
+        string body = $"Reason: {reason}\nYou won't be put on call on these days. It reduces your leave points and weekday allowance by 33% of what these days would have cost as ordinary leave.";
+        await notify.ToPeopleAsync([req.PersonId], Notifier.ConfirmedLeave, title, body, "/leave", email: true, ct);
+        foreach (var a in created)
+            Mapping.Log(db, http, "confirmed-leave.create", req.PersonId, new { officer = person.Name }, a.Id, null, AuditOf(a));
+        await db.SaveChangesAsync(ct);
+
+        foreach (var a in created) warnings.AddRange(await PeriodWarningsAsync(db, limits, a, person, ct));
+        await tx.CommitAsync(ct);
+
+        var dtos = await ToDtosAsync(db, created, ct);
+        int conflicts = dtos.Sum(d => d.Conflicts.Count);
+        if (conflicts > 0)
+            warnings.Add($"{person.Name} is on call on {conflicts} of these day(s) in a rota that's in review or published. " +
+                         "Give those shifts to someone else.");
+        return Results.Ok(new LeaveApprovalBatchResultDto(dtos.OrderBy(d => d.StartDate).ToList(), warnings.Distinct().ToList()));
     }
 
     /// <summary>Days pushed over the leave limit, a hint to exclude the officer instead, and drafts made before this leave.</summary>

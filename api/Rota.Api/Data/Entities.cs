@@ -87,6 +87,17 @@ public sealed class Clinic
     public District? District { get; set; }
 }
 
+/// <summary>
+/// A date nobody from the clinic can be on call (e.g. a clinic event). Like blocked weekdays it behaves as unavailability for the
+/// rota but costs no leave points and doesn't count toward anyone's daily limit.
+/// </summary>
+public sealed class ClinicBlockedDay
+{
+    public Guid ClinicId { get; set; }
+    public DateOnly Date { get; set; }
+    public string? Reason { get; set; }
+}
+
 public enum AccountRole
 {
     /// <summary>On-call officer; edits only their own leave.</summary>

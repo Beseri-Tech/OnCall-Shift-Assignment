@@ -79,6 +79,9 @@ public static class AdminRotaEndpoints
                 if (BlockedDays.IsBlocked(person.BlockedWeekdays, date))
                     warnings.Add($"{person.Name} can't be on call on {date.DayOfWeek}s{(person.BlockedReason is null ? "" : $" ({person.BlockedReason})")}.");
 
+                if (await ClinicBlocks.OnAsync(db, pid, date, ct) is (true, var clinicReason))
+                    warnings.Add($"{person.Name}'s clinic is blocked on {LeaveText.Format(date)}{(clinicReason is null ? "" : $" ({clinicReason})")}.");
+
                 var neighbours = run.Assignments.Where(a => a.PersonId == pid && Math.Abs(a.Date.DayNumber - date.DayNumber) == 1);
                 warnings.AddRange(neighbours.Select(a => $"{person.Name} also works {LeaveText.Format(a.Date)} (back-to-back)."));
             }
@@ -258,11 +261,14 @@ public static class AdminRotaEndpoints
             })
             .ToListAsync(ct);
 
+        var clinicBlocked = await ClinicBlocks.ByPersonAsync(db, period.StartDate, period.EndDate, ct);
+
         var rotaPeople = people.Select(p =>
         {
             var t = totals.GetValueOrDefault(p.Id, PersonTotals.Unknown);
             // Blocked weekdays are days the officer can't work: to the generator they are leave.
-            var unavailable = p.Leave.Concat(BlockedDays.Dates(p.BlockedWeekdays, period.StartDate, period.EndDate)).ToHashSet();
+            var unavailable = p.Leave.Concat(BlockedDays.Dates(p.BlockedWeekdays, period.StartDate, period.EndDate))
+                .Concat(clinicBlocked.GetValueOrDefault(p.Id) ?? []).ToHashSet();
             return new RotaPerson(p.Id, p.Name, unavailable, p.Preferred.ToHashSet(), p.ExtraShift,
                 p.PreferWeekendHoliday, p.WeekendWeight, t.Known ? t.WeekendHoliday : null);
         }).ToList();

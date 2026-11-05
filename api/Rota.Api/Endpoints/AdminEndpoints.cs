@@ -260,9 +260,25 @@ public static class AdminEndpoints
             if (await db.Runs.AnyAsync(r => r.PeriodId == id && r.IsPublished, ct))
                 return Results.Problem("Unpublish the rota before deleting this period.", statusCode: StatusCodes.Status409Conflict);
 
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
             db.Periods.Remove(period);
-            Mapping.Log(db, http, "period.delete", null, null, id, before: Audit.Period(period));
+            // Leave and preferred days belong to a person and a date, not to a period, so they would outlive the deleted
+            // rota and later be picked up as "already marked" leave when confirmed leave is added. Drop what the officers
+            // entered for this period (confirmed leave stays), except days another period still covers.
+            DateOnly start = period.StartDate, end = period.EndDate;
+            var otherPeriods = await db.Periods.Where(p => p.Id != id && p.StartDate <= end && p.EndDate >= start)
+                .Select(p => new { p.StartDate, p.EndDate }).ToListAsync(ct);
+            bool Covered(DateOnly d) => otherPeriods.Any(p => p.StartDate <= d && p.EndDate >= d);
+            var staleLeave = (await db.LeaveDays.Where(l => l.ApprovalId == null && l.Date >= start && l.Date <= end).ToListAsync(ct))
+                .Where(l => !Covered(l.Date)).ToList();
+            var stalePreferred = (await db.PreferredDates.Where(p => p.Date >= start && p.Date <= end).ToListAsync(ct))
+                .Where(p => !Covered(p.Date)).ToList();
+            db.LeaveDays.RemoveRange(staleLeave);
+            db.PreferredDates.RemoveRange(stalePreferred);
+            Mapping.Log(db, http, "period.delete", null, new { clearedLeaveDays = staleLeave.Count, clearedPreferred = stalePreferred.Count },
+                id, before: Audit.Period(period));
             await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
             return Results.NoContent();
         });
 

@@ -256,6 +256,52 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Clinic_event_days_cannot_be_marked_and_nobody_from_the_clinic_is_put_on_call_then()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        var (people, period) = await SeedAsync(admin);
+        var kangar = (await Read<List<StateDto>>(await admin.GetAsync("/api/admin/states"))).Single().Districts.Single(d => d.Name == "Kangar");
+        var clinicId = await Read<Guid>(await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("KP Beseri", kangar.Id)));
+        var members = people.Take(3).ToList();
+        foreach (var m in members)
+            (await admin.PutAsJsonAsync($"/api/admin/people/{m.Id}", new UpsertPersonRequest(m.Name, m.Code, ClinicId: clinicId), ApiFixture.Json))
+                .EnsureSuccessStatusCode();
+
+        DateOnly event1 = new(2026, 10, 10), event2 = new(2026, 10, 17);
+        (await admin.PostAsJsonAsync($"/api/admin/clinics/{clinicId}/blocked-days",
+            new AddClinicBlockedDaysRequest([event1, event2], "Clinic annual dinner"), ApiFixture.Json)).EnsureSuccessStatusCode();
+        var listed = await Read<List<ClinicBlockedDayDto>>(await admin.GetAsync("/api/admin/clinics/blocked-days?from=2026-01-01"));
+        Assert.Equal([event1, event2], listed.Select(d => d.Date).ToArray());
+
+        // Officers of the clinic can't mark leave or a preferred date on those days.
+        var user = await ApiFixture.OfficerClientAsync(app, admin, members[0].Id);
+        var url = $"/api/people/{members[0].Id}/entries?periodId={period.Id}";
+        var res = await user.PutAsJsonAsync(url, new EntriesDto([new(event1, null)], []), ApiFixture.Json);
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await user.PutAsJsonAsync(url, new EntriesDto([], [event2]), ApiFixture.Json)).StatusCode);
+        var profile = await Read<PersonProfileDto>(await user.GetAsync($"/api/people/{members[0].Id}"));
+        Assert.Equal([event1, event2], profile.ClinicBlockedDays!.Select(d => d.Date).ToArray());
+
+        (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
+        var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(1)));
+        var memberIds = members.Select(m => m.Id).ToHashSet();
+        Assert.DoesNotContain(run.Days, d => (d.Date == event1 || d.Date == event2) && d.PersonId is { } id && memberIds.Contains(id));
+        Assert.Contains(run.Days, d => d.Date == event1 && d.PersonId != null);
+
+        // The admin can still force it, with a warning.
+        var forced = await Read<OverrideResponse>(await admin.PutAsJsonAsync($"/api/admin/runs/{run.Run.Id}/assignments/{event1:yyyy-MM-dd}",
+            new OverrideRequest(members[0].Id), ApiFixture.Json));
+        Assert.Contains(forced.Warnings, w => w.Contains("clinic is blocked"));
+
+        // Unblocking removes the day from the list.
+        (await admin.DeleteAsync($"/api/admin/clinics/{clinicId}/blocked-days/{event1:yyyy-MM-dd}")).EnsureSuccessStatusCode();
+        listed = await Read<List<ClinicBlockedDayDto>>(await admin.GetAsync("/api/admin/clinics/blocked-days?from=2026-01-01"));
+        Assert.Equal([event2], listed.Select(d => d.Date).ToArray());
+    }
+
+    [Fact]
     public async Task Leave_can_be_saved_while_open_and_is_refused_after_lock_or_outside_the_period()
     {
         await using var app = fixture.CreateApp();

@@ -6,7 +6,7 @@ import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconAlertTriangle, IconEdit, IconPlaneDeparture, IconPlus, IconTrash, IconUserCheck } from '@tabler/icons-react'
 import { useState } from 'react'
-import { api, type ApprovalConflict, type LeaveApproval, type LeaveApprovalResult, type UpsertLeaveApproval } from '../../api'
+import { api, type ApprovalConflict, type LeaveApproval, type LeaveApprovalBatchResult, type UpsertLeaveApproval } from '../../api'
 import { ErrorBox, Loading } from '../../components/common'
 import { diffDays, formatLong, formatRange, todayIso } from '../../dates'
 import { notifyError, notifyOk, usePhone } from '../../lib'
@@ -23,7 +23,7 @@ export function ConfirmedLeaveTab() {
   const approvals = useQuery({ queryKey: ['admin', 'leaveApprovals'], queryFn: () => api.admin.leaveApprovals() })
   const [show, setShow] = useState<'upcoming' | 'all'>('upcoming')
   const [editing, setEditing] = useState<Editing | null>(null)
-  const [result, setResult] = useState<LeaveApprovalResult | null>(null)
+  const [result, setResult] = useState<LeaveApprovalBatchResult | null>(null)
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['admin', 'leaveApprovals'] })
@@ -198,13 +198,13 @@ function ConflictRow({ c }: { c: ApprovalConflict }) {
   )
 }
 
-function ResultAlert({ result, onClose }: { result: LeaveApprovalResult; onClose: () => void }) {
-  const a = result.approval
+function ResultAlert({ result, onClose }: { result: LeaveApprovalBatchResult; onClose: () => void }) {
+  const first = result.approvals[0]
   return (
     <Alert mb="md" withCloseButton onClose={onClose} color={result.warnings.length ? 'yellow' : 'teal'}
       icon={result.warnings.length ? <IconAlertTriangle /> : <IconPlaneDeparture />}
-      title={`Saved: ${a.personName}, ${formatRange([a.startDate, a.endDate])}`}>
-      <Text size="sm">The officer has been told by notification and email.</Text>
+      title={`Saved: ${first.personName}, ${result.approvals.map(a => formatRange([a.startDate, a.endDate])).join('; ')}`}>
+      <Text size="sm">The officer has been told by one notification and email.</Text>
       {result.warnings.length > 0 && (
         <List size="sm" mt={6} spacing={4}>
           {result.warnings.map(w => <List.Item key={w}>{w}</List.Item>)}
@@ -215,24 +215,34 @@ function ResultAlert({ result, onClose }: { result: LeaveApprovalResult; onClose
 }
 
 function ApprovalModal({ editing, onClose, onSaved }: {
-  editing: Editing; onClose: () => void; onSaved: (r: LeaveApprovalResult) => void
+  editing: Editing; onClose: () => void; onSaved: (r: LeaveApprovalBatchResult) => void
 }) {
   const phone = usePhone()
   const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people })
   const [v, setV] = useState(editing.value)
+  // New leave can have several date ranges (saved together, one email); editing changes a single range.
+  const [ranges, setRanges] = useState<[string | null, string | null][]>([[null, null]])
   const save = useMutation({
-    mutationFn: () => {
-      const body: UpsertLeaveApproval = {
-        personId: v.personId!, startDate: v.startDate!, endDate: v.endDate!, reason: v.reason?.trim() ?? '',
-        reference: v.reference?.trim() || null,
+    mutationFn: async (): Promise<LeaveApprovalBatchResult> => {
+      const reason = v.reason?.trim() ?? '', reference = v.reference?.trim() || null
+      if (editing.id) {
+        const body: UpsertLeaveApproval = { personId: v.personId!, startDate: v.startDate!, endDate: v.endDate!, reason, reference }
+        const r = await api.admin.updateLeaveApproval(editing.id, body)
+        return { approvals: [r.approval], warnings: r.warnings }
       }
-      return editing.id ? api.admin.updateLeaveApproval(editing.id, body) : api.admin.createLeaveApproval(body)
+      return api.admin.createLeaveApprovals({
+        personId: v.personId!, reason, reference,
+        ranges: ranges.filter(([s, e]) => s && e).map(([s, e]) => ({ startDate: s!, endDate: e! })),
+      })
     },
     onSuccess: onSaved,
     onError: e => notifyError(e, 'Could not save'),
   })
 
-  const ready = !!v.personId && !!v.startDate && !!v.endDate && !!v.reason?.trim()
+  const datesReady = editing.id
+    ? !!v.startDate && !!v.endDate
+    : ranges.every(([s, e]) => s && e)
+  const ready = !!v.personId && datesReady && !!v.reason?.trim()
   const officers = (people.data ?? []).filter(p => p.status !== 'Left' || p.id === v.personId)
     .map(p => ({ value: p.id, label: `${p.name} (${p.code})${p.status === 'Excluded' ? ' – excluded' : ''}` }))
 
@@ -241,17 +251,40 @@ function ApprovalModal({ editing, onClose, onSaved }: {
       <Stack gap="sm">
         <Select label="Officer" placeholder="Pick an officer" searchable required data={officers} value={v.personId ?? null}
           disabled={!!editing.id} onChange={id => setV({ ...v, personId: id ?? undefined })} />
-        <DatePickerInput type="range" label="Dates" placeholder="First and last day away" required valueFormat="D MMM YYYY"
-          numberOfColumns={phone ? 1 : 2} allowSingleDateInRange
-          value={[v.startDate ?? null, v.endDate ?? null]}
-          onChange={r => { const [s, e] = r as [string | null, string | null]; setV({ ...v, startDate: s ?? undefined, endDate: e ?? undefined }) }} />
+        {editing.id ? (
+          <DatePickerInput type="range" label="Dates" placeholder="First and last day away" required valueFormat="D MMM YYYY"
+            numberOfColumns={phone ? 1 : 2} allowSingleDateInRange
+            value={[v.startDate ?? null, v.endDate ?? null]}
+            onChange={r => { const [s, e] = r as [string | null, string | null]; setV({ ...v, startDate: s ?? undefined, endDate: e ?? undefined }) }} />
+        ) : (
+          <Stack gap="xs">
+            {ranges.map((r, i) => (
+              <Group key={i} gap="xs" align="flex-end" wrap="nowrap">
+                <DatePickerInput type="range" style={{ flex: 1 }} label={ranges.length > 1 ? `Dates ${i + 1}` : 'Dates'}
+                  placeholder="First and last day away" required valueFormat="D MMM YYYY"
+                  numberOfColumns={phone ? 1 : 2} allowSingleDateInRange value={r}
+                  onChange={val => setRanges(ranges.map((x, j) => (j === i ? (val as [string | null, string | null]) : x)))} />
+                {ranges.length > 1 && (
+                  <Tooltip label="Remove this range">
+                    <ActionIcon variant="subtle" color="red" mb={4} aria-label="Remove this range"
+                      onClick={() => setRanges(ranges.filter((_, j) => j !== i))}><IconTrash size={16} /></ActionIcon>
+                  </Tooltip>
+                )}
+              </Group>
+            ))}
+            <Button variant="subtle" size="xs" leftSection={<IconPlus size={14} />} style={{ alignSelf: 'flex-start' }}
+              onClick={() => setRanges([...ranges, [null, null]])}>
+              Add another range
+            </Button>
+          </Stack>
+        )}
         <TextInput label="Reason" required placeholder="e.g. Overseas trip, approved by HOD" maxLength={200}
           value={v.reason ?? ''} onChange={e => setV({ ...v, reason: e.currentTarget.value })} />
         <TextInput label="Approval reference" description="Optional, e.g. letter or memo number" maxLength={100}
           value={v.reference ?? ''} onChange={e => setV({ ...v, reference: e.currentTarget.value })} />
         <Text size="xs" c="dimmed">
           Any leave the officer already marked on these days becomes confirmed, and preferred on-call days on them are removed.
-          The officer gets a notification and an email.
+          The officer gets one notification and email, even with several ranges.
         </Text>
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>Cancel</Button>

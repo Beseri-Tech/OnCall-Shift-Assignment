@@ -24,7 +24,7 @@ const VERBS: Record<string, string> = {
   generate: 'generated', override: 'shift changed', review: 'sent for review', 'withdraw-review': 'withdrawn from review',
   publish: 'published', unpublish: 'unpublished', grant: 'changed', invite: 'invited', resend: 'new temporary password',
   'change-password': 'password changed', 'reset-password': 'password reset', request: 'requested', accept: 'accepted',
-  decline: 'declined', cancel: 'withdrawn', resolve: 'resolved', reopen: 'reopened',
+  decline: 'declined', 'block-days': 'days blocked', 'unblock-day': 'day unblocked', cancel: 'withdrawn', resolve: 'resolved', reopen: 'reopened',
 }
 
 const COLORS: Record<string, string> = { resolve: 'teal', create: 'green', delete: 'red', publish: 'brand', accept: 'teal', decline: 'orange' }

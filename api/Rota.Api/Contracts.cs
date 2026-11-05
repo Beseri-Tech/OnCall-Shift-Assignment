@@ -27,7 +27,12 @@ public sealed record RotaDayDto(
 public sealed record PersonSummaryDto(Guid Id, string Code, string Name);
 
 public sealed record PersonProfileDto(Guid Id, string Code, string Name, TotalsDto Totals, bool TotalsKnown,
-    IReadOnlyList<int> BlockedWeekdays, string? BlockedReason);
+    IReadOnlyList<int> BlockedWeekdays, string? BlockedReason, IReadOnlyList<ClinicBlockedDayDto>? ClinicBlockedDays = null);
+
+/// <summary>A date nobody from the clinic can be on call.</summary>
+public sealed record ClinicBlockedDayDto(Guid ClinicId, string ClinicName, DateOnly Date, string? Reason);
+
+public sealed record AddClinicBlockedDaysRequest(IReadOnlyList<DateOnly> Dates, string? Reason);
 
 /// <summary>One of an officer's shifts in a published rota.</summary>
 /// <param name="InReview">From a rota still in review: it can change before it's published.</param>
@@ -205,6 +210,9 @@ public sealed record LeaveApprovalDto(
     string? Reference, string? CreatedBy, DateTimeOffset CreatedAt, IReadOnlyList<ApprovalConflictDto> Conflicts);
 
 /// <param name="Warnings">Days now over the leave limit, ordinary leave that became confirmed, and similar notes for the admin.</param>
+public sealed record DateRangeRequest(DateOnly StartDate, DateOnly EndDate);
+public sealed record BatchLeaveApprovalRequest(Guid PersonId, List<DateRangeRequest>? Ranges, string? Reason, string? Reference);
+public sealed record LeaveApprovalBatchResultDto(IReadOnlyList<LeaveApprovalDto> Approvals, IReadOnlyList<string> Warnings);
 public sealed record LeaveApprovalResultDto(LeaveApprovalDto Approval, IReadOnlyList<string> Warnings);
 
 

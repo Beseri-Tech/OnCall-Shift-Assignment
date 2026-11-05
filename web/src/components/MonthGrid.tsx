@@ -19,7 +19,7 @@ interface Props {
   holidays: Map<IsoDate, string>
   peaks?: Map<IsoDate, string>          // busy weekdays (e.g. eve of Raya)
   full?: Set<IsoDate>                   // days where the leave cap is reached
-  blocked?: { days: Set<IsoDate>; reason: string | null }   // days the admin says this officer can never be on call
+  blocked?: { days: Set<IsoDate>; reason: string | null; reasons?: Map<IsoDate, string | null> }   // days the admin says this officer can never be on call
   today: IsoDate
   readOnly?: boolean
   stateOf: (date: IsoDate) => DayState
@@ -68,7 +68,7 @@ export function MonthGrid({ month, min, max, holidays, peaks, full, blocked, tod
           const label = [
             holiday, peak && `Peak day: ${peak}`, isFull ? 'Full – too many officers are already off' : null,
             s.leave ? `Leave${s.note ? `: ${s.note}` : ''}` : null, s.preferred ? 'Preferred on-call' : null,
-            isBlocked ? `Can't be on call on this day${blocked?.reason ? `: ${blocked.reason}` : ''}` : null,
+            isBlocked ? `Can't be on call on this day${(blocked?.reasons?.has(date) ? blocked.reasons.get(date) : blocked?.reason) ? `: ${blocked?.reasons?.has(date) ? blocked.reasons.get(date) : blocked?.reason}` : ''}` : null,
             confirmed ? `Confirmed leave${s.confirmed ? `: ${s.confirmed}` : ''} – only the admin can change it` : null,
           ].filter(Boolean).join(' · ')
 
