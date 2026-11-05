@@ -158,11 +158,11 @@ public static class AdminLocationEndpoints
             return Results.NoContent();
         });
 
-        // Dates nobody from a clinic can be on call (e.g. a clinic event). Only today's and later dates are listed.
-        g.MapGet("/blocked-days", async (RotaDbContext db, CancellationToken ct) =>
+        // Dates nobody from a clinic can be on call (e.g. a clinic event). Only dates from `from` (default today) are listed.
+        g.MapGet("/blocked-days", async (DateOnly? from, RotaDbContext db, CancellationToken ct) =>
         {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8));
-            return await db.ClinicBlockedDays.Where(d => d.Date >= today).OrderBy(d => d.Date)
+            var start = from ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8));
+            return await db.ClinicBlockedDays.Where(d => d.Date >= start).OrderBy(d => d.Date)
                 .Select(d => new ClinicBlockedDayDto(d.ClinicId, db.Clinics.Where(c => c.Id == d.ClinicId).Select(c => c.Name).First(), d.Date, d.Reason))
                 .ToListAsync(ct);
         });

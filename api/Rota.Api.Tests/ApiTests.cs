@@ -271,7 +271,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         DateOnly event1 = new(2026, 10, 10), event2 = new(2026, 10, 17);
         (await admin.PostAsJsonAsync($"/api/admin/clinics/{clinicId}/blocked-days",
             new AddClinicBlockedDaysRequest([event1, event2], "Clinic annual dinner"), ApiFixture.Json)).EnsureSuccessStatusCode();
-        var listed = await Read<List<ClinicBlockedDayDto>>(await admin.GetAsync("/api/admin/clinics/blocked-days"));
+        var listed = await Read<List<ClinicBlockedDayDto>>(await admin.GetAsync("/api/admin/clinics/blocked-days?from=2026-01-01"));
         Assert.Equal([event1, event2], listed.Select(d => d.Date).ToArray());
 
         // Officers of the clinic can't mark leave or a preferred date on those days.
@@ -297,7 +297,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         // Unblocking removes the day from the list.
         (await admin.DeleteAsync($"/api/admin/clinics/{clinicId}/blocked-days/{event1:yyyy-MM-dd}")).EnsureSuccessStatusCode();
-        listed = await Read<List<ClinicBlockedDayDto>>(await admin.GetAsync("/api/admin/clinics/blocked-days"));
+        listed = await Read<List<ClinicBlockedDayDto>>(await admin.GetAsync("/api/admin/clinics/blocked-days?from=2026-01-01"));
         Assert.Equal([event2], listed.Select(d => d.Date).ToArray());
     }
 
