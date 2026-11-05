@@ -205,6 +205,9 @@ public sealed record LeaveApprovalDto(
     string? Reference, string? CreatedBy, DateTimeOffset CreatedAt, IReadOnlyList<ApprovalConflictDto> Conflicts);
 
 /// <param name="Warnings">Days now over the leave limit, ordinary leave that became confirmed, and similar notes for the admin.</param>
+public sealed record DateRangeRequest(DateOnly StartDate, DateOnly EndDate);
+public sealed record BatchLeaveApprovalRequest(Guid PersonId, List<DateRangeRequest>? Ranges, string? Reason, string? Reference);
+public sealed record LeaveApprovalBatchResultDto(IReadOnlyList<LeaveApprovalDto> Approvals, IReadOnlyList<string> Warnings);
 public sealed record LeaveApprovalResultDto(LeaveApprovalDto Approval, IReadOnlyList<string> Warnings);
 
 

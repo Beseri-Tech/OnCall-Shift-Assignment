@@ -172,6 +172,36 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Several_ranges_are_saved_together_with_one_notification()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        var (people, _) = await SeedAsync(admin, 10);
+        var officer = await ApiFixture.OfficerClientAsync(app, admin, people[0].Id);
+
+        DateOnly Oct5 = new(2026, 10, 5), Oct7 = new(2026, 10, 7), Oct20 = new(2026, 10, 20), Oct22 = new(2026, 10, 22);
+        Task<HttpResponseMessage> Batch(params (DateOnly From, DateOnly To)[] ranges) =>
+            admin.PostAsJsonAsync("/api/admin/leave-approvals/batch",
+                new BatchLeaveApprovalRequest(people[0].Id, ranges.Select(r => new DateRangeRequest(r.From, r.To)).ToList(), "Trip, approved", null),
+                ApiFixture.Json);
+
+        // Overlapping ranges are refused and nothing is saved.
+        Assert.Equal(HttpStatusCode.BadRequest, (await Batch((Oct5, Oct7), (Oct7, Oct20))).StatusCode);
+        Assert.Empty(await Read<List<LeaveApprovalDto>>(await admin.GetAsync($"/api/admin/leave-approvals?personId={people[0].Id}")));
+
+        var result = await Read<LeaveApprovalBatchResultDto>(await Batch((Oct20, Oct22), (Oct5, Oct7)));
+        Assert.Equal([(Oct5, Oct7), (Oct20, Oct22)], result.Approvals.Select(a => (a.StartDate, a.EndDate)));
+        Assert.Equal(2, (await Read<List<LeaveApprovalDto>>(await admin.GetAsync($"/api/admin/leave-approvals?personId={people[0].Id}"))).Count);
+
+        var notes = await Read<NotificationsDto>(await officer.GetAsync("/api/notifications"));
+        Assert.Single(notes.Items, n => n.Title.StartsWith("Confirmed leave added"));
+
+        // A range that touches existing confirmed leave refuses the whole set.
+        Assert.Equal(HttpStatusCode.BadRequest, (await Batch((new DateOnly(2026, 10, 25), new DateOnly(2026, 10, 26)), (Oct22, Oct22))).StatusCode);
+        Assert.Equal(2, (await Read<List<LeaveApprovalDto>>(await admin.GetAsync($"/api/admin/leave-approvals?personId={people[0].Id}"))).Count);
+    }
+
+    [Fact]
     public async Task Confirmed_leave_can_be_entered_before_the_period_exists()
     {
         await using var app = fixture.CreateApp();

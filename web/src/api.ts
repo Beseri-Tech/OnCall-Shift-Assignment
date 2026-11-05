@@ -59,6 +59,8 @@ export interface LeaveApproval {
   reason: string; reference: string | null; createdBy: string | null; createdAt: string; conflicts: ApprovalConflict[]
 }
 export interface UpsertLeaveApproval { personId: string; startDate: IsoDate; endDate: IsoDate; reason: string; reference: string | null }
+export interface LeaveApprovalBatchRequest { personId: string; ranges: { startDate: IsoDate; endDate: IsoDate }[]; reason: string; reference: string | null }
+export interface LeaveApprovalBatchResult { approvals: LeaveApproval[]; warnings: string[] }
 export interface LeaveApprovalResult { approval: LeaveApproval; warnings: string[] }
 
 export interface AdminPerson {
@@ -316,7 +318,7 @@ export const api = {
     deleteRun: (runId: string) => del<void>(`/api/admin/runs/${runId}`),
 
     leaveApprovals: (personId?: string) => get<LeaveApproval[]>(`/api/admin/leave-approvals${q({ personId })}`),
-    createLeaveApproval: (a: UpsertLeaveApproval) => post<LeaveApprovalResult>('/api/admin/leave-approvals', a),
+    createLeaveApprovals: (a: LeaveApprovalBatchRequest) => post<LeaveApprovalBatchResult>('/api/admin/leave-approvals/batch', a),
     updateLeaveApproval: (id: string, a: UpsertLeaveApproval) => put<LeaveApprovalResult>(`/api/admin/leave-approvals/${id}`, a),
     deleteLeaveApproval: (id: string) => del<void>(`/api/admin/leave-approvals/${id}`),
 
