@@ -158,6 +158,48 @@ public static class AdminLocationEndpoints
             return Results.NoContent();
         });
 
+        // Dates nobody from a clinic can be on call (e.g. a clinic event). Only today's and later dates are listed.
+        g.MapGet("/blocked-days", async (RotaDbContext db, CancellationToken ct) =>
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8));
+            return await db.ClinicBlockedDays.Where(d => d.Date >= today).OrderBy(d => d.Date)
+                .Select(d => new ClinicBlockedDayDto(d.ClinicId, db.Clinics.Where(c => c.Id == d.ClinicId).Select(c => c.Name).First(), d.Date, d.Reason))
+                .ToListAsync(ct);
+        });
+
+        g.MapPost("/{id:guid}/blocked-days", async (Guid id, AddClinicBlockedDaysRequest req, RotaDbContext db, HttpContext http,
+            CancellationToken ct) =>
+        {
+            var clinic = await db.Clinics.FindAsync([id], ct);
+            if (clinic is null) return Results.NotFound();
+            var dates = (req.Dates ?? []).Distinct().Order().ToList();
+            string? reason = Clean(req.Reason);
+            var errors = new Dictionary<string, string[]>();
+            if (dates.Count == 0) errors["dates"] = ["Pick at least one date."];
+            if (dates.Count > 60) errors["dates"] = ["Add at most 60 dates at a time."];
+            if (reason?.Length > 200) errors["reason"] = ["Reason is too long (max 200)."];
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+            var existing = await db.ClinicBlockedDays.Where(d => d.ClinicId == id && dates.Contains(d.Date)).ToListAsync(ct);
+            foreach (var d in existing) d.Reason = reason;
+            foreach (var date in dates.Except(existing.Select(d => d.Date)))
+                db.ClinicBlockedDays.Add(new ClinicBlockedDay { ClinicId = id, Date = date, Reason = reason });
+            Mapping.Log(db, http, "clinic.block-days", null, new { clinic = clinic.Name, dates, reason }, id);
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+
+        g.MapDelete("/{id:guid}/blocked-days/{date}", async (Guid id, DateOnly date, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            var day = await db.ClinicBlockedDays.FindAsync([id, date], ct);
+            if (day is null) return Results.NotFound();
+            var name = await db.Clinics.Where(c => c.Id == id).Select(c => c.Name).FirstOrDefaultAsync(ct);
+            db.ClinicBlockedDays.Remove(day);
+            Mapping.Log(db, http, "clinic.unblock-day", null, new { clinic = name, date }, id);
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+
         // Officers of a deleted clinic just lose their clinic (FK is ON DELETE SET NULL).
         g.MapDelete("/{id:guid}", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {

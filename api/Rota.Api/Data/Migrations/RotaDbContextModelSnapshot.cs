@@ -185,6 +185,25 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("clinics", (string)null);
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.ClinicBlockedDay", b =>
+                {
+                    b.Property<Guid>("ClinicId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("ClinicId", "Date");
+
+                    b.HasIndex("Date");
+
+                    b.ToTable("clinic_blocked_days", (string)null);
+                });
+
             modelBuilder.Entity("Rota.Api.Data.District", b =>
                 {
                     b.Property<Guid>("Id")
@@ -770,6 +789,15 @@ namespace Rota.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("District");
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.ClinicBlockedDay", b =>
+                {
+                    b.HasOne("Rota.Api.Data.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Rota.Api.Data.District", b =>

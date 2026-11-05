@@ -153,11 +153,13 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
   // Weekdays the admin blocked for this officer (e.g. every Sunday): nothing to mark there.
   const blocked = useMemo(() => {
     const weekdays = profile.data?.blockedWeekdays ?? []
-    if (weekdays.length === 0) return undefined
-    return {
-      days: new Set(eachDay(period.startDate, period.endDate).filter(d => weekdays.includes(dayOfWeek(d)))),
-      reason: profile.data?.blockedReason ?? null,
-    }
+    // Clinic event days: nobody from the officer's clinic can be on call, each with its own reason.
+    const clinicDays = (profile.data?.clinicBlockedDays ?? []).filter(c => c.date >= period.startDate && c.date <= period.endDate)
+    if (weekdays.length === 0 && clinicDays.length === 0) return undefined
+    const days = new Set(eachDay(period.startDate, period.endDate).filter(d => weekdays.includes(dayOfWeek(d))))
+    const reasons = new Map<IsoDate, string | null>()
+    for (const c of clinicDays) { days.add(c.date); reasons.set(c.date, c.reason ?? 'Clinic event') }
+    return { days, reason: profile.data?.blockedReason ?? null, reasons }
   }, [profile.data, period.startDate, period.endDate])
 
   const dirty = !sameDraft(draft, saved)

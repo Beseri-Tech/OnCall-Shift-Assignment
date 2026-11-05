@@ -6,7 +6,7 @@ import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconDoorExit, IconEdit, IconFileImport, IconFilterOff, IconMapPin, IconPlayerPause, IconSearch, IconTrash, IconUserCheck, IconUserPlus,
+  IconCalendarOff, IconDoorExit, IconEdit, IconFileImport, IconFilterOff, IconMapPin, IconPlayerPause, IconSearch, IconTrash, IconUserCheck, IconUserPlus,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api, type AccountRole, type AdminPerson, type Clinic, type InviteResult, type OfficerStatus, type UpsertPerson } from '../../api'
@@ -15,6 +15,7 @@ import { formatLong, todayIso } from '../../dates'
 import { notifyError, notifyOk } from '../../lib'
 import { ImportModal } from './ImportModal'
 import { LocationsModal } from './LocationsModal'
+import { ClinicEventsModal } from './ClinicEventsModal'
 import { type IssuedLogin, TempPasswordsModal } from './TempPasswords'
 
 const blank: UpsertPerson = {
@@ -81,6 +82,7 @@ export function PeopleTab() {
   const [changing, setChanging] = useState<{ person: AdminPerson; to: 'Excluded' | 'Left' } | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [locationsOpen, setLocationsOpen] = useState(false)
+  const [eventsOpen, setEventsOpen] = useState(false)
   const [issued, setIssued] = useState<IssuedLogin[]>([])
 
   const refresh = () => {
@@ -158,6 +160,7 @@ export function PeopleTab() {
         ]} />
         <Group>
           <Button variant="default" leftSection={<IconMapPin size={16} />} onClick={() => setLocationsOpen(true)}>Clinics &amp; districts</Button>
+          <Button variant="default" leftSection={<IconCalendarOff size={16} />} onClick={() => setEventsOpen(true)}>Clinic event days</Button>
           <Button variant="default" leftSection={<IconFileImport size={16} />} onClick={() => setImportOpen(true)}>Import CSV</Button>
           <Button leftSection={<IconUserPlus size={16} />} onClick={() => setEditing({ person: null, value: blank })}>Add officer</Button>
         </Group>
@@ -301,6 +304,7 @@ export function PeopleTab() {
       )}
       <LocationsModal opened={locationsOpen} states={states.data!} clinics={clinics.data!} onClose={() => setLocationsOpen(false)}
         onSaved={refresh} />
+      <ClinicEventsModal opened={eventsOpen} clinics={clinics.data!} onClose={() => setEventsOpen(false)} />
       <TempPasswordsModal logins={issued} onClose={() => setIssued([])} />
     </Stack>
   )
