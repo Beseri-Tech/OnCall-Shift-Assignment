@@ -18,6 +18,19 @@ import { MonthGrid } from '../components/MonthGrid'
 import { dayOfWeek, diffDays, eachDay, formatLong, formatRange, monthsBetween, todayIso, toRanges } from '../dates'
 import { dayCap, dayKind, usage } from '../leaveRules'
 
+/** Small badge for a points change: green "+3" for rewards/extra, red "−2" for costs. */
+function PointBadge({ value, unit = 'pt', tip }: { value: number; unit?: string; tip?: string }) {
+  const gain = value > 0
+  const badge = (
+    <Badge size="sm" radius="sm" variant="light" color={gain ? 'green' : 'red'}
+      style={{ verticalAlign: 'middle', textTransform: 'none', flexShrink: 0, overflow: 'visible' }}
+      styles={{ label: { overflow: 'visible', textOverflow: 'clip' } }}>
+      {gain ? '+' : '−'}{Math.abs(value)} {unit}
+    </Badge>
+  )
+  return tip ? <Tooltip label={tip} events={{ hover: true, focus: true, touch: true }}>{badge}</Tooltip> : badge
+}
+
 type Mode = 'leave' | 'preferred'
 
 const NOTE_PRESETS = ['Annual', 'Overseas', 'Maternity', 'Course', 'Emergency']
@@ -288,16 +301,20 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
         {showBudget && r && used && (
           <>
             <StatCard icon={IconCoins} color={overPoints ? 'red' : 'brand'} label="Leave points" value={`${used.points} / ${budget}`}
-              hint={[
-                r.extra > 0 ? `Includes +${r.extra} extra${r.extraReason ? `: ${r.extraReason}` : ''}` : 'Weekends, public holidays, peak days',
-                r.reward > 0 ? `+${r.reward} reward for ${r.rewardDetail} in ${r.rewardFrom}` : null,
-                r.pointsDeducted > 0 ? `−${r.pointsDeducted} for confirmed leave` : null,
-              ].filter(Boolean).join(' · ')}>
-              <Progress mt={6} size="sm" radius="xl" color={overPoints ? 'red' : 'brand'} value={budget ? Math.min(100, (used.points / budget) * 100) : 100} />
+              hint="Weekend, PH and peak days">
+              <Group gap={4} mt={6} mih={22}>
+                {r.extra > 0 && <PointBadge value={r.extra} unit="extra" tip={r.extraReason || 'Extra points from the admin'} />}
+                {r.reward > 0 && <PointBadge value={r.reward} unit="reward" tip={`For ${r.rewardDetail} in ${r.rewardFrom}`} />}
+                {r.pointsDeducted > 0 && <PointBadge value={-r.pointsDeducted} unit="confirmed" tip="Taken off for your confirmed leave" />}
+              </Group>
+              <Progress mt={8} size="sm" radius="xl" color={overPoints ? 'red' : 'brand'} value={budget ? Math.min(100, (used.points / budget) * 100) : 100} />
             </StatCard>
             <StatCard icon={IconBriefcase} color={overWeekdays ? 'red' : 'indigo'} label="Weekdays" value={`${used.weekdays} / ${allowance}`}
-              hint={r.weekdaysDeducted > 0 ? `Free, no points · −${r.weekdaysDeducted} for confirmed leave` : 'Free, no points'}>
-              <Progress mt={6} size="sm" radius="xl" color={overWeekdays ? 'red' : 'indigo'}
+              hint="Free, no points">
+              <Group gap={4} mt={6} mih={22}>
+                {r.weekdaysDeducted > 0 && <PointBadge value={-r.weekdaysDeducted} unit="confirmed" tip="Taken off for your confirmed leave" />}
+              </Group>
+              <Progress mt={8} size="sm" radius="xl" color={overWeekdays ? 'red' : 'indigo'}
                 value={allowance ? Math.min(100, (used.weekdays / allowance) * 100) : 100} />
             </StatCard>
           </>
@@ -323,8 +340,8 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
             <Text size="xs" c="dimmed">
               Approved leave entered by the admin. You won't be put on call on these days, and only the admin can change it. It
               doesn't cost points itself, but your points and weekday allowance are reduced by about a third of what those days would have cost as ordinary leave
-              {rules.data && rules.data.confirmedDays > 0 && <> ({rules.data.confirmedDays} day(s): −{rules.data.pointsDeducted} point(s),
-                −{rules.data.weekdaysDeducted} weekday(s))</>}.
+              {rules.data && rules.data.confirmedDays > 0 && <> ({rules.data.confirmedDays} day(s): <PointBadge value={-rules.data.pointsDeducted} />{' '}
+                <PointBadge value={-rules.data.weekdaysDeducted} unit="weekday" />)</>}.
             </Text>
           </Stack>
         </Alert>
@@ -384,7 +401,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
                 <IconInfoCircle size={16} color="var(--brand)" style={{ flexShrink: 0, marginTop: 2 }} />
                 <Text size="xs" c="dimmed">
                   Click a day to toggle it, or press and drag across days. <b>{mode === 'leave' ? 'Leave' : 'Preferred'}</b> mode is on.
-                  {showBudget && r && <> Leave on a weekend costs {r.weekendCost} point, a public holiday {r.holidayCost}, a peak day {r.peakCost}.
+                  {showBudget && r && <> Leave on a weekend costs <PointBadge value={-r.weekendCost} />, a public holiday <PointBadge value={-r.holidayCost} />, a peak day <PointBadge value={-r.peakCost} />.
                     At most {r.busyDayCap} of {r.onCall} officers can be off on a weekend, public holiday or peak day, and {r.weekdayCap} on
                     other days, counting only officers who are not on confirmed leave that day – striped days are full. Need more? Ask the admin.</>}
                 </Text>
