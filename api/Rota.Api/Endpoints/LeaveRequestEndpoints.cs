@@ -2,36 +2,33 @@ using Microsoft.EntityFrameworkCore;
 using Rota.Api.Auth;
 using Rota.Api.Data;
 using Rota.Api.Services;
+using Rota.Api.Storage;
 using Rota.Core.Leave;
 
 namespace Rota.Api.Endpoints;
 
 /// <summary>
 /// Officers ask for confirmed leave (trip, CR, relief duty...) with one or more date ranges, a reason per range and an optional
-/// document per range. The admin approves or rejects each range; approving creates the confirmed leave.
+/// document per range (uploaded straight to R2 through /api/documents first). The admin approves or rejects each range;
+/// approving creates the confirmed leave.
 /// </summary>
 public static class LeaveRequestEndpoints
 {
-    private const int MaxDays = 366, MaxRanges = 20, MaxFileBytes = 5 * 1024 * 1024;
-    private static readonly string[] Extensions = [".pdf", ".jpg", ".jpeg", ".png"];
+    private const int MaxDays = 366, MaxRanges = 20;
+    internal const string DocumentParent = "ConfirmedLeaveRange";
 
     public static void MapLeaveRequestEndpoints(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/api/leave-requests").WithTags("Leave requests");
 
-        // multipart/form-data: "request" = JSON (LeaveRequestInput), "file0".."fileN" = the optional document of range N.
-        g.MapPost("/", async (HttpRequest httpReq, RotaDbContext db, IDocumentStore store, Notifier notify, HttpContext http,
+        // JSON: ranges with an optional documentId from a finished /api/documents upload (kind LeaveDocument).
+        g.MapPost("/", async (LeaveRequestInput? input, RotaDbContext db, DocumentService docs, Notifier notify, HttpContext http,
             CancellationToken ct) =>
         {
             if (http.User.PersonId() is not { } personId) return Results.Forbid();
             var person = await db.People.FindAsync([personId], ct);
             if (person is null || person.Status != OfficerStatus.OnCall) return Results.Forbid();
-            if (!httpReq.HasFormContentType) return AdminLeaveApprovalEndpoints.Problem("request", "Send the request as a form.");
 
-            var form = await httpReq.ReadFormAsync(ct);
-            LeaveRequestInput? input;
-            try { input = System.Text.Json.JsonSerializer.Deserialize<LeaveRequestInput>(form["request"].ToString(), JsonOptions(http)); }
-            catch (System.Text.Json.JsonException) { input = null; }
             var ranges = input?.Ranges ?? [];
             if (ranges.Count == 0) return AdminLeaveApprovalEndpoints.Problem("dates", "Add at least one date range.");
             if (ranges.Count > MaxRanges) return AdminLeaveApprovalEndpoints.Problem("dates", $"At most {MaxRanges} date ranges at a time.");
@@ -50,37 +47,19 @@ public static class LeaveRequestEndpoints
                 if (n > 0 && r.StartDate <= ranges[order[n - 1]].EndDate)
                     return AdminLeaveApprovalEndpoints.Problem("dates", "Two of the date ranges overlap. Merge them into one range.");
             }
+            var docIds = ranges.Select(r => r.DocumentId).OfType<Guid>().ToList();
+            if (docIds.Distinct().Count() != docIds.Count)
+                return AdminLeaveApprovalEndpoints.Problem("document", "Each date range needs its own document.");
 
             var request = new LeaveRequest { PersonId = personId };
-            var uploads = new List<(string Key, IFormFile File)>();
-            for (int i = 0; i < ranges.Count; i++)
-            {
-                var r = ranges[i];
-                var range = new LeaveRequestRange
+            foreach (var r in ranges)
+                request.Ranges.Add(new LeaveRequestRange
                 {
                     RequestId = request.Id, StartDate = r.StartDate, EndDate = r.EndDate, Kind = r.Kind,
-                    Reason = AdminLeaveApprovalEndpoints.Clean(r.Reason)!,
-                };
-                if (form.Files.GetFile($"file{i}") is { Length: > 0 } file)
-                {
-                    string ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-                    if (!Extensions.Contains(ext)) return AdminLeaveApprovalEndpoints.Problem("document", "Documents must be a PDF, JPG or PNG.");
-                    if (file.Length > MaxFileBytes) return AdminLeaveApprovalEndpoints.Problem("document", "A document can be at most 5 MB.");
-                    if (!await LooksLike(file, ext, ct)) return AdminLeaveApprovalEndpoints.Problem("document", $"{file.FileName} isn't a valid {ext.TrimStart('.').ToUpperInvariant()} file.");
-                    range.DocumentKey = $"leave-requests/{request.Id}/{range.Id}{ext}";
-                    range.DocumentName = Path.GetFileName(file.FileName) is { Length: > 200 } n2 ? n2[^200..] : Path.GetFileName(file.FileName);
-                    range.DocumentType = ext == ".pdf" ? "application/pdf" : ext == ".png" ? "image/png" : "image/jpeg";
-                    range.DocumentSize = file.Length;
-                    uploads.Add((range.DocumentKey, file));
-                }
-                request.Ranges.Add(range);
-            }
+                    Reason = AdminLeaveApprovalEndpoints.Clean(r.Reason)!, DocumentId = r.DocumentId,
+                });
 
-            foreach (var (key, file) in uploads)
-            {
-                await using var s = file.OpenReadStream();
-                await store.PutAsync(key, s, file.ContentType, ct);
-            }
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
             try
             {
                 db.LeaveRequests.Add(request);
@@ -89,14 +68,23 @@ public static class LeaveRequestEndpoints
                     "/admin/leave", ct);
                 Mapping.Log(db, http, "leave-request.create", personId, new { officer = person.Name, ranges = request.Ranges.Count }, request.Id, null, null);
                 await db.SaveChangesAsync(ct);
+
+                // Only the uploader can attach their own finished upload, and only once.
+                foreach (var range in request.Ranges.Where(r => r.DocumentId is not null))
+                {
+                    var doc = await db.Documents.AsNoTracking().FirstOrDefaultAsync(d => d.Id == range.DocumentId, ct);
+                    if (doc is null || doc.Kind != DocumentKind.LeaveDocument)
+                        return AdminLeaveApprovalEndpoints.Problem("document", "That document wasn't uploaded as a leave document.");
+                    await docs.AttachAsync(http.User, range.DocumentId!.Value, DocumentParent, range.Id.ToString(), ct);
+                }
             }
-            catch
+            catch (DocumentException e)
             {
-                foreach (var (key, _) in uploads) await store.DeleteAsync(key, CancellationToken.None);
-                throw;
+                return Results.Problem(e.Message, statusCode: e.Status);
             }
+            await tx.CommitAsync(ct);
             return Results.Ok((await ToDtosAsync(db, request.Ranges.ToList(), ct)).OrderBy(r => r.StartDate).ToList());
-        }).DisableAntiforgery();
+        });
 
         g.MapGet("/mine", async (RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
@@ -107,7 +95,7 @@ public static class LeaveRequestEndpoints
         });
 
         // The officer withdraws a range nobody has decided on yet.
-        g.MapDelete("/ranges/{id:guid}", async (Guid id, RotaDbContext db, IDocumentStore store, HttpContext http, CancellationToken ct) =>
+        g.MapDelete("/ranges/{id:guid}", async (Guid id, RotaDbContext db, DocumentService docs, HttpContext http, CancellationToken ct) =>
         {
             var range = await db.LeaveRequestRanges.FindAsync([id], ct);
             var request = range is null ? null : await db.LeaveRequests.FindAsync([range.RequestId], ct);
@@ -116,25 +104,11 @@ public static class LeaveRequestEndpoints
                 return AdminLeaveApprovalEndpoints.Problem("status", "The admin has already decided on this request.");
             range.Status = LeaveRequestStatus.Cancelled;
             range.DecidedAt = DateTimeOffset.UtcNow;
-            var key = range.DocumentKey;
-            range.DocumentKey = null; range.DocumentName = null; range.DocumentType = null; range.DocumentSize = null;
+            range.DocumentId = null;
             Mapping.Log(db, http, "leave-request.cancel", request.PersonId, null, range.Id, null, null);
             await db.SaveChangesAsync(ct);
-            if (key is not null) await store.DeleteAsync(key, ct);
+            await docs.DeleteForParentAsync(DocumentParent, range.Id.ToString(), ct);
             return Results.NoContent();
-        });
-
-        g.MapGet("/ranges/{id:guid}/document", async (Guid id, RotaDbContext db, IDocumentStore store, HttpContext http, CancellationToken ct) =>
-        {
-            var range = await db.LeaveRequestRanges.FindAsync([id], ct);
-            var request = range is null ? null : await db.LeaveRequests.FindAsync([range.RequestId], ct);
-            if (range?.DocumentKey is null || request is null) return Results.NotFound();
-            if (!http.User.IsAdmin() && request.PersonId != http.User.PersonId()) return Results.NotFound();
-            var doc = await store.GetAsync(range.DocumentKey, ct);
-            if (doc is null) return Results.NotFound();
-            http.Response.Headers.XContentTypeOptions = "nosniff";
-            http.Response.Headers.ContentSecurityPolicy = "sandbox";
-            return Results.File(doc.Content, range.DocumentType ?? doc.ContentType, range.DocumentName, enableRangeProcessing: false);
         });
 
         var admin = app.MapGroup("/api/admin/leave-requests").RequireAuthorization(Session.AdminPolicy).WithTags("Admin leave requests");
@@ -224,21 +198,6 @@ public static class LeaveRequestEndpoints
     private static System.Text.Json.JsonSerializerOptions JsonOptions(HttpContext http) =>
         http.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>>().Value.SerializerOptions;
 
-    /// <summary>Checks the first bytes match the file type, so a renamed executable is refused.</summary>
-    private static async Task<bool> LooksLike(IFormFile file, string ext, CancellationToken ct)
-    {
-        var head = new byte[8];
-        await using var s = file.OpenReadStream();
-        int n = await s.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, ct);
-        if (n < 4) return false;
-        return ext switch
-        {
-            ".pdf" => head[0] == '%' && head[1] == 'P' && head[2] == 'D' && head[3] == 'F',
-            ".png" => head[0] == 0x89 && head[1] == 'P' && head[2] == 'N' && head[3] == 'G',
-            _ => head[0] == 0xFF && head[1] == 0xD8 && head[2] == 0xFF,
-        };
-    }
-
     private static async Task<List<LeaveRequestRangeDto>> ToDtosAsync(RotaDbContext db, List<LeaveRequestRange> ranges, CancellationToken ct)
     {
         if (ranges.Count == 0) return [];
@@ -250,6 +209,10 @@ public static class LeaveRequestEndpoints
         var deciders = await db.Accounts.Where(a => deciderIds.Contains(a.Id)).Select(a => new { a.Id, a.Email, a.PersonId }).ToListAsync(ct);
         var allPeople = await db.People.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var deciderName = deciders.ToDictionary(d => d.Id, d => d.PersonId is { } pid && allPeople.TryGetValue(pid, out var n) ? n : d.Email);
+
+        var docIds = ranges.Select(r => r.DocumentId).OfType<Guid>().ToList();
+        var docs = docIds.Count == 0 ? [] : await db.Documents.AsNoTracking().Where(d => docIds.Contains(d.Id) && d.Status == DocumentStatus.Available)
+            .ToDictionaryAsync(d => d.Id, ct);
 
         var pending = ranges.Where(r => r.Status == LeaveRequestStatus.Pending).ToList();
         var existing = pending.Count == 0 ? [] : await db.LeaveApprovals.AsNoTracking()
@@ -263,7 +226,8 @@ public static class LeaveRequestEndpoints
                 .Where(a => a.PersonId == req.PersonId && a.StartDate <= r.EndDate && a.EndDate >= r.StartDate)
                 .Select(a => $"Already has confirmed leave on {AdminLeaveApprovalEndpoints.Range(a.StartDate, a.EndDate)}.").ToList();
             return new LeaveRequestRangeDto(r.Id, r.RequestId, req.PersonId, p?.Code ?? "", p?.Name ?? "", r.StartDate, r.EndDate, r.Kind,
-                r.Reason, r.Status, r.DocumentName, r.DocumentSize, req.CreatedAt, r.DecisionNote,
+                r.Reason, r.Status, r.DocumentId is { } did && docs.ContainsKey(did) ? did : null,
+                r.DocumentId is { } d1 ? docs.GetValueOrDefault(d1)?.FileName : null, r.DocumentId is { } d2 ? docs.GetValueOrDefault(d2)?.SizeBytes : null, req.CreatedAt, r.DecisionNote,
                 r.DecidedByAccountId is { } d ? deciderName.GetValueOrDefault(d) : null, r.DecidedAt, overlaps);
         }).ToList();
     }

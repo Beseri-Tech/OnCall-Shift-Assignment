@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconCheck, IconFileText, IconX, IconAlertTriangle, IconEdit, IconPlaneDeparture, IconPlus, IconTrash, IconUserCheck } from '@tabler/icons-react'
 import { useState } from 'react'
 import {
-  api, kindLabel, LEAVE_KINDS, leaveRequestDocumentUrl, type ApprovalConflict, type LeaveKind, type LeaveRequestRange,
+  api, kindLabel, LEAVE_KINDS, openDocument, type ApprovalConflict, type LeaveKind, type LeaveRequestRange,
   type LeaveApproval, type LeaveApprovalBatchResult, type UpsertLeaveApproval,
 } from '../../api'
 import { ErrorBox, Loading } from '../../components/common'
@@ -389,8 +389,8 @@ function RequestRow({ r, children }: { r: LeaveRequestRange; children?: React.Re
             {r.status !== 'Pending' && <Badge color={color} size="sm">{r.status}</Badge>}
           </Group>
           <Text size="sm">{r.reason}</Text>
-          {r.documentName && (
-            <Text size="xs" component="a" href={leaveRequestDocumentUrl(r.id)} target="_blank" rel="noopener noreferrer">
+          {r.documentId && r.documentName && (
+            <Text size="xs" c="blue" style={{ cursor: 'pointer' }} onClick={() => openDocument(r.documentId!).catch(e => notifyError(e))}>
               <IconFileText size={12} style={{ verticalAlign: -1 }} /> {r.documentName}
             </Text>
           )}

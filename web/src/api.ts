@@ -54,6 +54,13 @@ export interface OverviewPerson { id: string; code: string; name: string; leave:
 export interface Overview { period: Period; days: OverviewDay[]; people: OverviewPerson[] }
 export interface PublishedRota { period: Period; runId: string; days: RotaDay[]; inReview: boolean }
 
+export type DocumentKind = 'Manual' | 'LeaveDocument' | 'Other'
+export interface StoredDocument {
+  id: string; kind: DocumentKind; fileName: string; contentType: string; sizeBytes: number
+  uploadedAt: string | null; parentType: string | null; parentId: string | null
+}
+export interface UploadTicket { documentId: string; uploadUrl: string; method: string; expiresInSeconds: number; requiredHeaders: Record<string, string> }
+
 export interface ShiftCandidate { personId: string; name: string; shifts: number }
 export interface ApprovalConflict {
   runId: string; periodId: string; periodName: string; date: IsoDate; isPublished: boolean; candidates: ShiftCandidate[]
@@ -76,7 +83,7 @@ export type LeaveRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelle
 export interface LeaveRequestRange {
   id: string; requestId: string; personId: string; personCode: string; personName: string
   startDate: IsoDate; endDate: IsoDate; kind: LeaveKind; reason: string; status: LeaveRequestStatus
-  documentName: string | null; documentSize: number | null; submittedAt: string
+  documentId: string | null; documentName: string | null; documentSize: number | null; submittedAt: string
   decisionNote: string | null; decidedBy: string | null; decidedAt: string | null; overlaps: string[]
 }
 export interface NewLeaveRequestRange { startDate: IsoDate; endDate: IsoDate; kind: LeaveKind; reason: string; file: File | null }
@@ -230,8 +237,6 @@ async function problemMessage(res: Response): Promise<string> {
   }
 }
 
-export const leaveRequestDocumentUrl = (rangeId: string) => `${API}/api/leave-requests/ranges/${rangeId}/document`
-
 const get = <T,>(url: string) => request<T>('GET', url)
 const post = <T,>(url: string, body?: unknown) => request<T>('POST', url, body ?? {})
 const put = <T,>(url: string, body: unknown) => request<T>('PUT', url, body)
@@ -250,12 +255,14 @@ export const api = {
   holidays: (from?: IsoDate, to?: IsoDate) => get<Holiday[]>(`/api/holidays${q({ from, to })}`),
   myLeaveRequests: () => get<LeaveRequestRange[]>('/api/leave-requests/mine'),
   cancelLeaveRequest: (rangeId: string) => del<void>(`/api/leave-requests/ranges/${rangeId}`),
-  /** Sends the ranges as one form: the JSON in "request" and each range's optional document as "file{index}". */
-  sendLeaveRequest: (ranges: NewLeaveRequestRange[]) => {
-    const form = new FormData()
-    form.append('request', JSON.stringify({ ranges: ranges.map(({ file: _f, ...r }) => r) }))
-    ranges.forEach((r, i) => { if (r.file) form.append(`file${i}`, r.file) })
-    return post<LeaveRequestRange[]>('/api/leave-requests', form)
+  /** Uploads each range's document straight to R2 first, then sends the ranges with the finished documents' ids. */
+  sendLeaveRequest: async (ranges: NewLeaveRequestRange[]) => {
+    const body = []
+    for (const { file, ...r } of ranges) {
+      const documentId = file ? (await uploadDocument(file, 'LeaveDocument')).id : null
+      body.push({ ...r, documentId })
+    }
+    return post<LeaveRequestRange[]>('/api/leave-requests', { ranges: body })
   },
   entries: (personId: string, periodId: string) => get<Entries>(`/api/people/${personId}/entries${q({ periodId })}`),
   saveEntries: (personId: string, periodId: string, body: Entries) =>
@@ -274,6 +281,19 @@ export const api = {
   readAllNotifications: () => post<void>('/api/notifications/read-all'),
   sendFeedback: (category: FeedbackCategory, message: string, page: string | null) =>
     post<{ id: number }>('/api/feedback', { category, message, page }),
+
+  /** Private document storage (Cloudflare R2). Use uploadDocument / openDocument below rather than these directly. */
+  documents: {
+    uploadUrl: (kind: DocumentKind, fileName: string, contentType: string, fileSize: number) =>
+      post<UploadTicket>('/api/documents/upload-url', { kind, fileName, contentType, fileSize }),
+    complete: (id: string) => post<StoredDocument>(`/api/documents/${id}/complete`),
+    get: (id: string) => get<StoredDocument>(`/api/documents/${id}`),
+    downloadUrl: (id: string, inline = false) =>
+      get<{ downloadUrl: string; expiresInSeconds: number }>(`/api/documents/${id}/download-url${q({ inline: inline ? 'true' : undefined })}`),
+    remove: (id: string) => del<void>(`/api/documents/${id}`),
+    /** The current user manual, or undefined when none has been uploaded. */
+    manual: () => get<StoredDocument | undefined>('/api/documents/manual'),
+  },
   leaveRules: (periodId: string, personId: string) => get<LeaveRules>(`/api/periods/${periodId}/leave-rules${q({ personId })}`),
 
   auth: {
@@ -380,4 +400,31 @@ export const api = {
       leave: (periodId: string) => `${API}/api/admin/periods/${periodId}/leave.xlsx`,
     },
   },
+}
+
+const EXTENSION_TYPES: Record<string, string> = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+}
+
+/**
+ * Uploads a file to private storage and returns its record once the server has checked it. Reusable for any feature:
+ * keep the returned `id` on your own record (and ask the API to attach it to that record).
+ */
+export async function uploadDocument(file: File, kind: DocumentKind): Promise<StoredDocument> {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const contentType = EXTENSION_TYPES[ext]
+  if (!contentType) throw new ApiError(400, 'Only PDF, PNG, JPG or DOCX files can be uploaded.')
+
+  const ticket = await api.documents.uploadUrl(kind, file.name, contentType, file.size)
+  // No cookies here: the signed link is the credential, and it goes to R2, not to this app.
+  const put = await fetch(ticket.uploadUrl, { method: ticket.method, headers: ticket.requiredHeaders, body: file })
+  if (!put.ok) throw new ApiError(put.status, 'The file could not be uploaded. Please try again.')
+  return api.documents.complete(ticket.documentId)
+}
+
+/** Opens a stored document in a new tab (PDFs and images show in the browser) through a short-lived link. */
+export async function openDocument(id: string): Promise<void> {
+  const { downloadUrl } = await api.documents.downloadUrl(id, true)
+  window.open(downloadUrl, '_blank', 'noopener')
 }

@@ -57,6 +57,7 @@ The API serves the web app itself, so this is optional. To host the web app on C
 4. In GitHub repo settings → Secrets and variables → Actions, add the secrets `CLOUDFLARE_API_TOKEN` (permission: Account → Cloudflare Pages → Edit) and `CLOUDFLARE_ACCOUNT_ID`. Optionally add the variables `VITE_API_URL` (the API address) and `CLOUDFLARE_PAGES_PROJECT`.
 
 Every push to `master` then deploys the web app to Pages after the tests pass.
+| `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare R2 bucket for the manual and uploaded documents (see below) | off |
 | `TIME_ZONE` | used for "today" and deadlines | `Asia/Kuala_Lumpur` |
 
 ## Develop
@@ -75,3 +76,20 @@ Layout: `api/Rota.Core` (rota algorithm, Excel, leave parsing), `api/Rota.Api` (
 ## License
 
 [AGPL-3.0](LICENSE.txt)
+
+### Document storage on Cloudflare R2 (optional)
+
+The user manual and officers' uploaded documents (e.g. proof for a leave request) live in a **private** R2 bucket. Files go straight between the browser and R2 through short-lived links (5 minutes) that the API only issues after checking who is asking; R2 credentials stay on the server. Until the four `R2_*` variables are set, upload endpoints answer 503 and nothing else is affected.
+
+1. In Cloudflare → R2, create a bucket (e.g. `rota-documents`) and leave **public access off**. Note your **Account ID** (R2 overview page).
+2. R2 → Manage API tokens → create a token with **Object Read & Write**, limited to that bucket. Copy the **Access Key ID** and **Secret Access Key** (shown once).
+3. On the bucket → Settings → **CORS policy**, allow the web app's address (`APP_BASE_URL`, plus `WEB_ORIGIN` if separate):
+
+   ```json
+   [{ "AllowedOrigins": ["https://rota.example.com"], "AllowedMethods": ["GET", "PUT", "HEAD"],
+      "AllowedHeaders": ["Content-Type"], "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3600 }]
+   ```
+
+4. Put the four values in `.env` and restart. An admin then uploads the manual from **Admin → Manual**.
+
+Uploads are checked on the server before they become downloadable (size, file type and the file's real signature; PDF, PNG, JPG or DOCX, up to 20 MB), and a new manual replaces the old one. Back up the bucket separately: database backups don't include the files.

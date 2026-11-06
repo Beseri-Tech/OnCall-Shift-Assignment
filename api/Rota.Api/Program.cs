@@ -45,8 +45,10 @@ builder.Services.AddSingleton<Mailer>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Mailer>());   // sends queued email in the background
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Notifier>();
-builder.Services.AddSingleton<IDocumentStore, LocalDocumentStore>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("Leave").Get<LeaveLimits>() ?? new LeaveLimits());
+builder.Services.Configure<Rota.Api.Storage.R2Options>(builder.Configuration.GetSection(Rota.Api.Storage.R2Options.Section));
+builder.Services.AddSingleton<Rota.Api.Storage.IDocumentStorage, Rota.Api.Storage.R2DocumentStorage>();
+builder.Services.AddScoped<Rota.Api.Storage.DocumentService>();
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
@@ -144,6 +146,7 @@ app.MapSwapEndpoints();
 app.MapNotificationEndpoints();
 app.MapFeedbackEndpoints();
 app.MapLeaveRequestEndpoints();
+app.MapDocumentEndpoints();
 app.MapAdminEndpoints();
 
 // Unknown /api routes are 404s; everything else is the React app (which shows the login page itself).

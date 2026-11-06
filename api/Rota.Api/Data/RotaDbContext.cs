@@ -30,6 +30,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<OutboxEmail> OutboxEmails => Set<OutboxEmail>();
     public DbSet<Feedback> Feedback => Set<Feedback>();
+    public DbSet<DocumentRecord> Documents => Set<DocumentRecord>();
 
     /// <summary>Keys that encrypt the admin cookie; stored here so logins survive redeploys.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -180,9 +181,6 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.Property(r => r.Kind).HasConversion<string>().HasMaxLength(16);
             e.Property(r => r.Status).HasConversion<string>().HasMaxLength(16);
             e.Property(r => r.Reason).HasMaxLength(200);
-            e.Property(r => r.DocumentKey).HasMaxLength(300);
-            e.Property(r => r.DocumentName).HasMaxLength(200);
-            e.Property(r => r.DocumentType).HasMaxLength(100);
             e.Property(r => r.DecisionNote).HasMaxLength(200);
         });
 
@@ -251,6 +249,23 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasIndex(f => f.CreatedAt);
             e.HasOne<Account>().WithMany().HasForeignKey(f => f.AccountId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne<Account>().WithMany().HasForeignKey(f => f.ResolvedByAccountId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<DocumentRecord>(e =>
+        {
+            e.ToTable("documents");
+            e.Property(d => d.Kind).HasConversion<string>().HasMaxLength(24);
+            e.Property(d => d.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(d => d.ObjectKey).HasMaxLength(200);
+            e.Property(d => d.FileName).HasMaxLength(200);
+            e.Property(d => d.ContentType).HasMaxLength(100);
+            e.Property(d => d.ParentType).HasMaxLength(40);
+            e.Property(d => d.ParentId).HasMaxLength(64);
+            e.HasIndex(d => d.ObjectKey).IsUnique();
+            e.HasIndex(d => new { d.ParentType, d.ParentId });
+            e.HasIndex(d => new { d.Kind, d.Status });
+            e.HasOne<Account>().WithMany().HasForeignKey(d => d.UploadedByAccountId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<Person>().WithMany().HasForeignKey(d => d.OwnerPersonId).OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<DataProtectionKey>().ToTable("data_protection_keys");

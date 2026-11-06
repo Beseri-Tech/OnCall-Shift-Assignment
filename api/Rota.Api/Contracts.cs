@@ -245,13 +245,13 @@ public sealed record FeedbackDto(
 public sealed record FeedbackPageDto(IReadOnlyList<FeedbackDto> Items, int Total, int Page, int PageSize, int Open);
 
 
-/// <summary>One range in a leave request as the officer sends it. The document, if any, comes as the file field "file{index}".</summary>
-public sealed record LeaveRequestRangeInput(DateOnly StartDate, DateOnly EndDate, LeaveKind Kind, string? Reason);
+/// <summary>One range in a leave request as the officer sends it. DocumentId is a finished upload (kind LeaveDocument) from /api/documents.</summary>
+public sealed record LeaveRequestRangeInput(DateOnly StartDate, DateOnly EndDate, LeaveKind Kind, string? Reason, Guid? DocumentId = null);
 public sealed record LeaveRequestInput(List<LeaveRequestRangeInput>? Ranges);
 
 public sealed record LeaveRequestRangeDto(
     Guid Id, Guid RequestId, Guid PersonId, string PersonCode, string PersonName, DateOnly StartDate, DateOnly EndDate,
-    LeaveKind Kind, string Reason, LeaveRequestStatus Status, string? DocumentName, long? DocumentSize, DateTimeOffset SubmittedAt,
+    LeaveKind Kind, string Reason, LeaveRequestStatus Status, Guid? DocumentId, string? DocumentName, long? DocumentSize, DateTimeOffset SubmittedAt,
     string? DecisionNote, string? DecidedBy, DateTimeOffset? DecidedAt, IReadOnlyList<string> Overlaps);
 
 public sealed record DecideLeaveRequestRequest(string? Note);

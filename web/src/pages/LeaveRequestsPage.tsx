@@ -4,12 +4,12 @@ import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconFileText, IconPaperclip, IconPlaneDeparture, IconPlus, IconSend, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
-import { api, kindLabel, LEAVE_KINDS, leaveRequestDocumentUrl, type LeaveKind, type LeaveRequestRange, type LeaveRequestStatus } from '../api'
+import { api, kindLabel, LEAVE_KINDS, openDocument, type LeaveKind, type LeaveRequestRange, type LeaveRequestStatus } from '../api'
 import { ErrorBox, Loading, PageHeader } from '../components/common'
 import { diffDays, formatLong, formatRange } from '../dates'
 import { notifyError, notifyOk, usePhone } from '../lib'
 
-const MAX_BYTES = 5 * 1024 * 1024
+const MAX_BYTES = 20 * 1024 * 1024
 
 interface Draft { dates: [string | null, string | null]; kind: LeaveKind; reason: string; file: File | null }
 const blank = (): Draft => ({ dates: [null, null], kind: 'Trip', reason: '', file: null })
@@ -48,7 +48,7 @@ export function LeaveRequestsPage() {
 
       <Paper withBorder p="md">
         <Text size="sm" c="dimmed" mb="sm">
-          Add each period you are away as its own date range with its reason. A document (PDF, JPG or PNG, up to 5 MB) is optional.
+          Add each period you are away as its own date range with its reason. A document (PDF, JPG, PNG or DOCX, up to 20 MB) is optional.
           Include your CR (cuti rehat) days, since you can't be on call on your official off day. The admin approves or rejects each
           range; once approved you won't be put on call on those days.
         </Text>
@@ -73,10 +73,10 @@ export function LeaveRequestsPage() {
                 <Textarea label="Reason" required autosize minRows={1} maxRows={3} maxLength={200}
                   placeholder="e.g. Umrah, approved by HOD / Relief at Klinik UTC on Saturday"
                   value={d.reason} onChange={e => set(i, { reason: e.currentTarget.value })} />
-                <FileInput label="Document (optional)" placeholder="PDF, JPG or PNG, up to 5 MB" clearable
-                  leftSection={<IconPaperclip size={16} />} accept="application/pdf,image/jpeg,image/png"
+                <FileInput label="Document (optional)" placeholder="PDF, JPG, PNG or DOCX, up to 20 MB" clearable
+                  leftSection={<IconPaperclip size={16} />} accept=".pdf,.jpg,.jpeg,.png,.docx"
                   value={d.file}
-                  error={d.file && d.file.size > MAX_BYTES ? 'This file is over 5 MB.' : undefined}
+                  error={d.file && d.file.size > MAX_BYTES ? 'This file is over 20 MB.' : undefined}
                   onChange={f => set(i, { file: f })} />
               </Stack>
             </Paper>
@@ -126,8 +126,8 @@ function MyRow({ r, onCancel }: { r: LeaveRequestRange; onCancel: () => void }) 
             <Badge color={STATUS_COLOR[r.status]} size="sm">{r.status}</Badge>
           </Group>
           <Text size="sm">{r.reason}</Text>
-          {r.documentName && (
-            <Text size="xs" component="a" href={leaveRequestDocumentUrl(r.id)} target="_blank" rel="noopener noreferrer">
+          {r.documentId && r.documentName && (
+            <Text size="xs" c="blue" style={{ cursor: 'pointer' }} onClick={() => openDocument(r.documentId!).catch(e => notifyError(e))}>
               <IconFileText size={12} style={{ verticalAlign: -1 }} /> {r.documentName}
             </Text>
           )}

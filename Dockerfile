@@ -29,7 +29,5 @@ COPY --from=api /app ./
 COPY --from=web /web/dist ./wwwroot
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
-# Uploaded documents (mounted as a volume in docker-compose.yml).
-RUN mkdir /app/documents && chown $APP_UID /app/documents
 USER $APP_UID
 ENTRYPOINT ["dotnet", "Rota.Api.dll"]

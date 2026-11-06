@@ -288,11 +288,8 @@ public sealed class LeaveRequestRange
     public string Reason { get; set; } = "";
     public LeaveRequestStatus Status { get; set; } = LeaveRequestStatus.Pending;
 
-    /// <summary>Key in the document store, name and type as uploaded; null when no document was attached.</summary>
-    public string? DocumentKey { get; set; }
-    public string? DocumentName { get; set; }
-    public string? DocumentType { get; set; }
-    public long? DocumentSize { get; set; }
+    /// <summary>The supporting document (a stored <see cref="DocumentRecord"/> attached to this range), if the officer added one.</summary>
+    public Guid? DocumentId { get; set; }
 
     public string? DecisionNote { get; set; }
     public Guid? DecidedByAccountId { get; set; }
@@ -450,4 +447,53 @@ public sealed class Feedback
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ResolvedAt { get; set; }
     public Guid? ResolvedByAccountId { get; set; }
+}
+
+public enum DocumentKind
+{
+    /// <summary>The user manual PDF: admins upload it, every signed-in user can read it.</summary>
+    Manual,
+    /// <summary>A supporting document an officer attaches to a confirmed-leave request: the officer and admins can read it.</summary>
+    LeaveDocument,
+    /// <summary>Anything else an officer uploads: the uploader and admins can read it.</summary>
+    Other,
+}
+
+public enum DocumentStatus
+{
+    /// <summary>Upload link issued; the file has not been confirmed. Never downloadable.</summary>
+    Pending,
+    /// <summary>Checked by the server and downloadable.</summary>
+    Available,
+    /// <summary>Removed (or rejected on upload); the bytes are deleted from R2.</summary>
+    Deleted,
+}
+
+/// <summary>Metadata for a file kept in the private R2 bucket. The bytes never touch the database; presigned links are never stored.</summary>
+public sealed class DocumentRecord
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public DocumentKind Kind { get; set; }
+    public DocumentStatus Status { get; set; } = DocumentStatus.Pending;
+
+    /// <summary>Server-generated R2 key. Quarantine key while Pending, then a new permanent key once checked.</summary>
+    public string ObjectKey { get; set; } = "";
+
+    /// <summary>Display name only; never used as a key.</summary>
+    public string FileName { get; set; } = "";
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+
+    public Guid? UploadedByAccountId { get; set; }
+
+    /// <summary>The officer the document belongs to (they can read and delete it), if the uploader has one.</summary>
+    public Guid? OwnerPersonId { get; set; }
+
+    /// <summary>What the document is attached to, e.g. "ConfirmedLeaveRequest" and its id. Null until attached.</summary>
+    public string? ParentType { get; set; }
+    public string? ParentId { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? UploadedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
 }
