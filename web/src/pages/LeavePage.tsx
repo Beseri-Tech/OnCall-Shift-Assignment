@@ -20,12 +20,12 @@ import { dayCap, dayKind, usage } from '../leaveRules'
 
 /** Small badge for a points change: green "+3" for rewards/extra, red "−2" for costs. */
 function PointBadge({ value, unit = 'pt', tip }: { value: number; unit?: string; tip?: string }) {
-  const gain = value > 0
+  const color = value > 0 ? 'green' : value < 0 ? 'red' : 'gray'
   const badge = (
-    <Badge size="sm" radius="sm" variant="light" color={gain ? 'green' : 'red'}
+    <Badge size="sm" radius="sm" variant="light" color={color}
       style={{ verticalAlign: 'middle', textTransform: 'none', flexShrink: 0, overflow: 'visible' }}
       styles={{ label: { overflow: 'visible', textOverflow: 'clip' } }}>
-      {gain ? '+' : '−'}{Math.abs(value)} {unit}
+      {value < 0 ? '−' : '+'}{Math.abs(value)} {unit}
     </Badge>
   )
   return tip ? <Tooltip label={tip} events={{ hover: true, focus: true, touch: true }}>{badge}</Tooltip> : badge
@@ -303,16 +303,16 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
             <StatCard icon={IconCoins} color={overPoints ? 'red' : 'brand'} label="Leave points" value={`${used.points} / ${budget}`}
               hint="Weekend, PH and peak days">
               <Group gap={4} mt={6} mih={22}>
-                {r.extra > 0 && <PointBadge value={r.extra} unit="extra" tip={r.extraReason || 'Extra points from the admin'} />}
-                {r.reward > 0 && <PointBadge value={r.reward} unit="reward" tip={`For ${r.rewardDetail} in ${r.rewardFrom}`} />}
-                {r.pointsDeducted > 0 && <PointBadge value={-r.pointsDeducted} unit="confirmed" tip="Taken off for your confirmed leave" />}
+                <PointBadge value={-r.pointsDeducted} unit="CL" tip="Confirmed leave: points taken off for it" />
+                <PointBadge value={r.extra} unit="EX" tip={r.extra > 0 ? (r.extraReason || 'Extra points from the admin') : 'Extra points from the admin: none'} />
+                <PointBadge value={r.reward} unit="RW" tip={r.reward > 0 ? `Reward for ${r.rewardDetail} in ${r.rewardFrom}` : 'Reward points from the last rota: none'} />
               </Group>
               <Progress mt={8} size="sm" radius="xl" color={overPoints ? 'red' : 'brand'} value={budget ? Math.min(100, (used.points / budget) * 100) : 100} />
             </StatCard>
             <StatCard icon={IconBriefcase} color={overWeekdays ? 'red' : 'indigo'} label="Weekdays" value={`${used.weekdays} / ${allowance}`}
               hint="Free, no points">
               <Group gap={4} mt={6} mih={22}>
-                {r.weekdaysDeducted > 0 && <PointBadge value={-r.weekdaysDeducted} unit="confirmed" tip="Taken off for your confirmed leave" />}
+                <PointBadge value={-r.weekdaysDeducted} unit="CL" tip="Confirmed leave: weekdays taken off for it" />
               </Group>
               <Progress mt={8} size="sm" radius="xl" color={overWeekdays ? 'red' : 'indigo'}
                 value={allowance ? Math.min(100, (used.weekdays / allowance) * 100) : 100} />
@@ -322,6 +322,13 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
         <StatCard icon={IconSum} color="orange" label="On-call shifts done" value={totals?.total ?? '–'}
           hint={totals ? `${totals.weekday} weekday · ${totals.weekendHoliday} weekend + PH` : 'No history yet – counted from the first published rota.'} />
       </SimpleGrid>
+      {showBudget && r && used && (
+        <Group gap="md" wrap="wrap" mt={-8}>
+          <Text size="xs" c="dimmed"><b>CL</b> Confirmed leave</Text>
+          <Text size="xs" c="dimmed"><b>EX</b> Extra points</Text>
+          <Text size="xs" c="dimmed"><b>RW</b> Reward points</Text>
+        </Group>
+      )}
 
       {readOnly && (
         <Alert color="orange" icon={<IconLock />} title="Read only">
