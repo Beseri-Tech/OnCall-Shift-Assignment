@@ -12,10 +12,10 @@ public interface IDocumentStorage
     bool IsEnabled { get; }
 
     /// <summary>A short-lived link the browser PUTs the file to. The Content-Type is signed, so the browser must send exactly it.</summary>
-    string CreateUploadUrl(string objectKey, string contentType, TimeSpan expiresIn);
+    Task<string> CreateUploadUrlAsync(string objectKey, string contentType, TimeSpan expiresIn);
 
     /// <summary>A short-lived link the browser opens to read the file; <paramref name="downloadFileName"/> is what it is saved as.</summary>
-    string CreateDownloadUrl(string objectKey, string downloadFileName, string contentType, TimeSpan expiresIn, bool inline);
+    Task<string> CreateDownloadUrlAsync(string objectKey, string downloadFileName, string contentType, TimeSpan expiresIn, bool inline);
 
     /// <summary>Size and type of the stored object, or null when it does not exist.</summary>
     Task<StoredObject?> GetMetadataAsync(string objectKey, CancellationToken ct);

@@ -18,9 +18,9 @@ public class DocumentTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     {
         public readonly ConcurrentDictionary<string, byte[]> Objects = new();
         public bool IsEnabled { get; set; } = true;
-        public string CreateUploadUrl(string objectKey, string contentType, TimeSpan expiresIn) => $"https://r2.test/up/{objectKey}";
-        public string CreateDownloadUrl(string objectKey, string name, string contentType, TimeSpan expiresIn, bool inline) =>
-            $"https://r2.test/down/{objectKey}";
+        public Task<string> CreateUploadUrlAsync(string objectKey, string contentType, TimeSpan expiresIn) => Task.FromResult($"https://r2.test/up/{objectKey}");
+        public Task<string> CreateDownloadUrlAsync(string objectKey, string name, string contentType, TimeSpan expiresIn, bool inline) =>
+            Task.FromResult($"https://r2.test/down/{objectKey}");
         public Task<StoredObject?> GetMetadataAsync(string objectKey, CancellationToken ct) =>
             Task.FromResult(Objects.TryGetValue(objectKey, out var b) ? new StoredObject(b.Length, null) : null);
         public Task<byte[]> ReadHeadAsync(string objectKey, int count, CancellationToken ct) =>

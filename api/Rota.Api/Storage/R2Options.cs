@@ -17,6 +17,9 @@ public sealed class R2Options
     /// <summary>Largest file accepted, in MiB.</summary>
     public int MaxFileSizeMb { get; set; } = 20;
 
+    /// <summary>Largest user manual accepted, in MiB (the manual is a big PDF with screenshots).</summary>
+    public int ManualMaxFileSizeMb { get; set; } = 100;
+
     public bool IsConfigured =>
         AccountId.Length > 0 && BucketName.Length > 0 && AccessKeyId.Length > 0 && SecretAccessKey.Length > 0;
 
