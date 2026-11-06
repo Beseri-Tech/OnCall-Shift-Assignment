@@ -384,6 +384,16 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var listed = (await Read<List<PeriodDto>>(await admin.GetAsync("/api/admin/periods"))).Single(x => x.Id == period.Id);
         Assert.Equal([left.Id], listed.ExcludedPersonIds);
 
+        // The excluded officer can't enter leave; an admin still can on their behalf.
+        var user = await ApiFixture.OfficerClientAsync(app, admin, left.Id);
+        var url = $"/api/people/{left.Id}/entries?periodId={period.Id}";
+        var body = new EntriesDto([new(period.StartDate.AddDays(2), null)], []);
+        Assert.Equal(HttpStatusCode.Conflict, (await user.PutAsJsonAsync(url, body, ApiFixture.Json)).StatusCode);
+        Assert.True((await Read<EntriesDto>(await user.GetAsync(url))).Excluded);
+        Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync(url, body, ApiFixture.Json)).StatusCode);
+        var other = people[1];
+        Assert.False((await Read<EntriesDto>(await admin.GetAsync($"/api/people/{other.Id}/entries?periodId={period.Id}"))).Excluded);
+
         var overview = await Read<OverviewDto>(await admin.GetAsync($"/api/periods/{period.Id}/overview"));
         Assert.DoesNotContain(overview.People, p => p.Id == left.Id);
         Assert.Equal(people.Count - 1, overview.People.Count);

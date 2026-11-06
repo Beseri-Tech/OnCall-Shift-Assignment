@@ -116,6 +116,9 @@ public static class PublicEndpoints
             var period = await db.Periods.FindAsync([periodId], ct);
             var person = await db.People.FindAsync([id], ct);
             if (period is null || person is null || person.Status != OfficerStatus.OnCall) return Results.NotFound();
+            if (!byAdmin && await db.PeriodExclusions.AnyAsync(x => x.PeriodId == periodId && x.PersonId == id, ct))
+                return Results.Problem("You are not included in the rota for this period, so there is no leave to enter. Contact the admin if this is unexpected.",
+                    statusCode: StatusCodes.Status409Conflict);
 
             var outside = body.Leave.Select(l => l.Date).Concat(body.Preferred)
                 .Where(d => d < period.StartDate || d > period.EndDate).Distinct().Order().ToList();
@@ -290,6 +293,7 @@ public static class PublicEndpoints
             .Where(a => a.PersonId == personId && a.StartDate <= period.EndDate && a.EndDate >= period.StartDate)
             .OrderBy(a => a.StartDate)
             .Select(a => new ConfirmedLeaveDto(a.Id, a.StartDate, a.EndDate, a.Reason, a.Reference)).ToListAsync(ct);
-        return new EntriesDto(leave, preferred, confirmed);
+        bool excluded = await db.PeriodExclusions.AnyAsync(x => x.PeriodId == period.Id && x.PersonId == personId, ct);
+        return new EntriesDto(leave, preferred, confirmed, excluded);
     }
 }
