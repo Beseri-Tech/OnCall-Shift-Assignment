@@ -22,7 +22,8 @@ import { dayCap, dayKind, usage } from '../leaveRules'
 function PointBadge({ value, unit = 'pt' }: { value: number; unit?: string }) {
   const gain = value > 0
   return (
-    <Badge size="sm" radius="sm" variant="light" color={gain ? 'green' : 'red'} style={{ verticalAlign: 'middle', textTransform: 'none' }}>
+    <Badge size="sm" radius="sm" variant="light" color={gain ? 'green' : 'red'} style={{ verticalAlign: 'middle', textTransform: 'none', flexShrink: 0, overflow: 'visible' }}
+      styles={{ label: { overflow: 'visible', textOverflow: 'clip' } }}>
       {gain ? '+' : '−'}{Math.abs(value)} {unit}
     </Badge>
   )
