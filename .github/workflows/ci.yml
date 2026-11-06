@@ -41,7 +41,6 @@ jobs:
             docker:
               - *shared
               - 'api/**'
-              - 'web/**'
               - 'Dockerfile'
               - '.dockerignore'
               - 'docker-compose.yml'
