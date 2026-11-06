@@ -69,11 +69,17 @@ export function LeavePage() {
   // Only admins pick someone; officers always see their own leave.
   const people = useQuery({ queryKey: ['people'], queryFn: api.people, enabled: admin })
   const periods = useQuery({ queryKey: ['periods'], queryFn: () => api.periods() })
+  // Only the admin's period list says who was left out of a period.
+  const adminPeriods = useQuery({ queryKey: ['admin', 'periods'], queryFn: api.admin.periods, enabled: admin })
 
   const visiblePeriods = useMemo(() => (periods.data ?? []).filter(p => p.status !== 'Published'), [periods.data])
   const period = pick(visiblePeriods, chosenPeriodId, defaultPeriod(visiblePeriods))
   const periodId = period?.id ?? null
-  const personId = admin ? chosenPersonId ?? me?.personId ?? null : me?.personId ?? null
+  // Officers the admin left out of the chosen period are not offered (leave is closed for them).
+  const leftOut = useMemo(
+    () => new Set(adminPeriods.data?.find(p => p.id === periodId)?.excludedPersonIds ?? []), [adminPeriods.data, periodId])
+  const wantedPersonId = admin ? chosenPersonId ?? me?.personId ?? null : me?.personId ?? null
+  const personId = admin && wantedPersonId && leftOut.has(wantedPersonId) ? null : wantedPersonId
   const editingOther = admin && personId !== null && personId !== me?.personId
 
   if (people.isLoading || periods.isLoading) return <Loading />
@@ -90,7 +96,7 @@ export function LeavePage() {
               placeholder="Pick an officer"
               searchable
               w={340}
-              data={(people.data ?? []).map(p => ({ value: p.id, label: `${p.name} (${p.code})${p.id === me?.personId ? ' – you' : ''}` }))}
+              data={(people.data ?? []).filter(p => !leftOut.has(p.id)).map(p => ({ value: p.id, label: `${p.name} (${p.code})${p.id === me?.personId ? ' – you' : ''}` }))}
               value={personId}
               onChange={setPersonId}
               allowDeselect={false}
@@ -114,6 +120,7 @@ export function LeavePage() {
       {!personId && period && (
         <Alert icon={<IconInfoCircle />} title="Pick an officer">
           Choose an officer above to see and edit their leave for {period.name}.
+          {leftOut.size > 0 && ` ${leftOut.size} officer(s) are not included in this rota and are not listed.`}
         </Alert>
       )}
 
