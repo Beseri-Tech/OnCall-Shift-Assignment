@@ -70,7 +70,7 @@ public class LeavePolicyTests
         Assert.Empty(p.Validate(before, before, full, 1, 10));
 
         // Only newly added days are checked against the cap (10 officers: 3 on weekends, 5 on weekdays).
-        Assert.Equal(["Already full (at most 3 of 10 officers off on a weekend/public holiday/peak day, 5 on other days): 3 Oct, 5 Oct."],
+        Assert.Equal(["Already full (at most 3 of 10 officers off on a weekend/public holiday/peak day, 5 on other days, counting only officers not on confirmed leave that day): 3 Oct, 5 Oct."],
             p.Validate([], [Sat, Mon, Tue], full, 5, 10));
     }
 
