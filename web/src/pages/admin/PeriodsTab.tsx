@@ -230,6 +230,10 @@ function PeriodModal({ editing, onClose, onSaved }: {
   // Filling the missing end with the start would make it a finished one-day range,
   // and the next click would start a new range instead of choosing the end date.
   const [range, setRange] = useState<[IsoDate | null, IsoDate | null]>([editing.value.startDate, editing.value.endDate])
+  // Inclusive count of days in the picked range; null until both ends are chosen.
+  const totalDays = range[0] && range[1]
+    ? Math.round((Date.parse(`${range[1]}T00:00:00Z`) - Date.parse(`${range[0]}T00:00:00Z`)) / 86400000) + 1
+    : null
   const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people })
   const onCall = (people.data ?? []).filter(x => x.status === 'OnCall')
   const left = new Set(v.excludedPersonIds ?? [])
@@ -250,7 +254,14 @@ function PeriodModal({ editing, onClose, onSaved }: {
           <TextInput label="Name" required value={v.name} onChange={e => setV({ ...v, name: e.currentTarget.value })} />
           <DatePickerInput
             type="range"
-            label="Dates"
+            label={
+              <Group gap="xs" component="span" display="inline-flex">
+                <span>Dates</span>
+                {totalDays !== null && (
+                  <Badge size="sm" variant="light" aria-live="polite">{totalDays} {totalDays === 1 ? 'day' : 'days'}</Badge>
+                )}
+              </Group>
+            }
             required
             value={range}
             onChange={r => {
