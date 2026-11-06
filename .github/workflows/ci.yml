@@ -7,7 +7,47 @@ on:
   pull_request:
 
 jobs:
+  # Decides which jobs are relevant. Jobs that are not relevant are skipped, and GitHub reports a
+  # skipped job as passing for required status checks (unlike workflow-level `paths:` filters, which
+  # leave required checks pending forever). Tags (releases) always run everything.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      api: ${{ steps.all.outputs.api == 'true' || steps.filter.outputs.api == 'true' }}
+      web: ${{ steps.all.outputs.web == 'true' || steps.filter.outputs.web == 'true' }}
+      docker: ${{ steps.all.outputs.docker == 'true' || steps.filter.outputs.docker == 'true' }}
+    steps:
+      - id: all
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "api=true" >> "$GITHUB_OUTPUT"; echo "web=true" >> "$GITHUB_OUTPUT"; echo "docker=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            shared: &shared
+              - '.github/workflows/**'
+            api:
+              - *shared
+              - 'api/**'
+            web:
+              - *shared
+              - 'web/**'
+            docker:
+              - *shared
+              - 'api/**'
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'docker-compose.yml'
+
   api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,6 +58,8 @@ jobs:
       - run: dotnet test api/Rota.sln --configuration Release
 
   web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,8 +79,11 @@ jobs:
   # Secrets: CLOUDFLARE_API_TOKEN (Account → Cloudflare Pages → Edit), CLOUDFLARE_ACCOUNT_ID.
   # Variables (optional): VITE_API_URL, CLOUDFLARE_PAGES_PROJECT.
   pages:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: [api, web]
+    if: >-
+      !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+      && needs.changes.outputs.web == 'true'
+      && needs.api.result != 'failure' && needs.web.result != 'failure'
+    needs: [changes, api, web]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -65,8 +110,11 @@ jobs:
   # Pull requests only check the image builds. master and v* tags push it to GHCR once the tests pass:
   # master → :latest and :sha-xxxxxxx, tag v1.2.3 → :1.2.3 and :1.2.
   docker:
+    if: >-
+      !cancelled() && needs.changes.outputs.docker == 'true'
+      && needs.api.result != 'failure' && needs.web.result != 'failure'
     runs-on: ubuntu-latest
-    needs: [api, web]
+    needs: [changes, api, web]
     permissions:
       contents: read
       packages: write
