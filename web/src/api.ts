@@ -47,7 +47,7 @@ export interface Swap {
 export interface AppNotification { id: number; kind: string; title: string; body: string | null; link: string | null; createdAt: string; read: boolean }
 export interface Notifications { items: AppNotification[]; unread: number }
 /** leave: the officer's own leave. confirmed: read only, ignored when saving. */
-export interface Entries { leave: LeaveEntry[]; preferred: IsoDate[]; confirmed?: ConfirmedLeave[] }
+export interface Entries { leave: LeaveEntry[]; preferred: IsoDate[]; confirmed?: ConfirmedLeave[]; excluded?: boolean }
 export interface ParseResponse { dates: IsoDate[]; error: string | null }
 export interface OverviewDay { date: IsoDate; isWeekendHoliday: boolean; holidayName: string | null; available: number }
 export interface OverviewPerson { id: string; code: string; name: string; leave: LeaveEntry[]; preferred: IsoDate[] }

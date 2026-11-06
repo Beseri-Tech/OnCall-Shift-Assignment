@@ -43,7 +43,7 @@ public sealed record ShiftDto(DateOnly Date, bool IsWeekendHoliday, string? Holi
 /// <param name="Leave">The officer's own leave (confirmed leave is listed separately and ignored when saving).</param>
 /// <param name="Confirmed">Confirmed leave overlapping the period; read only.</param>
 public sealed record EntriesDto(IReadOnlyList<LeaveEntryDto> Leave, IReadOnlyList<DateOnly> Preferred,
-    IReadOnlyList<ConfirmedLeaveDto>? Confirmed = null);
+    IReadOnlyList<ConfirmedLeaveDto>? Confirmed = null, bool Excluded = false);
 
 public sealed record ParseRequest(string Text, DateOnly Reference);
 

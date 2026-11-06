@@ -176,7 +176,9 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
   }, [profile.data, period.startDate, period.endDate])
 
   const dirty = !sameDraft(draft, saved)
-  const readOnly = !period.isEditable && !byAdmin
+  // Left out of this period's rota by the admin: nothing to enter.
+  const excluded = !!initial.excluded && !byAdmin
+  const readOnly = (!period.isEditable && !byAdmin) || excluded
   const effectiveNote = note === 'Other' ? (customNote.trim() || null) : note
 
   // Warn before closing the tab with unsaved changes.
@@ -294,7 +296,8 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
           <Text fw={700} mt={2}>{formatLong(period.startDate)} – {formatLong(period.endDate)}</Text>
           <Text size="sm" c={readOnly ? 'red.8' : 'green.8'} fw={600}>
             {readOnly
-              ? period.status === 'Open' ? 'Deadline passed – leave is closed' : 'Locked – leave is closed'
+              ? excluded ? 'Not included in this rota'
+                : period.status === 'Open' ? 'Deadline passed – leave is closed' : 'Locked – leave is closed'
               : period.leaveDeadline ? `Edit until ${formatLong(period.leaveDeadline)}` : 'Open for leave'}
           </Text>
         </StatCard>
@@ -323,7 +326,14 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
           hint={totals ? `${totals.weekday} weekday · ${totals.weekendHoliday} weekend + PH` : 'No history yet – counted from the first published rota.'} />
       </SimpleGrid>
 
-      {readOnly && (
+      {excluded && (
+        <Alert color="blue" icon={<IconInfoCircle />} title="You are not included in this rota">
+          The administrator has not included you in the on-call rota for {period.name}. You will not be assigned any shifts in
+          this period, and you do not need to enter leave. Please contact the administrator if you believe this is an error.
+        </Alert>
+      )}
+
+      {readOnly && !excluded && (
         <Alert color="orange" icon={<IconLock />} title="Read only">
           Leave for this period can no longer be changed here. Contact the admin if something is wrong.
         </Alert>
