@@ -153,6 +153,13 @@ public enum PeriodStatus
     Published,
 }
 
+/// <summary>An officer the admin left out of one rota period: no shifts are generated for them in it.</summary>
+public sealed class PeriodExclusion
+{
+    public Guid PeriodId { get; set; }
+    public Guid PersonId { get; set; }
+}
+
 public sealed class RotaPeriod
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();

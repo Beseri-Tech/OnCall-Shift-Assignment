@@ -16,6 +16,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
     public DbSet<PublicHoliday> Holidays => Set<PublicHoliday>();
     public DbSet<PeakDay> PeakDays => Set<PeakDay>();
     public DbSet<PeriodDay> PeriodDays => Set<PeriodDay>();
+    public DbSet<PeriodExclusion> PeriodExclusions => Set<PeriodExclusion>();
     public DbSet<PointGrant> PointGrants => Set<PointGrant>();
     public DbSet<LeaveDay> LeaveDays => Set<LeaveDay>();
     public DbSet<LeaveApproval> LeaveApprovals => Set<LeaveApproval>();
@@ -123,6 +124,14 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.Property(d => d.Kind).HasConversion<string>().HasMaxLength(16);
             e.Property(d => d.Name).HasMaxLength(100);
             e.HasOne<RotaPeriod>().WithMany().HasForeignKey(d => d.PeriodId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<PeriodExclusion>(e =>
+        {
+            e.ToTable("period_exclusions");
+            e.HasKey(x => new { x.PeriodId, x.PersonId });
+            e.HasOne<RotaPeriod>().WithMany().HasForeignKey(x => x.PeriodId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Person>().WithMany().HasForeignKey(x => x.PersonId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<PointGrant>(e =>

@@ -1,5 +1,5 @@
 import {
-  ActionIcon, Badge, Button, Group, Menu, Modal, NumberInput, Paper, SegmentedControl, SimpleGrid, Stack, Table, Text, TextInput,
+  ActionIcon, Badge, Button, Checkbox, Group, Menu, Modal, NumberInput, Paper, SegmentedControl, SimpleGrid, Stack, Table, Text, TextInput,
   Title,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
@@ -134,7 +134,7 @@ function Periods() {
 }
 
 const toUpsert = (p: Period): UpsertPeriod =>
-  ({ name: p.name, startDate: p.startDate, endDate: p.endDate, leaveDeadline: p.leaveDeadline, pointsBudget: p.pointsBudget })
+  ({ name: p.name, startDate: p.startDate, endDate: p.endDate, leaveDeadline: p.leaveDeadline, pointsBudget: p.pointsBudget, excludedPersonIds: p.excludedPersonIds ?? [] })
 
 /** Who used how many leave points, with per-officer top-ups for this period. */
 function PointsModal({ period, onClose }: { period: Period; onClose: () => void }) {
@@ -230,6 +230,14 @@ function PeriodModal({ editing, onClose, onSaved }: {
   // Filling the missing end with the start would make it a finished one-day range,
   // and the next click would start a new range instead of choosing the end date.
   const [range, setRange] = useState<[IsoDate | null, IsoDate | null]>([editing.value.startDate, editing.value.endDate])
+  const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people })
+  const onCall = (people.data ?? []).filter(x => x.status === 'OnCall')
+  const left = new Set(v.excludedPersonIds ?? [])
+  const toggle = (id: string, included: boolean) => {
+    const next = new Set(left)
+    if (included) next.delete(id); else next.add(id)
+    setV({ ...v, excludedPersonIds: [...next] })
+  }
   const save = useMutation({
     mutationFn: () => (editing.id ? api.admin.updatePeriod(editing.id, v) : api.admin.createPeriod(v)),
     onSuccess: () => { onSaved(); onClose(); notifyOk(`${v.name} saved.`) },
@@ -271,10 +279,30 @@ function PeriodModal({ editing, onClose, onSaved }: {
             value={v.pointsBudget ?? ''}
             onChange={x => setV({ ...v, pointsBudget: x === '' ? null : Number(x) })}
           />
+          <Stack gap={4}>
+            <Group justify="space-between">
+              <Text size="sm" fw={500}>
+                Officers in this rota ({onCall.filter(x => !left.has(x.id)).length} of {onCall.length})
+              </Text>
+              <Group gap="xs">
+                <Button size="compact-xs" variant="subtle" onClick={() => setV({ ...v, excludedPersonIds: [] })}>All</Button>
+                <Button size="compact-xs" variant="subtle" onClick={() => setV({ ...v, excludedPersonIds: onCall.map(x => x.id) })}>None</Button>
+              </Group>
+            </Group>
+            <Text size="xs" c="dimmed">Untick an officer to leave them out: no shift is generated for them and they are not asked for leave.</Text>
+            {people.isLoading && <Loading />}
+            {people.error && <ErrorBox error={people.error} />}
+            <Stack gap={6} mah={240} style={{ overflowY: 'auto' }} p="xs" bd="1px solid var(--mantine-color-default-border)">
+              {onCall.map(x => (
+                <Checkbox key={x.id} label={`${x.name} (${x.code})`} checked={!left.has(x.id)} onChange={e => toggle(x.id, e.currentTarget.checked)} />
+              ))}
+              {people.data && onCall.length === 0 && <Text size="sm" c="dimmed">No officers are on call.</Text>}
+            </Stack>
+          </Stack>
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancel</Button>
-            <Button type="submit" loading={save.isPending} disabled={!range[0] || !range[1]}>Save</Button>
+            <Button type="submit" loading={save.isPending} disabled={!range[0] || !range[1] || onCall.length - onCall.filter(x => left.has(x.id)).length === 0}>Save</Button>
           </Group>
         </Stack>
       </form>
