@@ -69,8 +69,8 @@ export function RulesPage() {
         <List size="sm" spacing={4} mt="xs">
           <List.Item>The admin can add extra points for you for that period, with the reason noted.</List.Item>
           <List.Item>
-            Leave that's <b>officially approved</b>, such as an overseas trip, can be recorded by the admin as confirmed leave
-            even when you're out of points (see below). <b>Include your CR (cuti rehat) days</b> when you send it.
+            Leave that's <b>officially approved</b>, such as an overseas trip, goes in as confirmed leave: send it on <b>Request leave</b>
+            (see below), even when you're out of points. <b>Include your CR (cuti rehat) days</b> when you send it.
           </List.Item>
           <List.Item>Ask <b>early</b>, because busy days fill up first come, first served.</List.Item>
           <List.Item>
@@ -161,14 +161,30 @@ export function RulesPage() {
 
       <Section icon={IconPlaneDeparture} title="Approved leave (confirmed leave)">
         <Text size="sm">
-          If your leave is <b>officially approved</b>, for example an overseas trip, send the approval to the admin. The admin
+          If your leave is <b>officially approved</b> or assigned to you, such as an overseas trip, your CR days or relief duty at
+          another clinic, ask for it on the <Anchor component={Link} to="/leave-requests">Request leave</Anchor> page. The admin
           records it as <b>confirmed leave</b>.
         </Text>
         <Items>
+          <List.Item>
+            <b>How to ask:</b> add each period you are away as its own <b>date range</b>, pick the <b>type</b> (Trip, CR, Relief duty
+            or Other) and give a short <b>reason</b>. You can attach a <b>document</b> (PDF, JPG, PNG or DOCX, up to 20 MB) to each
+            range, but it's optional. Send it once for as many ranges as you need.
+          </List.Item>
+          <List.Item>
+            The admin <b>approves or rejects each range</b>. You get a notification and an email either way. A rejection always
+            comes with the reason, and you can still mark your own leave or send a new request. Until it's decided you can
+            <b> withdraw</b> a range. Nothing changes on the rota until it's approved.
+          </List.Item>
+          <List.Item>You can still send an approval to the admin instead, and they can enter the confirmed leave for you.</List.Item>
+          <List.Item>
+            <b>Relief duty</b> (working at another clinic) keeps you off call on those days but <b>takes no points or weekdays</b>.
+            Trip, CR and Other are reduced as described below.
+          </List.Item>
           <List.Item>It's <b>never refused</b>, even if you're out of points or the day is full, and you won't be put on call on those days.</List.Item>
           <List.Item>
-            <b>Tell the admin your CR (cuti rehat) days, or include them in the dates you send.</b> You can't be on call on your
-            official off day, so the admin needs to record your CR days together with the trip.
+            <b>Include your CR (cuti rehat) days</b>, either inside the trip's dates or as their own range with type CR. You can't be on
+            call on your official off day, so the admin needs your CR days recorded together with the trip.
           </List.Item>
           <List.Item>
             It doesn't cost points itself, but your <b>points and weekday allowance are reduced by about a third (33%) of what
@@ -179,7 +195,7 @@ export function RulesPage() {
             clinic event day) inside the trip aren't counted.
           </List.Item>
           <List.Item>It still counts toward the daily limit for other officers, so a day may fill up sooner for them.</List.Item>
-          <List.Item>The admin can enter it before the rota period opens. A trip split into several date ranges is entered in one go, and you get one notification and email.</List.Item>
+          <List.Item>It can be entered before the rota period opens.</List.Item>
           <List.Item>It shows on My leave with its reason, but only the admin can change it. Others see only "confirmed leave".</List.Item>
           <List.Item>If you're already on call on those days, the admin moves the shifts to someone else.</List.Item>
         </Items>
@@ -234,7 +250,8 @@ export function RulesPage() {
         <Section icon={IconUserOff} title="Not on the rota">
           <Text size="sm">
             If you're away for a while (for example maternity leave), the admin can mark you as <b>excluded</b>. You won't get
-            shifts. Tell the admin when you're back.
+            shifts. Tell the admin when you're back. The admin can also leave you out of <b>one particular rota</b>: you then get
+            no shift in it and aren't asked for leave.
           </Text>
           <Text size="sm" mt="xs">
             If there's a weekday you can <b>never</b> do on call, for example because you work in another state where Sunday is a
