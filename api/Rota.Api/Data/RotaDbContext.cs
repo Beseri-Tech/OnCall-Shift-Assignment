@@ -19,6 +19,8 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
     public DbSet<PointGrant> PointGrants => Set<PointGrant>();
     public DbSet<LeaveDay> LeaveDays => Set<LeaveDay>();
     public DbSet<LeaveApproval> LeaveApprovals => Set<LeaveApproval>();
+    public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
+    public DbSet<LeaveRequestRange> LeaveRequestRanges => Set<LeaveRequestRange>();
     public DbSet<PreferredDate> PreferredDates => Set<PreferredDate>();
     public DbSet<RotaRun> Runs => Set<RotaRun>();
     public DbSet<ShiftAssignment> Assignments => Set<ShiftAssignment>();
@@ -150,7 +152,29 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasIndex(a => new { a.PersonId, a.StartDate });
             e.Property(a => a.Reason).HasMaxLength(200);
             e.Property(a => a.Reference).HasMaxLength(100);
+            e.Property(a => a.Kind).HasConversion<string>().HasMaxLength(16);
             e.HasOne<Person>().WithMany().HasForeignKey(a => a.PersonId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<LeaveRequest>(e =>
+        {
+            e.ToTable("leave_requests");
+            e.HasIndex(r => new { r.PersonId, r.CreatedAt });
+            e.HasOne<Person>().WithMany().HasForeignKey(r => r.PersonId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(r => r.Ranges).WithOne().HasForeignKey(r => r.RequestId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<LeaveRequestRange>(e =>
+        {
+            e.ToTable("leave_request_ranges");
+            e.HasIndex(r => r.Status);
+            e.Property(r => r.Kind).HasConversion<string>().HasMaxLength(16);
+            e.Property(r => r.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(r => r.Reason).HasMaxLength(200);
+            e.Property(r => r.DocumentKey).HasMaxLength(300);
+            e.Property(r => r.DocumentName).HasMaxLength(200);
+            e.Property(r => r.DocumentType).HasMaxLength(100);
+            e.Property(r => r.DecisionNote).HasMaxLength(200);
         });
 
         b.Entity<PreferredDate>(e =>

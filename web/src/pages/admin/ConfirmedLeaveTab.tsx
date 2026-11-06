@@ -1,12 +1,15 @@
 import {
-  ActionIcon, Alert, Badge, Button, Group, List, Modal, Paper, SegmentedControl, Select, Stack, Text, TextInput, Title, Tooltip,
+  ActionIcon, Alert, Badge, Button, Group, List, Modal, Paper, SegmentedControl, Select, Stack, Text, TextInput, Textarea, Title, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconAlertTriangle, IconEdit, IconPlaneDeparture, IconPlus, IconTrash, IconUserCheck } from '@tabler/icons-react'
+import { IconCheck, IconFileText, IconX, IconAlertTriangle, IconEdit, IconPlaneDeparture, IconPlus, IconTrash, IconUserCheck } from '@tabler/icons-react'
 import { useState } from 'react'
-import { api, type ApprovalConflict, type LeaveApproval, type LeaveApprovalBatchResult, type UpsertLeaveApproval } from '../../api'
+import {
+  api, kindLabel, LEAVE_KINDS, leaveRequestDocumentUrl, type ApprovalConflict, type LeaveKind, type LeaveRequestRange,
+  type LeaveApproval, type LeaveApprovalBatchResult, type UpsertLeaveApproval,
+} from '../../api'
 import { ErrorBox, Loading } from '../../components/common'
 import { diffDays, formatLong, formatRange, todayIso } from '../../dates'
 import { notifyError, notifyOk, usePhone } from '../../lib'
@@ -55,6 +58,7 @@ export function ConfirmedLeaveTab() {
 
   return (
     <Stack gap="md">
+      <RequestsPanel onDecided={refresh} />
       <Paper withBorder p="md">
         <Group justify="space-between" mb="xs" wrap="wrap">
           <Group gap={8}><IconPlaneDeparture size={20} /><Title order={4}>Confirmed leave</Title></Group>
@@ -91,7 +95,7 @@ export function ConfirmedLeaveTab() {
               <Row key={a.id} a={a}
                 onEdit={() => {
                   setResult(null)
-                  setEditing({ id: a.id, value: { personId: a.personId, startDate: a.startDate, endDate: a.endDate, reason: a.reason, reference: a.reference } })
+                  setEditing({ id: a.id, value: { personId: a.personId, startDate: a.startDate, endDate: a.endDate, reason: a.reason, reference: a.reference, kind: a.kind } })
                 }}
                 onDelete={() => modals.openConfirmModal({
                   title: 'Remove confirmed leave?',
@@ -133,7 +137,7 @@ function Row({ a, onEdit, onDelete }: { a: LeaveApproval; onEdit: () => void; on
             <Text size="xs" c="dimmed">{days} day{days === 1 ? '' : 's'}</Text>
           </Stack>
           <Stack gap={0} style={{ flex: 1, minWidth: 200 }}>
-            <Text size="sm">{a.reason}</Text>
+            <Group gap={6}><Badge variant="light" size="sm">{kindLabel(a.kind)}</Badge><Text size="sm">{a.reason}</Text></Group>
             <Text size="xs" c="dimmed">
               {a.reference ? `Ref. ${a.reference} · ` : ''}Entered by {a.createdBy ?? 'unknown'}, {formatLong(a.createdAt.slice(0, 10))}
             </Text>
@@ -226,12 +230,12 @@ function ApprovalModal({ editing, onClose, onSaved }: {
     mutationFn: async (): Promise<LeaveApprovalBatchResult> => {
       const reason = v.reason?.trim() ?? '', reference = v.reference?.trim() || null
       if (editing.id) {
-        const body: UpsertLeaveApproval = { personId: v.personId!, startDate: v.startDate!, endDate: v.endDate!, reason, reference }
+        const body: UpsertLeaveApproval = { personId: v.personId!, startDate: v.startDate!, endDate: v.endDate!, reason, reference, kind: v.kind }
         const r = await api.admin.updateLeaveApproval(editing.id, body)
         return { approvals: [r.approval], warnings: r.warnings }
       }
       return api.admin.createLeaveApprovals({
-        personId: v.personId!, reason, reference,
+        personId: v.personId!, reason, reference, kind: v.kind,
         ranges: ranges.filter(([s, e]) => s && e).map(([s, e]) => ({ startDate: s!, endDate: e! })),
       })
     },
@@ -278,6 +282,8 @@ function ApprovalModal({ editing, onClose, onSaved }: {
             </Button>
           </Stack>
         )}
+        <Select label="Type" description="Relief duty keeps the officer off call without taking points" allowDeselect={false}
+          data={LEAVE_KINDS} value={v.kind ?? 'Trip'} onChange={k => setV({ ...v, kind: (k as LeaveKind) ?? 'Trip' })} />
         <TextInput label="Reason" required placeholder="e.g. Overseas trip, approved by HOD" maxLength={200}
           value={v.reason ?? ''} onChange={e => setV({ ...v, reason: e.currentTarget.value })} />
         <TextInput label="Approval reference" description="Optional, e.g. letter or memo number" maxLength={100}
@@ -292,5 +298,110 @@ function ApprovalModal({ editing, onClose, onSaved }: {
         </Group>
       </Stack>
     </Modal>
+  )
+}
+
+/** Requests officers sent: approve (creates the confirmed leave) or reject each date range. */
+function RequestsPanel({ onDecided }: { onDecided: () => void }) {
+  const qc = useQueryClient()
+  const list = useQuery({ queryKey: ['admin', 'leaveRequests'], queryFn: () => api.admin.leaveRequests() })
+  const [rejecting, setRejecting] = useState<LeaveRequestRange | null>(null)
+  const [note, setNote] = useState('')
+  const [warnings, setWarnings] = useState<string[]>([])
+  const [showAll, setShowAll] = useState(false)
+
+  const done = (w: string[]) => {
+    setWarnings(w); setRejecting(null); setNote('')
+    qc.invalidateQueries({ queryKey: ['admin', 'leaveRequests'] })
+    onDecided()
+  }
+  const approve = useMutation({
+    mutationFn: (id: string) => api.admin.approveLeaveRequest(id),
+    onSuccess: r => { done(r.warnings); notifyOk('Added to confirmed leave. The officer has been told.', 'Approved') },
+    onError: e => notifyError(e, 'Could not approve'),
+  })
+  const reject = useMutation({
+    mutationFn: () => api.admin.rejectLeaveRequest(rejecting!.id, note.trim()),
+    onSuccess: () => { done([]); notifyOk('The officer has been told.', 'Rejected') },
+    onError: e => notifyError(e, 'Could not reject'),
+  })
+
+  if (list.isLoading) return null
+  if (list.error) return <ErrorBox error={list.error} />
+  const all = list.data ?? []
+  const pending = all.filter(r => r.status === 'Pending')
+  const decided = all.filter(r => r.status !== 'Pending')
+
+  return (
+    <Paper withBorder p="md">
+      <Group justify="space-between" mb="xs">
+        <Group gap={8}><IconUserCheck size={20} /><Title order={4}>Leave requests</Title>
+          {pending.length > 0 && <Badge color="yellow">{pending.length} waiting</Badge>}</Group>
+        {decided.length > 0 && <Button size="xs" variant="subtle" onClick={() => setShowAll(!showAll)}>{showAll ? 'Hide decided' : `Show decided (${decided.length})`}</Button>}
+      </Group>
+      {warnings.length > 0 && (
+        <Alert color="yellow" icon={<IconAlertTriangle />} mb="sm" withCloseButton onClose={() => setWarnings([])}>
+          <List size="sm" spacing={4}>{warnings.map(w => <List.Item key={w}>{w}</List.Item>)}</List>
+        </Alert>
+      )}
+      {pending.length === 0 ? <Text size="sm" c="dimmed">No requests waiting.</Text> : (
+        <Stack gap="xs">
+          {pending.map(r => (
+            <RequestRow key={r.id} r={r}>
+              <Button size="xs" color="teal" leftSection={<IconCheck size={14} />} loading={approve.isPending && approve.variables === r.id}
+                onClick={() => approve.mutate(r.id)}>Approve</Button>
+              <Button size="xs" color="red" variant="light" leftSection={<IconX size={14} />} onClick={() => { setNote(''); setRejecting(r) }}>Reject</Button>
+            </RequestRow>
+          ))}
+        </Stack>
+      )}
+      {showAll && decided.length > 0 && (
+        <Stack gap="xs" mt="md">
+          {decided.map(r => <RequestRow key={r.id} r={r} />)}
+        </Stack>
+      )}
+      <Modal opened={!!rejecting} onClose={() => setRejecting(null)} title="Reject this request">
+        <Stack gap="sm">
+          <Text size="sm">{rejecting?.personName}, {rejecting && formatRange([rejecting.startDate, rejecting.endDate])}</Text>
+          <Textarea label="Reason for the officer" required maxLength={200} autosize minRows={2} value={note} onChange={e => setNote(e.currentTarget.value)} />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setRejecting(null)}>Cancel</Button>
+            <Button color="red" disabled={!note.trim()} loading={reject.isPending} onClick={() => reject.mutate()}>Reject</Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </Paper>
+  )
+}
+
+function RequestRow({ r, children }: { r: LeaveRequestRange; children?: React.ReactNode }) {
+  const days = diffDays(r.startDate, r.endDate) + 1
+  const color = { Pending: 'yellow', Approved: 'teal', Rejected: 'red', Cancelled: 'gray' }[r.status]
+  return (
+    <Paper withBorder p="sm" radius="md">
+      <Group justify="space-between" align="flex-start" gap="sm">
+        <Stack gap={2} style={{ flex: 1, minWidth: 200 }}>
+          <Group gap="xs">
+            <Text size="sm" fw={700}>{r.personName}</Text>
+            <Text size="sm" fw={600}>{formatRange([r.startDate, r.endDate])}</Text>
+            <Text size="xs" c="dimmed">{days} day{days === 1 ? '' : 's'}</Text>
+            <Badge variant="light" size="sm">{kindLabel(r.kind)}</Badge>
+            {r.status !== 'Pending' && <Badge color={color} size="sm">{r.status}</Badge>}
+          </Group>
+          <Text size="sm">{r.reason}</Text>
+          {r.documentName && (
+            <Text size="xs" component="a" href={leaveRequestDocumentUrl(r.id)} target="_blank" rel="noopener noreferrer">
+              <IconFileText size={12} style={{ verticalAlign: -1 }} /> {r.documentName}
+            </Text>
+          )}
+          <Text size="xs" c="dimmed">
+            Sent {formatLong(r.submittedAt.slice(0, 10))}
+            {r.decidedAt && <> · {r.status.toLowerCase()} {formatLong(r.decidedAt.slice(0, 10))}{r.decidedBy ? ` by ${r.decidedBy}` : ''}{r.decisionNote ? `: ${r.decisionNote}` : ''}</>}
+          </Text>
+          {r.overlaps.map(o => <Text key={o} size="xs" c="red">{o} Approving will fail until you change that one.</Text>)}
+        </Stack>
+        {children && <Group gap="xs">{children}</Group>}
+      </Group>
+    </Paper>
   )
 }

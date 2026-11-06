@@ -58,10 +58,27 @@ export interface ApprovalConflict {
 }
 export interface LeaveApproval {
   id: string; personId: string; personCode: string; personName: string; startDate: IsoDate; endDate: IsoDate
-  reason: string; reference: string | null; createdBy: string | null; createdAt: string; conflicts: ApprovalConflict[]
+  reason: string; reference: string | null; createdBy: string | null; createdAt: string; conflicts: ApprovalConflict[]; kind: LeaveKind
 }
-export interface UpsertLeaveApproval { personId: string; startDate: IsoDate; endDate: IsoDate; reason: string; reference: string | null }
-export interface LeaveApprovalBatchRequest { personId: string; ranges: { startDate: IsoDate; endDate: IsoDate }[]; reason: string; reference: string | null }
+export type LeaveKind = 'Trip' | 'Cr' | 'Relief' | 'Other'
+export const LEAVE_KINDS: { value: LeaveKind; label: string }[] = [
+  { value: 'Trip', label: 'Trip' },
+  { value: 'Cr', label: 'CR (cuti rehat)' },
+  { value: 'Relief', label: 'Relief duty' },
+  { value: 'Other', label: 'Other' },
+]
+export const kindLabel = (k: LeaveKind) => LEAVE_KINDS.find(x => x.value === k)?.label ?? k
+export interface UpsertLeaveApproval { personId: string; startDate: IsoDate; endDate: IsoDate; reason: string; reference: string | null; kind?: LeaveKind }
+export interface LeaveApprovalBatchRequest { personId: string; ranges: { startDate: IsoDate; endDate: IsoDate }[]; reason: string; reference: string | null; kind?: LeaveKind }
+export type LeaveRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled'
+export interface LeaveRequestRange {
+  id: string; requestId: string; personId: string; personCode: string; personName: string
+  startDate: IsoDate; endDate: IsoDate; kind: LeaveKind; reason: string; status: LeaveRequestStatus
+  documentName: string | null; documentSize: number | null; submittedAt: string
+  decisionNote: string | null; decidedBy: string | null; decidedAt: string | null; overlaps: string[]
+}
+export interface NewLeaveRequestRange { startDate: IsoDate; endDate: IsoDate; kind: LeaveKind; reason: string; file: File | null }
+export interface DecideLeaveRequestResult { range: LeaveRequestRange; warnings: string[] }
 export interface LeaveApprovalBatchResult { approvals: LeaveApproval[]; warnings: string[] }
 export interface LeaveApprovalResult { approval: LeaveApproval; warnings: string[] }
 
@@ -210,6 +227,8 @@ async function problemMessage(res: Response): Promise<string> {
   }
 }
 
+export const leaveRequestDocumentUrl = (rangeId: string) => `${API}/api/leave-requests/ranges/${rangeId}/document`
+
 const get = <T,>(url: string) => request<T>('GET', url)
 const post = <T,>(url: string, body?: unknown) => request<T>('POST', url, body ?? {})
 const put = <T,>(url: string, body: unknown) => request<T>('PUT', url, body)
@@ -226,6 +245,15 @@ export const api = {
   shifts: (personId: string) => get<Shift[]>(`/api/people/${personId}/shifts`),
   periods: (status?: PeriodStatus) => get<Period[]>(`/api/periods${q({ status })}`),
   holidays: (from?: IsoDate, to?: IsoDate) => get<Holiday[]>(`/api/holidays${q({ from, to })}`),
+  myLeaveRequests: () => get<LeaveRequestRange[]>('/api/leave-requests/mine'),
+  cancelLeaveRequest: (rangeId: string) => del<void>(`/api/leave-requests/ranges/${rangeId}`),
+  /** Sends the ranges as one form: the JSON in "request" and each range's optional document as "file{index}". */
+  sendLeaveRequest: (ranges: NewLeaveRequestRange[]) => {
+    const form = new FormData()
+    form.append('request', JSON.stringify({ ranges: ranges.map(({ file: _f, ...r }) => r) }))
+    ranges.forEach((r, i) => { if (r.file) form.append(`file${i}`, r.file) })
+    return post<LeaveRequestRange[]>('/api/leave-requests', form)
+  },
   entries: (personId: string, periodId: string) => get<Entries>(`/api/people/${personId}/entries${q({ periodId })}`),
   saveEntries: (personId: string, periodId: string, body: Entries) =>
     put<Entries>(`/api/people/${personId}/entries${q({ periodId })}`, body),
@@ -329,6 +357,10 @@ export const api = {
     createLeaveApprovals: (a: LeaveApprovalBatchRequest) => post<LeaveApprovalBatchResult>('/api/admin/leave-approvals/batch', a),
     updateLeaveApproval: (id: string, a: UpsertLeaveApproval) => put<LeaveApprovalResult>(`/api/admin/leave-approvals/${id}`, a),
     deleteLeaveApproval: (id: string) => del<void>(`/api/admin/leave-approvals/${id}`),
+    leaveRequests: (status?: LeaveRequestStatus) => get<LeaveRequestRange[]>(`/api/admin/leave-requests${q({ status })}`),
+    approveLeaveRequest: (id: string, note?: string) =>
+      post<DecideLeaveRequestResult>(`/api/admin/leave-requests/ranges/${id}/approve`, { note: note || null }),
+    rejectLeaveRequest: (id: string, note: string) => post<DecideLeaveRequestResult>(`/api/admin/leave-requests/ranges/${id}/reject`, { note }),
 
     audit: ({ page, pageSize, ...f }: AuditQuery) =>
       get<AuditPage>(`/api/admin/audit${q({ ...f, page: page?.toString(), pageSize: pageSize?.toString() })}`),

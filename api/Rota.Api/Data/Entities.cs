@@ -249,9 +249,50 @@ public sealed class LeaveApproval
     /// <summary>Approval letter or memo number, if any.</summary>
     public string? Reference { get; set; }
 
+    /// <summary>Why the officer is away (trip, CR, relief duty...). Every kind keeps the officer off call.</summary>
+    public LeaveKind Kind { get; set; } = LeaveKind.Other;
+
     public Guid? CreatedByAccountId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public enum LeaveKind { Trip, Cr, Relief, Other }
+
+public enum LeaveRequestStatus { Pending, Approved, Rejected, Cancelled }
+
+/// <summary>An officer's request for confirmed leave: one or more date ranges, each with its own reason and optional document.</summary>
+public sealed class LeaveRequest
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid PersonId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<LeaveRequestRange> Ranges { get; set; } = [];
+}
+
+/// <summary>One date range of a request. The admin approves or rejects each range on its own.</summary>
+public sealed class LeaveRequestRange
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid RequestId { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public LeaveKind Kind { get; set; }
+    public string Reason { get; set; } = "";
+    public LeaveRequestStatus Status { get; set; } = LeaveRequestStatus.Pending;
+
+    /// <summary>Key in the document store, name and type as uploaded; null when no document was attached.</summary>
+    public string? DocumentKey { get; set; }
+    public string? DocumentName { get; set; }
+    public string? DocumentType { get; set; }
+    public long? DocumentSize { get; set; }
+
+    public string? DecisionNote { get; set; }
+    public Guid? DecidedByAccountId { get; set; }
+    public DateTimeOffset? DecidedAt { get; set; }
+
+    /// <summary>The confirmed leave created when the range was approved (cleared if the admin later removes it).</summary>
+    public Guid? ApprovalId { get; set; }
 }
 
 public sealed class PreferredDate

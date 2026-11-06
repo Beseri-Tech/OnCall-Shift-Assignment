@@ -45,6 +45,7 @@ builder.Services.AddSingleton<Mailer>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Mailer>());   // sends queued email in the background
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Notifier>();
+builder.Services.AddSingleton<IDocumentStore, LocalDocumentStore>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("Leave").Get<LeaveLimits>() ?? new LeaveLimits());
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
@@ -142,6 +143,7 @@ app.MapPublicEndpoints();
 app.MapSwapEndpoints();
 app.MapNotificationEndpoints();
 app.MapFeedbackEndpoints();
+app.MapLeaveRequestEndpoints();
 app.MapAdminEndpoints();
 
 // Unknown /api routes are 404s; everything else is the React app (which shows the login page itself).
