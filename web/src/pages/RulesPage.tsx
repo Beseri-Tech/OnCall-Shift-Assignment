@@ -51,7 +51,7 @@ export function RulesPage() {
           <List.Item>The admin can add extra points for you for that period, with the reason noted.</List.Item>
           <List.Item>
             Leave that's <b>officially approved</b>, such as an overseas trip, can be recorded by the admin as confirmed leave
-            even when you're out of points (see below).
+            even when you're out of points (see below). <b>Include your CR (cuti rehat) days</b> when you send it.
           </List.Item>
           <List.Item>Ask <b>early</b>, because busy days fill up first come, first served.</List.Item>
           <List.Item>
@@ -148,14 +148,19 @@ export function RulesPage() {
         <Items>
           <List.Item>It's <b>never refused</b>, even if you're out of points or the day is full, and you won't be put on call on those days.</List.Item>
           <List.Item>
+            <b>Tell the admin your CR (cuti rehat) days, or include them in the dates you send.</b> You can't be on call on your
+            official off day, so the admin needs to record your CR days together with the trip.
+          </List.Item>
+          <List.Item>
             It doesn't cost points itself, but your <b>points and weekday allowance are reduced by about a third (33%) of what
             those days would have cost as ordinary leave</b>, rounded up. Weekend and peak days cost 1 point, a public holiday 2,
             and each ordinary weekday uses 1 weekday. For example, a 9-day trip over Christmas (4 weekend days, the 25 Dec public
             holiday, 4 weekdays) would have cost 6 points, so it takes 2 points and 2 weekdays off. A trip of weekdays only takes
-            no points. Any trip that includes such days takes at least 1.
+            no points. Any trip that includes such days takes at least 1. Days you can never be on call (a blocked weekday or a
+            clinic event day) inside the trip aren't counted.
           </List.Item>
           <List.Item>It still counts toward the daily limit for other officers, so a day may fill up sooner for them.</List.Item>
-          <List.Item>The admin can enter it before the rota period opens. You get a notification and an email.</List.Item>
+          <List.Item>The admin can enter it before the rota period opens. A trip split into several date ranges is entered in one go, and you get one notification and email.</List.Item>
           <List.Item>It shows on My leave with its reason, but only the admin can change it. Others see only "confirmed leave".</List.Item>
           <List.Item>If you're already on call on those days, the admin moves the shifts to someone else.</List.Item>
         </Items>
@@ -216,6 +221,10 @@ export function RulesPage() {
             If there's a weekday you can <b>never</b> do on call, for example because you work in another state where Sunday is a
             working day, ask the admin to <b>block</b> it. You won't be given that weekday, it shows as "No duty" on your leave
             calendar, and it doesn't use any leave points or change your points. The block has no end date, so ask the admin to lift it when it no longer applies.
+          </Text>
+          <Text size="sm" mt="xs">
+            If your <b>clinic has an event</b>, the admin can block that date for everyone in the clinic. Nobody from the clinic is put
+            on call, you can't mark leave on it, it shows as "No duty" and it costs no points.
           </Text>
         </Section>
 
