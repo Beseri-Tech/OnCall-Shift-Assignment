@@ -291,8 +291,8 @@ export const api = {
     downloadUrl: (id: string, inline = false) =>
       get<{ downloadUrl: string; expiresInSeconds: number }>(`/api/documents/${id}/download-url${q({ inline: inline ? 'true' : undefined })}`),
     remove: (id: string) => del<void>(`/api/documents/${id}`),
-    /** The current user manual, or undefined when none has been uploaded. */
-    manual: () => get<StoredDocument | undefined>('/api/documents/manual'),
+    /** The current user manual, or null when none has been uploaded (the API answers 204; react-query rejects undefined). */
+    manual: async () => (await get<StoredDocument | undefined>('/api/documents/manual')) ?? null,
   },
   leaveRules: (periodId: string, personId: string) => get<LeaveRules>(`/api/periods/${periodId}/leave-rules${q({ personId })}`),
 
