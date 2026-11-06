@@ -223,7 +223,8 @@ public static class PublicEndpoints
             if (period is null) return Results.NotFound();
 
             var holidays = await Mapping.HolidaysAsync(db, period.Id, ct);
-            var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall)
+            var left = await db.PeriodExclusions.Where(x => x.PeriodId == period.Id).Select(x => x.PersonId).ToListAsync(ct);
+            var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id))
                 .OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
                 .Select(p => new
                 {

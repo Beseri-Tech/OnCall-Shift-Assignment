@@ -384,6 +384,11 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var listed = (await Read<List<PeriodDto>>(await admin.GetAsync("/api/admin/periods"))).Single(x => x.Id == period.Id);
         Assert.Equal([left.Id], listed.ExcludedPersonIds);
 
+        var overview = await Read<OverviewDto>(await admin.GetAsync($"/api/periods/{period.Id}/overview"));
+        Assert.DoesNotContain(overview.People, p => p.Id == left.Id);
+        Assert.Equal(people.Count - 1, overview.People.Count);
+        Assert.All(overview.Days, d => Assert.Equal(people.Count - 1, d.Available));
+
         (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
         var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(1)));
         Assert.DoesNotContain(run.Days, d => d.PersonId == left.Id);
