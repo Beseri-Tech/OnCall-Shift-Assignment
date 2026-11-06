@@ -60,16 +60,38 @@ public sealed class LeaveRules
     public Dictionary<DateOnly, int> AllOff() =>
         LeaveByPerson.Keys.SelectMany(EffectiveOff).GroupBy(d => d).ToDictionary(g => g.Key, g => g.Count());
 
+    public bool IsConfirmedOff(Guid personId, DateOnly date) =>
+        ConfirmedByPerson.GetValueOrDefault(personId)?.Contains(date) == true && !IsBlocked(personId, date);
+
+    /// <summary>Per day, how many on-call officers are away on confirmed leave (trip, CR, relief duty).</summary>
+    public Dictionary<DateOnly, int> ConfirmedOff() =>
+        ConfirmedByPerson.Keys.Where(LeaveByPerson.ContainsKey).SelectMany(id => ConfirmedByPerson[id].Where(d => !IsBlocked(id, d)))
+            .GroupBy(d => d).ToDictionary(g => g.Key, g => g.Count());
+
+    /// <summary>Officers available on <paramref name="date"/>: all on-call officers minus those on confirmed leave. The daily limits are shares of this.</summary>
+    public int Available(DateOnly date, Dictionary<DateOnly, int>? confirmedOff = null) =>
+        LeavePolicy.Available(date, OnCall, confirmedOff ?? ConfirmedOff());
+
+    /// <summary>The daily limit on <paramref name="date"/>: 30% (weekend, public holiday, peak) or 50% of the officers available that day.</summary>
+    public int DayCap(DateOnly date, Dictionary<DateOnly, int>? confirmedOff = null) => Policy.DayCap(date, Available(date, confirmedOff));
+
+    /// <summary>The daily limit for every day of the period.</summary>
+    public Dictionary<DateOnly, int> DayCaps()
+    {
+        var confirmed = ConfirmedOff();
+        return Mapping.Days(Period.StartDate, Period.EndDate).ToDictionary(d => d, d => DayCap(d, confirmed));
+    }
+
     public int OnCall => LeaveByPerson.Count;
     public int BaseBudget => Period.PointsBudget ?? Policy.DefaultBudget;
     public int Budget(Guid personId) => BaseBudget + (Grants.GetValueOrDefault(personId)?.Points ?? 0) + Reward(personId).Points;
 
     /// <summary>
-    /// Per day, how many on-call officers other than <paramref name="personId"/> are off. Confirmed leave counts too, so a
-    /// day filled partly by approved trips is full for everyone else.
+    /// Per day, how many on-call officers other than <paramref name="personId"/> are off on ordinary leave. Confirmed leave is
+    /// not counted here: it shrinks the officers available that day instead (see DayCap).
     /// </summary>
     public Dictionary<DateOnly, int> OthersOff(Guid personId) =>
-        LeaveByPerson.Keys.Where(id => id != personId).SelectMany(EffectiveOff)
+        LeaveByPerson.Keys.Where(id => id != personId).SelectMany(id => EffectiveOff(id).Where(d => !IsConfirmedOff(id, d)))
             .GroupBy(d => d).ToDictionary(g => g.Key, g => g.Count());
 
     public int PeriodDays => Period.EndDate.DayNumber - Period.StartDate.DayNumber + 1;
@@ -99,7 +121,7 @@ public sealed class LeaveRules
     /// <summary>Checks a change to the officer's own leave; <paramref name="before"/> and <paramref name="after"/> exclude confirmed leave.</summary>
     public List<string> Validate(Guid personId, IReadOnlyCollection<DateOnly> before, IReadOnlyCollection<DateOnly> after)
     {
-        var errors = Policy.Validate(before, after, OthersOff(personId), OwnBudget(personId), OnCall, OwnWeekdayAllowance(personId));
+        var errors = Policy.Validate(before, after, OthersOff(personId), OwnBudget(personId), OnCall, OwnWeekdayAllowance(personId), ConfirmedOff());
         if (errors.Count > 0 && ConfirmedDays(personId) > 0)
             errors.Add(DeductionText(personId, "Your"));
         return errors;

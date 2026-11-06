@@ -12,7 +12,9 @@ export const dayKind = (date: IsoDate, holidays: Map<IsoDate, string>, peaks: Ma
 export const dayCost = (kind: DayKind, r: LeaveRules) =>
   kind === 'weekend' ? r.weekendCost : kind === 'holiday' ? r.holidayCost : kind === 'peak' ? r.peakCost : 0
 
-export const dayCap = (kind: DayKind, r: LeaveRules) => (kind === 'weekday' ? r.weekdayCap : r.busyDayCap)
+/** The server works the limit out per day on the officers available (on call minus confirmed leave that day). */
+export const dayCap = (kind: DayKind, r: LeaveRules, date: IsoDate) =>
+  r.dayCaps?.[date] ?? (kind === 'weekday' ? r.weekdayCap : r.busyDayCap)
 
 export function usage(dates: Iterable<IsoDate>, r: LeaveRules, kindOf: (d: IsoDate) => DayKind) {
   let points = 0

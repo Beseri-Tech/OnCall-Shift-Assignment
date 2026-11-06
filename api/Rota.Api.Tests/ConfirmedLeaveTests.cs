@@ -50,7 +50,7 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         // The admin can still confirm it; nobody's leave is removed and the admin is told the day is over the limit.
         var result = await Read<LeaveApprovalResultDto>(await Confirm(admin, people[4].Id, Oct16, Oct18, reference: "MEMO 12/2026"));
         Assert.Equal(("Overseas trip, approved by HOD", "MEMO 12/2026"), (result.Approval.Reason, result.Approval.Reference));
-        Assert.Contains(result.Warnings, w => w.Contains("Sat 17 Oct now has 4 of 10 officers off (limit 3)"));
+        Assert.Contains(result.Warnings, w => w.Contains("Sat 17 Oct now has 3 officers on leave, over the limit of 2 (9 of 10 officers available)"));
         Assert.Empty(result.Approval.Conflicts);
 
         // Even a short trip (Fri 16 to Sun 18: 2 points of busy days, 1 weekday) takes one point away because the share rounds up: 2 left.
@@ -65,13 +65,14 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal(2, entries.Leave.Count);
         Assert.Equal((Oct16, Oct18), entries.Confirmed!.Select(c => (c.StartDate, c.EndDate)).Single());
 
-        // Confirmed days count for everyone else: when one officer cancels, the day stays full (2 + the trip = 3).
+        // The trip takes the officer out of the base (9 available, limit 2): when one officer cancels, the day stays full (2 off).
         (await Save(officers[1], people[1].Id, period.Id)).EnsureSuccessStatusCode();
         var full = await Save(officers[5], people[5].Id, period.Id, Oct17);
         Assert.Equal(HttpStatusCode.BadRequest, full.StatusCode);
         Assert.Contains("Already full", await full.Content.ReadAsStringAsync());
         var rules = await Read<LeaveRulesDto>(await officers[5].GetAsync($"/api/periods/{period.Id}/leave-rules?personId={people[5].Id}"));
-        Assert.Equal(3, rules.OthersOff[Oct17]);
+        Assert.Equal(2, rules.OthersOff[Oct17]);
+        Assert.Equal(2, rules.DayCaps![Oct17]);
 
         // Other officers see "confirmed" without the reason; the officer sees the reason.
         var theirs = await Read<OverviewDto>(await officers[5].GetAsync($"/api/periods/{period.Id}/overview"));
@@ -117,11 +118,13 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var trip = await Read<LeaveApprovalResultDto>(await Confirm(admin, kedah.Id, new(2026, 10, 3), new(2026, 10, 11)));
         Assert.Contains(trip.Warnings, w => w.Contains("covers 2 point(s)") && w.Contains("and 5 weekday(s)") && w.Contains("points are 3 - 1 = 2 and weekdays 11 - 2 = 9"));
 
-        // They don't count as off on their blocked Sunday for anyone else's daily limit, but do on the Saturday.
+        // They are not available on the Saturday (limit 2 of 9), but their blocked Sunday changes nothing (limit stays 3 of 10).
         var officer = await ApiFixture.OfficerClientAsync(app, admin, people[1].Id);
         var rules = await Read<LeaveRulesDto>(await officer.GetAsync($"/api/periods/{period.Id}/leave-rules?personId={people[1].Id}"));
         Assert.False(rules.OthersOff.ContainsKey(new DateOnly(2026, 10, 4)));
-        Assert.Equal(1, rules.OthersOff[new DateOnly(2026, 10, 3)]);
+        Assert.False(rules.OthersOff.ContainsKey(new DateOnly(2026, 10, 3)));
+        Assert.Equal(2, rules.DayCaps![new DateOnly(2026, 10, 3)]);
+        Assert.Equal(3, rules.DayCaps![new DateOnly(2026, 10, 4)]);
     }
 
     [Fact]
@@ -210,14 +213,15 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         DateOnly nov2 = new(2026, 11, 2), nov6 = new(2026, 11, 6);
 
         var result = await Read<LeaveApprovalResultDto>(await Confirm(admin, people[0].Id, nov2, nov6));
-        Assert.DoesNotContain(result.Warnings, w => w.Contains("officers off"));
+        Assert.DoesNotContain(result.Warnings, w => w.Contains("officers on leave"));
 
         var nov = await Read<PeriodDto>(await admin.PostAsJsonAsync("/api/admin/periods",
             new UpsertPeriodRequest("Nov 2026", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30), null), ApiFixture.Json));
         var entries = await Read<EntriesDto>(await admin.GetAsync($"/api/people/{people[0].Id}/entries?periodId={nov.Id}"));
         Assert.Equal((nov2, nov6), entries.Confirmed!.Select(c => (c.StartDate, c.EndDate)).Single());
         var rules = await Read<LeaveRulesDto>(await admin.GetAsync($"/api/periods/{nov.Id}/leave-rules?personId={people[1].Id}"));
-        Assert.Equal(1, rules.OthersOff[nov2]);
+        Assert.False(rules.OthersOff.ContainsKey(nov2));
+        Assert.Equal(2, rules.DayCaps![nov2]);   // 5 of 6 officers available, 50% rounded down
     }
 
     [Fact]

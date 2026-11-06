@@ -228,16 +228,17 @@ public static class AdminLeaveApprovalEndpoints
         foreach (var period in periods)
         {
             var rules = await LeaveRules.LoadAsync(db, limits, period, ct);
-            var off = rules.AllOff();
+            var confirmedOff = rules.ConfirmedOff();
             DateOnly from = Max(a.StartDate, period.StartDate), to = Min(a.EndDate, period.EndDate);
             foreach (var d in Mapping.Days(from, to))
             {
-                int count = off.GetValueOrDefault(d), cap = rules.Policy.DayCap(d, rules.OnCall);
-                if (count <= cap) continue;
-                var others = rules.OffOn(d, a.PersonId)
-                    .Select(id => names.GetValueOrDefault(id, "?")).Order().ToList();
-                warnings.Add($"{SwapEndpoints.Day(d)} now has {count} of {rules.OnCall} officers off (limit {cap}). " +
-                             $"Also off: {string.Join(", ", others)}.");
+                // The limit is a share of the officers available that day, so confirmed leave shrinks it.
+                int available = rules.Available(d, confirmedOff), cap = rules.DayCap(d, confirmedOff);
+                var others = rules.OffOn(d).Where(id => !rules.IsConfirmedOff(id, d)).ToList();
+                if (others.Count <= cap) continue;
+                warnings.Add($"{SwapEndpoints.Day(d)} now has {others.Count} officers on leave, over the limit of {cap} " +
+                             $"({available} of {rules.OnCall} officers available). " +
+                             $"On leave: {string.Join(", ", others.Select(id => names.GetValueOrDefault(id, "?")).Order())}.");
             }
 
             if (rules.ConfirmedDays(a.PersonId) > 0 && person.Status == OfficerStatus.OnCall)

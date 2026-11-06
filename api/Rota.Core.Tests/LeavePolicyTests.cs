@@ -33,6 +33,8 @@ public class LeavePolicyTests
         Assert.Equal(17, p.DayCap(Mon, 58));                   // holiday: 30%
         Assert.Equal(29, p.DayCap(new DateOnly(2026, 10, 7), 58)); // ordinary weekday: 50%
         Assert.Equal(1, p.DayCap(Sat, 2));
+        Assert.Equal(15, p.DayCap(Sat, LeavePolicy.Available(Sat, 58, new Dictionary<DateOnly, int> { [Sat] = 8 }))); // 50 available: 30%
+        Assert.Equal(0, p.DayCap(Sat, LeavePolicy.Available(Sat, 3, new Dictionary<DateOnly, int> { [Sat] = 3 })));
     }
 
     [Fact]
@@ -68,7 +70,7 @@ public class LeavePolicyTests
         Assert.Empty(p.Validate(before, before, full, 1, 10));
 
         // Only newly added days are checked against the cap (10 officers: 3 on weekends, 5 on weekdays).
-        Assert.Equal(["Already full (at most 3 of 10 officers off on a weekend/public holiday/peak day, 5 on other days): 3 Oct, 5 Oct."],
+        Assert.Equal(["Already full (at most 3 of 10 officers off on a weekend/public holiday/peak day, 5 on other days, counting only officers not on confirmed leave that day): 3 Oct, 5 Oct."],
             p.Validate([], [Sat, Mon, Tue], full, 5, 10));
     }
 

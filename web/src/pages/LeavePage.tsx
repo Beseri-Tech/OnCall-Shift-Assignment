@@ -144,7 +144,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
     const r = rules.data
     if (!r || byAdmin) return new Set<IsoDate>()
     return new Set(eachDay(period.startDate, period.endDate)
-      .filter(d => !saved.leave.has(d) && !confirmed.has(d) && (r.othersOff[d] ?? 0) >= dayCap(kindOf(d), r)))
+      .filter(d => !saved.leave.has(d) && !confirmed.has(d) && (r.othersOff[d] ?? 0) >= dayCap(kindOf(d), r, d)))
   }, [rules.data, byAdmin, period.startDate, period.endDate, saved.leave, confirmed, kindOf])
   const [mode, setMode] = useState<Mode>('leave')
   const [note, setNote] = useState<string | null>('Annual')
@@ -386,7 +386,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
                   Click a day to toggle it, or press and drag across days. <b>{mode === 'leave' ? 'Leave' : 'Preferred'}</b> mode is on.
                   {showBudget && r && <> Leave on a weekend costs {r.weekendCost} point, a public holiday {r.holidayCost}, a peak day {r.peakCost}.
                     At most {r.busyDayCap} of {r.onCall} officers can be off on a weekend, public holiday or peak day, and {r.weekdayCap} on
-                    other days – striped days are full. Need more? Ask the admin.</>}
+                    other days, counting only officers who are not on confirmed leave that day – striped days are full. Need more? Ask the admin.</>}
                 </Text>
               </Group>
             </Stack>
