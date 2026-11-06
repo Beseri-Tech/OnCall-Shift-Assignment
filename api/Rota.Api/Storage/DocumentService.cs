@@ -103,7 +103,7 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
         await db.SaveChangesAsync(ct);
 
         var expiry = TimeSpan.FromMinutes(Math.Max(1, Options.UploadUrlExpiryMinutes));
-        return new UploadTicket(doc.Id, storage.CreateUploadUrl(doc.ObjectKey, doc.ContentType, expiry), "PUT",
+        return new UploadTicket(doc.Id, await storage.CreateUploadUrlAsync(doc.ObjectKey, doc.ContentType, expiry), "PUT",
             (int)expiry.TotalSeconds, new() { ["Content-Type"] = doc.ContentType });
     }
 
@@ -151,7 +151,7 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
         var doc = await FindForUserAsync(http.User, id, ct);
         if (doc.Status != DocumentStatus.Available) throw new DocumentException(404, "Document not found.");
         var expiry = TimeSpan.FromMinutes(Math.Max(1, Options.DownloadUrlExpiryMinutes));
-        return new DownloadTicket(storage.CreateDownloadUrl(doc.ObjectKey, doc.FileName, doc.ContentType, expiry, inline),
+        return new DownloadTicket(await storage.CreateDownloadUrlAsync(doc.ObjectKey, doc.FileName, doc.ContentType, expiry, inline),
             (int)expiry.TotalSeconds);
     }
 

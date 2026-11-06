@@ -32,8 +32,8 @@ public sealed class R2DocumentStorage : IDocumentStorage, IDisposable
 
     private AmazonS3Client S3 => _s3 ?? throw new InvalidOperationException("Document storage (R2) is not configured.");
 
-    public string CreateUploadUrl(string objectKey, string contentType, TimeSpan expiresIn) =>
-        S3.GetPreSignedURL(new GetPreSignedUrlRequest
+    public Task<string> CreateUploadUrlAsync(string objectKey, string contentType, TimeSpan expiresIn) =>
+        S3.GetPreSignedURLAsync(new GetPreSignedUrlRequest
         {
             BucketName = _options.BucketName,
             Key = objectKey,
@@ -42,8 +42,8 @@ public sealed class R2DocumentStorage : IDocumentStorage, IDisposable
             Expires = DateTime.UtcNow.Add(expiresIn),
         });
 
-    public string CreateDownloadUrl(string objectKey, string downloadFileName, string contentType, TimeSpan expiresIn, bool inline) =>
-        S3.GetPreSignedURL(new GetPreSignedUrlRequest
+    public Task<string> CreateDownloadUrlAsync(string objectKey, string downloadFileName, string contentType, TimeSpan expiresIn, bool inline) =>
+        S3.GetPreSignedURLAsync(new GetPreSignedUrlRequest
         {
             BucketName = _options.BucketName,
             Key = objectKey,
