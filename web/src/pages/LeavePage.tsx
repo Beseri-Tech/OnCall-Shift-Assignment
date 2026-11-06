@@ -19,14 +19,16 @@ import { dayOfWeek, diffDays, eachDay, formatLong, formatRange, monthsBetween, t
 import { dayCap, dayKind, usage } from '../leaveRules'
 
 /** Small badge for a points change: green "+3" for rewards/extra, red "−2" for costs. */
-function PointBadge({ value, unit = 'pt' }: { value: number; unit?: string }) {
+function PointBadge({ value, unit = 'pt', tip }: { value: number; unit?: string; tip?: string }) {
   const gain = value > 0
-  return (
-    <Badge size="sm" radius="sm" variant="light" color={gain ? 'green' : 'red'} style={{ verticalAlign: 'middle', textTransform: 'none', flexShrink: 0, overflow: 'visible' }}
+  const badge = (
+    <Badge size="sm" radius="sm" variant="light" color={gain ? 'green' : 'red'}
+      style={{ verticalAlign: 'middle', textTransform: 'none', flexShrink: 0, overflow: 'visible' }}
       styles={{ label: { overflow: 'visible', textOverflow: 'clip' } }}>
       {gain ? '+' : '−'}{Math.abs(value)} {unit}
     </Badge>
   )
+  return tip ? <Tooltip label={tip} events={{ hover: true, focus: true, touch: true }}>{badge}</Tooltip> : badge
 }
 
 type Mode = 'leave' | 'preferred'
@@ -299,20 +301,20 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
         {showBudget && r && used && (
           <>
             <StatCard icon={IconCoins} color={overPoints ? 'red' : 'brand'} label="Leave points" value={`${used.points} / ${budget}`}
-              hint={<Stack gap={4} mt={2}>
-                {r.extra > 0
-                  ? <Group gap={6} wrap="nowrap" align="flex-start"><PointBadge value={r.extra} unit="extra" /><span>{r.extraReason || 'Extra points from the admin'}</span></Group>
-                  : <span>Weekends, public holidays, peak days</span>}
-                {r.reward > 0 && <Group gap={6} wrap="nowrap" align="flex-start"><PointBadge value={r.reward} unit="reward" /><span>for {r.rewardDetail} in {r.rewardFrom}</span></Group>}
-                {r.pointsDeducted > 0 && <Group gap={6} wrap="nowrap" align="flex-start"><PointBadge value={-r.pointsDeducted} /><span>for confirmed leave</span></Group>}
-              </Stack>}>
-              <Progress mt={6} size="sm" radius="xl" color={overPoints ? 'red' : 'brand'} value={budget ? Math.min(100, (used.points / budget) * 100) : 100} />
+              hint="Weekend, PH and peak days">
+              <Group gap={4} mt={6} mih={22}>
+                {r.extra > 0 && <PointBadge value={r.extra} unit="extra" tip={r.extraReason || 'Extra points from the admin'} />}
+                {r.reward > 0 && <PointBadge value={r.reward} unit="reward" tip={`For ${r.rewardDetail} in ${r.rewardFrom}`} />}
+                {r.pointsDeducted > 0 && <PointBadge value={-r.pointsDeducted} unit="confirmed" tip="Taken off for your confirmed leave" />}
+              </Group>
+              <Progress mt={8} size="sm" radius="xl" color={overPoints ? 'red' : 'brand'} value={budget ? Math.min(100, (used.points / budget) * 100) : 100} />
             </StatCard>
             <StatCard icon={IconBriefcase} color={overWeekdays ? 'red' : 'indigo'} label="Weekdays" value={`${used.weekdays} / ${allowance}`}
-              hint={r.weekdaysDeducted > 0
-                ? <Group gap={6} wrap="nowrap" mt={2}>Free, no points <PointBadge value={-r.weekdaysDeducted} unit="confirmed leave" /></Group>
-                : 'Free, no points'}>
-              <Progress mt={6} size="sm" radius="xl" color={overWeekdays ? 'red' : 'indigo'}
+              hint="Free, no points">
+              <Group gap={4} mt={6} mih={22}>
+                {r.weekdaysDeducted > 0 && <PointBadge value={-r.weekdaysDeducted} unit="confirmed" tip="Taken off for your confirmed leave" />}
+              </Group>
+              <Progress mt={8} size="sm" radius="xl" color={overWeekdays ? 'red' : 'indigo'}
                 value={allowance ? Math.min(100, (used.weekdays / allowance) * 100) : 100} />
             </StatCard>
           </>

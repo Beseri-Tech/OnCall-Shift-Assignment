@@ -59,7 +59,7 @@ export function StatCard({ icon: I, color = 'brand', label, value, hint, childre
   icon: Icon; color?: string; label: string; value?: ReactNode; hint?: ReactNode; children?: ReactNode
 }) {
   return (
-    <Card className="panel" padding="md">
+    <Card className="panel" padding="md" h="100%">
       <Group gap="sm" wrap="nowrap" align="flex-start">
         <ThemeIcon size={40} radius="md" variant="light" color={color}><I size={22} stroke={1.8} /></ThemeIcon>
         <div style={{ minWidth: 0, flex: 1 }}>
