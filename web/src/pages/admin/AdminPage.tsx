@@ -1,6 +1,6 @@
 import { Paper, Stack, Tabs } from '@mantine/core'
 import {
-  IconCalendarCog, IconHistory, IconMessage2, IconPlaneDeparture, IconShieldLock, IconSum, IconUserShield, IconUsers, IconWand,
+  IconBook, IconCalendarCog, IconHistory, IconMessage2, IconPlaneDeparture, IconShieldLock, IconSum, IconUserShield, IconUsers, IconWand,
 } from '@tabler/icons-react'
 import { PageHeader } from '../../components/common'
 import { useEffect } from 'react'
@@ -9,12 +9,13 @@ import { AccountsTab } from './AccountsTab'
 import { AuditTab } from './AuditTab'
 import { ConfirmedLeaveTab } from './ConfirmedLeaveTab'
 import { FeedbackTab } from './FeedbackTab'
+import { ManualTab } from './ManualTab'
 import { PeopleTab } from './PeopleTab'
 import { PeriodsTab } from './PeriodsTab'
 import { RotaTab } from './RotaTab'
 import { TallyTab } from './TallyTab'
 
-const TABS = ['rota', 'people', 'leave', 'tally', 'periods', 'accounts', 'feedback', 'log'] as const
+const TABS = ['rota', 'people', 'leave', 'tally', 'periods', 'accounts', 'feedback', 'manual', 'log'] as const
 type Tab = (typeof TABS)[number]
 
 /** Only reachable by admins and supervisors (see AdminOnly in main.tsx; the API checks too). */
@@ -42,6 +43,7 @@ export function AdminPage() {
           <Tabs.Tab value="periods" leftSection={<IconCalendarCog size={16} />}>Periods & holidays</Tabs.Tab>
           <Tabs.Tab value="accounts" leftSection={<IconUserShield size={16} />}>Accounts</Tabs.Tab>
           <Tabs.Tab value="feedback" leftSection={<IconMessage2 size={16} />}>Feedback</Tabs.Tab>
+          <Tabs.Tab value="manual" leftSection={<IconBook size={16} />}>Manual</Tabs.Tab>
           <Tabs.Tab value="log" leftSection={<IconHistory size={16} />}>Audit log</Tabs.Tab>
         </Tabs.List>
         </Paper>
@@ -52,6 +54,7 @@ export function AdminPage() {
         <Tabs.Panel value="periods"><PeriodsTab /></Tabs.Panel>
         <Tabs.Panel value="accounts"><AccountsTab /></Tabs.Panel>
         <Tabs.Panel value="feedback"><FeedbackTab /></Tabs.Panel>
+        <Tabs.Panel value="manual"><ManualTab /></Tabs.Panel>
         <Tabs.Panel value="log"><AuditTab /></Tabs.Panel>
       </Tabs>
     </Stack>

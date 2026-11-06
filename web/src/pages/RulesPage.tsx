@@ -5,7 +5,10 @@ import {
 } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
+import { api, openDocument } from '../api'
 import { PageHeader } from '../components/common'
+import { notifyError } from '../lib'
 
 // Plain-language rules for officers. Keep in step with RotaGenerator, LeavePolicy, the Leave limits in appsettings.json
 // and SwapEndpoints when those change.
@@ -33,13 +36,29 @@ const POINTS = [
   { day: 'Peak day', cost: '1', note: 'a busy weekday, e.g. the eve of Raya', color: 'orange' },
 ]
 
+/** The manual from private storage when an admin has uploaded one; otherwise the copy bundled with the app. */
+function ManualButton() {
+  const manual = useQuery({ queryKey: ['manual'], queryFn: () => api.documents.manual(), retry: false })
+  const label = 'Open user manual (PDF)'
+  if (manual.data) {
+    return (
+      <Button variant="light" leftSection={<IconDownload size={18} />} onClick={() => openDocument(manual.data!.id).catch(notifyError)}>
+        {label}
+      </Button>
+    )
+  }
+  return (
+    <Button component="a" href="/assets/Rota-OC-user-manual.pdf" download variant="light" leftSection={<IconDownload size={18} />}>
+      Download user manual (PDF)
+    </Button>
+  )
+}
+
 export function RulesPage() {
   return (
     <Stack gap="lg" maw={900} mx="auto">
       <PageHeader icon={IconBook} title="Rules and guidelines" description="How the on-call rota is shared out, and what you need to know.">
-        <Button component="a" href="/assets/Rota-OC-user-manual.pdf" download variant="light" leftSection={<IconDownload size={18} />}>
-          Download user manual (PDF)
-        </Button>
+        <ManualButton />
       </PageHeader>
 
       <Alert color="yellow" variant="light" icon={<IconStar />} title="Outstation or travelling? Ask for extra points">

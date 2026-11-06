@@ -52,6 +52,13 @@ export interface OverviewPerson { id: string; code: string; name: string; leave:
 export interface Overview { period: Period; days: OverviewDay[]; people: OverviewPerson[] }
 export interface PublishedRota { period: Period; runId: string; days: RotaDay[]; inReview: boolean }
 
+export type DocumentKind = 'Manual' | 'LeaveDocument' | 'Other'
+export interface StoredDocument {
+  id: string; kind: DocumentKind; fileName: string; contentType: string; sizeBytes: number
+  uploadedAt: string | null; parentType: string | null; parentId: string | null
+}
+export interface UploadTicket { documentId: string; uploadUrl: string; method: string; expiresInSeconds: number; requiredHeaders: Record<string, string> }
+
 export interface ShiftCandidate { personId: string; name: string; shifts: number }
 export interface ApprovalConflict {
   runId: string; periodId: string; periodName: string; date: IsoDate; isPublished: boolean; candidates: ShiftCandidate[]
@@ -243,6 +250,19 @@ export const api = {
   readAllNotifications: () => post<void>('/api/notifications/read-all'),
   sendFeedback: (category: FeedbackCategory, message: string, page: string | null) =>
     post<{ id: number }>('/api/feedback', { category, message, page }),
+
+  /** Private document storage (Cloudflare R2). Use uploadDocument / openDocument below rather than these directly. */
+  documents: {
+    uploadUrl: (kind: DocumentKind, fileName: string, contentType: string, fileSize: number) =>
+      post<UploadTicket>('/api/documents/upload-url', { kind, fileName, contentType, fileSize }),
+    complete: (id: string) => post<StoredDocument>(`/api/documents/${id}/complete`),
+    get: (id: string) => get<StoredDocument>(`/api/documents/${id}`),
+    downloadUrl: (id: string, inline = false) =>
+      get<{ downloadUrl: string; expiresInSeconds: number }>(`/api/documents/${id}/download-url${q({ inline: inline ? 'true' : undefined })}`),
+    remove: (id: string) => del<void>(`/api/documents/${id}`),
+    /** The current user manual, or undefined when none has been uploaded. */
+    manual: () => get<StoredDocument | undefined>('/api/documents/manual'),
+  },
   leaveRules: (periodId: string, personId: string) => get<LeaveRules>(`/api/periods/${periodId}/leave-rules${q({ personId })}`),
 
   auth: {
@@ -345,4 +365,31 @@ export const api = {
       leave: (periodId: string) => `${API}/api/admin/periods/${periodId}/leave.xlsx`,
     },
   },
+}
+
+const EXTENSION_TYPES: Record<string, string> = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+}
+
+/**
+ * Uploads a file to private storage and returns its record once the server has checked it. Reusable for any feature:
+ * keep the returned `id` on your own record (and ask the API to attach it to that record).
+ */
+export async function uploadDocument(file: File, kind: DocumentKind): Promise<StoredDocument> {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const contentType = EXTENSION_TYPES[ext]
+  if (!contentType) throw new ApiError(400, 'Only PDF, PNG, JPG or DOCX files can be uploaded.')
+
+  const ticket = await api.documents.uploadUrl(kind, file.name, contentType, file.size)
+  // No cookies here: the signed link is the credential, and it goes to R2, not to this app.
+  const put = await fetch(ticket.uploadUrl, { method: ticket.method, headers: ticket.requiredHeaders, body: file })
+  if (!put.ok) throw new ApiError(put.status, 'The file could not be uploaded. Please try again.')
+  return api.documents.complete(ticket.documentId)
+}
+
+/** Opens a stored document in a new tab (PDFs and images show in the browser) through a short-lived link. */
+export async function openDocument(id: string): Promise<void> {
+  const { downloadUrl } = await api.documents.downloadUrl(id, true)
+  window.open(downloadUrl, '_blank', 'noopener')
 }

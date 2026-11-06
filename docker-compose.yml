@@ -36,6 +36,10 @@ services:
       Smtp__User: ${SMTP_USER:-}
       Smtp__Password: ${SMTP_PASSWORD:-}
       Smtp__From: ${SMTP_FROM:-}
+      R2__AccountId: ${R2_ACCOUNT_ID:-}
+      R2__BucketName: ${R2_BUCKET_NAME:-}
+      R2__AccessKeyId: ${R2_ACCESS_KEY_ID:-}
+      R2__SecretAccessKey: ${R2_SECRET_ACCESS_KEY:-}
       App__TimeZone: ${TIME_ZONE:-Asia/Kuala_Lumpur}
     ports:
       - "${APP_PORT:-8080}:8080"
