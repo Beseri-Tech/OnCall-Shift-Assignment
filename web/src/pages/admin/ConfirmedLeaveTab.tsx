@@ -5,7 +5,7 @@ import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconCheck, IconFileText, IconX, IconAlertTriangle, IconEdit, IconPlaneDeparture, IconPlus, IconTrash, IconUserCheck } from '@tabler/icons-react'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import {
   api, kindLabel, LEAVE_KINDS, openDocument, type ApprovalConflict, type LeaveKind, type LeaveRequestRange,
   type LeaveApproval, type LeaveApprovalBatchResult, type UpsertLeaveApproval,
@@ -54,6 +54,14 @@ export function ConfirmedLeaveTab() {
     .map(([value, label]) => ({ value, label })).sort((x, y) => x.label.localeCompare(y.label))
   const clinicOptions = [...new Map((people.data ?? []).filter(p => p.clinicId && all.some(a => a.personId === p.id))
     .map(p => [p.clinicId!, p.clinicName ?? ''])).entries()].map(([value, label]) => ({ value, label })).sort((x, y) => x.label.localeCompare(y.label))
+  // One block per officer (by name), their leave in date order.
+  const byPerson = new Map<string, { personId: string; name: string; code: string; items: LeaveApproval[] }>()
+  for (const a of rows) {
+    const g = byPerson.get(a.personId) ?? { personId: a.personId, name: a.personName, code: a.personCode, items: [] }
+    g.items.push(a)
+    byPerson.set(a.personId, g)
+  }
+  const groups = [...byPerson.values()].sort((x, y) => x.name.localeCompare(y.name))
   const filtered = JSON.stringify(f) !== JSON.stringify(NO_FILTERS)
 
   return (
@@ -98,34 +106,48 @@ export function ConfirmedLeaveTab() {
         {rows.length === 0 ? (
           <Text size="sm" c="dimmed">{all.length === 0 ? 'No confirmed leave yet.' : 'Nothing matches these filters.'}</Text>
         ) : (
-          <Table.ScrollContainer minWidth={900}>
+          <Table.ScrollContainer minWidth={760}>
             <Table highlightOnHover verticalSpacing={6} stickyHeader>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Officer</Table.Th><Table.Th>Clinic</Table.Th><Table.Th>Dates</Table.Th><Table.Th>Days</Table.Th>
-                  <Table.Th>Type</Table.Th><Table.Th>Reason</Table.Th><Table.Th>Status</Table.Th><Table.Th />
+                  <Table.Th>Dates</Table.Th><Table.Th>Days</Table.Th><Table.Th>Type</Table.Th><Table.Th>Reason</Table.Th>
+                  <Table.Th>Document</Table.Th><Table.Th>Status</Table.Th><Table.Th />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {rows.map(a => (
-                  <LeaveRow key={a.id} a={a} clinic={clinicOf.get(a.personId)?.name ?? null} today={today}
-                    onEdit={() => {
-                      setResult(null)
-                      setEditing({ id: a.id, value: { personId: a.personId, startDate: a.startDate, endDate: a.endDate, reason: a.reason, reference: a.reference, kind: a.kind } })
-                    }}
-                    onDelete={() => modals.openConfirmModal({
-                      title: 'Remove confirmed leave?',
-                      children: (
-                        <Text size="sm">
-                          {a.personName} will no longer be on leave on {formatRange([a.startDate, a.endDate])} and may be put on call on
-                          those days. They'll get a notification and an email.
-                        </Text>
-                      ),
-                      labels: { confirm: 'Remove', cancel: 'Cancel' },
-                      confirmProps: { color: 'red' },
-                      onConfirm: () => remove.mutate(a.id),
-                    })}
-                  />
+                {groups.map(g => (
+                  <Fragment key={g.personId}>
+                    <Table.Tr bg="var(--mantine-color-gray-1)">
+                      <Table.Td colSpan={7}>
+                        <Group gap="xs" align="baseline">
+                          <Text fw={700}>{g.name}</Text>
+                          <Text size="xs" c="dimmed">{g.code}{clinicOf.get(g.personId)?.name ? ` · ${clinicOf.get(g.personId)!.name}` : ''}</Text>
+                          <Badge variant="light" size="sm">{g.items.length} {g.items.length === 1 ? 'entry' : 'entries'}</Badge>
+                          <Text size="xs" c="dimmed">{g.items.reduce((n, a) => n + diffDays(a.startDate, a.endDate) + 1, 0)} days</Text>
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                    {g.items.map(a => (
+                      <LeaveRow key={a.id} a={a} today={today}
+                        onEdit={() => {
+                          setResult(null)
+                          setEditing({ id: a.id, value: { personId: a.personId, startDate: a.startDate, endDate: a.endDate, reason: a.reason, reference: a.reference, kind: a.kind } })
+                        }}
+                        onDelete={() => modals.openConfirmModal({
+                          title: 'Remove confirmed leave?',
+                          children: (
+                            <Text size="sm">
+                              {a.personName} will no longer be on leave on {formatRange([a.startDate, a.endDate])} and may be put on call on
+                              those days. They'll get a notification and an email.
+                            </Text>
+                          ),
+                          labels: { confirm: 'Remove', cancel: 'Cancel' },
+                          confirmProps: { color: 'red' },
+                          onConfirm: () => remove.mutate(a.id),
+                        })}
+                      />
+                    ))}
+                  </Fragment>
                 ))}
               </Table.Tbody>
             </Table>
@@ -160,22 +182,28 @@ function matches(a: LeaveApproval, f: Filters, today: string, clinicId: string |
   return true
 }
 
-function LeaveRow({ a, clinic, today, onEdit, onDelete }: {
-  a: LeaveApproval; clinic: string | null; today: string; onEdit: () => void; onDelete: () => void
+function LeaveRow({ a, today, onEdit, onDelete }: {
+  a: LeaveApproval; today: string; onEdit: () => void; onDelete: () => void
 }) {
   const days = diffDays(a.startDate, a.endDate) + 1
   const status = a.endDate < today ? { label: 'Past', color: 'gray' } : a.startDate <= today ? { label: 'Away now', color: 'teal' } : { label: 'Upcoming', color: 'blue' }
   return (
     <>
       <Table.Tr style={a.conflicts.length ? { background: 'var(--mantine-color-red-0)' } : undefined}>
-        <Table.Td><Text size="sm" fw={600}>{a.personName}</Text><Text size="xs" c="dimmed">{a.personCode}</Text></Table.Td>
-        <Table.Td><Text size="sm">{clinic ?? '–'}</Text></Table.Td>
         <Table.Td style={{ whiteSpace: 'nowrap' }}><Text size="sm" fw={600}>{formatRange([a.startDate, a.endDate])}</Text></Table.Td>
         <Table.Td>{days}</Table.Td>
         <Table.Td><Badge variant="light" size="sm">{kindLabel(a.kind)}</Badge></Table.Td>
         <Table.Td maw={280}>
           <Text size="sm">{a.reason}</Text>
           <Text size="xs" c="dimmed">{a.reference ? `Ref. ${a.reference} · ` : ''}Entered by {a.createdBy ?? 'unknown'}, {formatLong(a.createdAt.slice(0, 10))}</Text>
+        </Table.Td>
+        <Table.Td>
+          {a.documentId ? (
+            <Tooltip label={a.documentName ?? 'Open document'}>
+              <Button size="compact-xs" variant="light" leftSection={<IconFileText size={14} />}
+                onClick={() => openDocument(a.documentId!).catch(e => notifyError(e))}>View</Button>
+            </Tooltip>
+          ) : <Text size="xs" c="dimmed">–</Text>}
         </Table.Td>
         <Table.Td>
           <Badge color={status.color} size="sm" variant="light">{status.label}</Badge>
@@ -190,7 +218,7 @@ function LeaveRow({ a, clinic, today, onEdit, onDelete }: {
       </Table.Tr>
       {a.conflicts.length > 0 && (
         <Table.Tr style={{ background: 'var(--mantine-color-red-0)' }}>
-          <Table.Td colSpan={8}>
+          <Table.Td colSpan={7}>
             <Stack gap="xs" pb="xs">
               <Group gap={6} wrap="nowrap" align="flex-start">
                 <IconAlertTriangle size={18} color="var(--mantine-color-red-7)" style={{ flexShrink: 0 }} />

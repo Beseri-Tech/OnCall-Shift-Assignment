@@ -30,8 +30,8 @@ public class LeaveRequestTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         public Task DeleteAsync(string objectKey, CancellationToken ct) { Objects.TryRemove(objectKey, out _); return Task.CompletedTask; }
     }
 
-    private WebApplicationFactory<Program> App(FakeStorage storage) =>
-        fixture.CreateApp().WithWebHostBuilder(b => b.ConfigureServices(s => s.AddSingleton<IDocumentStorage>(storage)));
+    private WebApplicationFactory<Program> App(FakeStorage storage, Dictionary<string, string?>? settings = null) =>
+        fixture.CreateApp(settings).WithWebHostBuilder(b => b.ConfigureServices(s => s.AddSingleton<IDocumentStorage>(storage)));
 
     /// <summary>The browser's three steps: ask for a link, PUT to R2 (the fake bucket), confirm. Returns the document id.</summary>
     private static async Task<Guid> UploadAsync(HttpClient c, FakeStorage storage, string name, byte[] bytes)
@@ -128,5 +128,50 @@ public class LeaveRequestTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         // Withdrawing removes the document too.
         Assert.Equal(HttpStatusCode.NoContent, (await one.DeleteAsync($"/api/leave-requests/ranges/{sent[0].Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await one.GetAsync($"/api/documents/{docId}/download-url")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Cleanup_removes_stale_uploads_and_rejected_documents_but_keeps_approved_ones()
+    {
+        var storage = new FakeStorage();
+        await using var app = App(storage, new() { ["R2:RejectedRetentionDays"] = "0", ["R2:CleanupEnabled"] = "false" });
+        var admin = await ApiFixture.AdminClientAsync(app);
+        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names = "Dr One" })).EnsureSuccessStatusCode();
+        var people = (await admin.GetFromJsonAsync<List<AdminPersonDto>>("/api/admin/people", ApiFixture.Json))!;
+        var officer = await ApiFixture.OfficerClientAsync(app, admin, people[0].Id);
+
+        var keep = await UploadAsync(officer, storage, "approved.pdf", Pdf);
+        var drop = await UploadAsync(officer, storage, "rejected.pdf", Pdf);
+        var sent = await Read(await Send(officer, Range("2026-11-14", "2026-11-15", "Trip", "Umrah", keep),
+            Range("2026-11-20", "2026-11-21", "Cr", "CR", drop)));
+        (await admin.PostAsJsonAsync($"/api/admin/leave-requests/ranges/{sent.Single(r => r.Kind == LeaveKind.Trip).Id}/approve", new { })).EnsureSuccessStatusCode();
+        (await admin.PostAsJsonAsync($"/api/admin/leave-requests/ranges/{sent.Single(r => r.Kind == LeaveKind.Cr).Id}/reject", new { note = "No" })).EnsureSuccessStatusCode();
+
+        // An upload that was never confirmed, made two days ago.
+        var stale = (await (await officer.PostAsJsonAsync("/api/documents/upload-url",
+            new UploadUrlRequest(DocumentKind.LeaveDocument, "x.pdf", "application/pdf", 10), ApiFixture.Json)).Content
+            .ReadFromJsonAsync<UploadTicket>(ApiFixture.Json))!.DocumentId;
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<RotaDbContext>();
+            (await db.Documents.FindAsync(stale))!.CreatedAt = DateTimeOffset.UtcNow.AddDays(-2);
+            await db.SaveChangesAsync();
+        }
+
+        using (var scope = app.Services.CreateScope())
+            Assert.Equal(2, await scope.ServiceProvider.GetRequiredService<DocumentService>().CleanupAsync(CancellationToken.None));
+
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<RotaDbContext>();
+            Assert.Equal(DocumentStatus.Available, (await db.Documents.FindAsync(keep))!.Status);
+            Assert.Equal(DocumentStatus.Deleted, (await db.Documents.FindAsync(drop))!.Status);
+            Assert.Equal(DocumentStatus.Deleted, (await db.Documents.FindAsync(stale))!.Status);
+        }
+
+        // The approved leave still shows its document to the admin.
+        var approval = Assert.Single((await admin.GetFromJsonAsync<List<LeaveApprovalDto>>("/api/admin/leave-approvals", ApiFixture.Json))!);
+        Assert.Equal(keep, approval.DocumentId);
+        Assert.Equal("approved.pdf", approval.DocumentName);
     }
 }

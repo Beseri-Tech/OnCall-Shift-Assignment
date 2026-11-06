@@ -49,6 +49,7 @@ builder.Services.AddSingleton(builder.Configuration.GetSection("Leave").Get<Leav
 builder.Services.Configure<Rota.Api.Storage.R2Options>(builder.Configuration.GetSection(Rota.Api.Storage.R2Options.Section));
 builder.Services.AddSingleton<Rota.Api.Storage.IDocumentStorage, Rota.Api.Storage.R2DocumentStorage>();
 builder.Services.AddScoped<Rota.Api.Storage.DocumentService>();
+builder.Services.AddHostedService<DocumentCleanup>();
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 

@@ -20,6 +20,12 @@ public sealed class R2Options
     /// <summary>Largest user manual accepted, in MiB (the manual is a big PDF with screenshots).</summary>
     public int ManualMaxFileSizeMb { get; set; } = 100;
 
+    /// <summary>Uploads never confirmed after this many hours are deleted from R2.</summary>
+    public int QuarantineHours { get; set; } = 24;
+
+    /// <summary>Documents of rejected leave requests are deleted this many days after the decision (withdrawn ones go at once).</summary>
+    public int RejectedRetentionDays { get; set; } = 30;
+
     public bool IsConfigured =>
         AccountId.Length > 0 && BucketName.Length > 0 && AccessKeyId.Length > 0 && SecretAccessKey.Length > 0;
 

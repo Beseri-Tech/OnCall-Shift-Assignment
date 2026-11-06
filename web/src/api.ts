@@ -68,6 +68,8 @@ export interface ApprovalConflict {
 export interface LeaveApproval {
   id: string; personId: string; personCode: string; personName: string; startDate: IsoDate; endDate: IsoDate
   reason: string; reference: string | null; createdBy: string | null; createdAt: string; conflicts: ApprovalConflict[]; kind: LeaveKind
+  /** The document the officer attached to the request this leave came from, if any. */
+  documentId: string | null; documentName: string | null
 }
 export type LeaveKind = 'Trip' | 'Cr' | 'Relief' | 'Other'
 export const LEAVE_KINDS: { value: LeaveKind; label: string }[] = [
