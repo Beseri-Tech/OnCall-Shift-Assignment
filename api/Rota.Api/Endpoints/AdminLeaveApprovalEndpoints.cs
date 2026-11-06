@@ -57,6 +57,9 @@ public static class AdminLeaveApprovalEndpoints
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             await LockPeriodsAsync(db, approval.StartDate, approval.EndDate, ct);
             await db.LeaveDays.Where(l => l.ApprovalId == id).ExecuteDeleteAsync(ct);
+            // A request that was approved into this leave now shows as removed instead of still approved.
+            await db.LeaveRequestRanges.Where(r => r.ApprovalId == id).ExecuteUpdateAsync(u => u
+                .SetProperty(r => r.Status, LeaveRequestStatus.Removed).SetProperty(r => r.ApprovalId, (Guid?)null), ct);
             db.LeaveApprovals.Remove(approval);
 
             await notify.ToPeopleAsync([approval.PersonId], Notifier.ConfirmedLeave,
@@ -304,6 +307,14 @@ public static class AdminLeaveApprovalEndpoints
                 .ToList();
         }
 
+        // The supporting document the officer attached to the request this leave was approved from, if any.
+        var fromRequests = await db.LeaveRequestRanges.AsNoTracking().Where(r => r.ApprovalId != null && ids.Contains(r.ApprovalId.Value) && r.DocumentId != null)
+            .Select(r => new { ApprovalId = r.ApprovalId!.Value, DocumentId = r.DocumentId!.Value }).ToListAsync(ct);
+        var docIds = fromRequests.Select(r => r.DocumentId).ToList();
+        var docs = await db.Documents.AsNoTracking().Where(d => docIds.Contains(d.Id) && d.Status == DocumentStatus.Available)
+            .ToDictionaryAsync(d => d.Id, d => d.FileName, ct);
+        var docOf = fromRequests.Where(r => docs.ContainsKey(r.DocumentId)).GroupBy(r => r.ApprovalId).ToDictionary(g => g.Key, g => g.First().DocumentId);
+
         return approvals.Select(a =>
         {
             var person = byId.GetValueOrDefault(a.PersonId);
@@ -311,7 +322,8 @@ public static class AdminLeaveApprovalEndpoints
                 .Select(c => new ApprovalConflictDto(c.RunId, c.PeriodId, c.PeriodName, c.Date, c.IsPublished, Candidates(c.RunId, c.Date)))
                 .ToList();
             return new LeaveApprovalDto(a.Id, a.PersonId, person?.Code ?? "", person?.Name ?? "", a.StartDate, a.EndDate, a.Reason,
-                a.Reference, a.CreatedByAccountId is { } cid ? creatorName.GetValueOrDefault(cid) : null, a.CreatedAt, conflicts, a.Kind);
+                a.Reference, a.CreatedByAccountId is { } cid ? creatorName.GetValueOrDefault(cid) : null, a.CreatedAt, conflicts, a.Kind,
+                docOf.TryGetValue(a.Id, out var docId) ? docId : null, docOf.TryGetValue(a.Id, out var d2) ? docs[d2] : null);
         }).ToList();
     }
 

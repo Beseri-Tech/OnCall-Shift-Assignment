@@ -258,6 +258,45 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
         foreach (var d in older) await RemoveAsync(d, ct);
     }
 
+    /// <summary>
+    /// Housekeeping: removes uploads nobody confirmed within <see cref="R2Options.QuarantineHours"/> and, for rejected or
+    /// withdrawn leave-request ranges, the attached documents (rejected after <see cref="R2Options.RejectedRetentionDays"/>).
+    /// Rows stay in the table, marked Deleted. Returns how many documents were removed.
+    /// </summary>
+    public async Task<int> CleanupAsync(CancellationToken ct)
+    {
+        if (!storage.IsEnabled) return 0;
+        var now = clock.GetUtcNow();
+        int removed = 0;
+
+        var quarantineCutoff = now - TimeSpan.FromHours(Math.Max(1, Options.QuarantineHours));
+        while (true)
+        {
+            var stale = await db.Documents.Where(d => d.Status == DocumentStatus.Pending && d.CreatedAt < quarantineCutoff)
+                .OrderBy(d => d.CreatedAt).Take(100).ToListAsync(ct);
+            foreach (var d in stale) await RemoveAsync(d, ct);
+            await db.SaveChangesAsync(ct);
+            removed += stale.Count;
+            if (stale.Count < 100) break;
+        }
+
+        var rejectedCutoff = now - TimeSpan.FromDays(Math.Max(0, Options.RejectedRetentionDays));
+        var ranges = await db.LeaveRequestRanges
+            .Where(r => r.DocumentId != null &&
+                        (r.Status == LeaveRequestStatus.Cancelled ||
+                         (r.Status == LeaveRequestStatus.Rejected && r.DecidedAt != null && r.DecidedAt < rejectedCutoff)))
+            .Take(200).ToListAsync(ct);
+        foreach (var r in ranges)
+        {
+            var docs = await db.Documents.Where(d => d.ParentType == "ConfirmedLeaveRange" && d.ParentId == r.Id.ToString() &&
+                                                     d.Status != DocumentStatus.Deleted).ToListAsync(ct);
+            foreach (var d in docs) { await RemoveAsync(d, ct); removed++; }
+            r.DocumentId = null;
+        }
+        await db.SaveChangesAsync(ct);
+        return removed;
+    }
+
     /// <summary>Uploads that were never confirmed within a day: delete their leftover bytes and mark them removed.</summary>
     private async Task DiscardStalePendingAsync(CancellationToken ct)
     {

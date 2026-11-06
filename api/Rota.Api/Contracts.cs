@@ -211,7 +211,7 @@ public sealed record ApprovalConflictDto(
 public sealed record LeaveApprovalDto(
     Guid Id, Guid PersonId, string PersonCode, string PersonName, DateOnly StartDate, DateOnly EndDate, string Reason,
     string? Reference, string? CreatedBy, DateTimeOffset CreatedAt, IReadOnlyList<ApprovalConflictDto> Conflicts,
-    LeaveKind Kind = LeaveKind.Other);
+    LeaveKind Kind = LeaveKind.Other, Guid? DocumentId = null, string? DocumentName = null);
 
 /// <param name="Warnings">Days now over the leave limit, ordinary leave that became confirmed, and similar notes for the admin.</param>
 public sealed record DateRangeRequest(DateOnly StartDate, DateOnly EndDate);
@@ -252,7 +252,7 @@ public sealed record LeaveRequestInput(List<LeaveRequestRangeInput>? Ranges);
 public sealed record LeaveRequestRangeDto(
     Guid Id, Guid RequestId, Guid PersonId, string PersonCode, string PersonName, DateOnly StartDate, DateOnly EndDate,
     LeaveKind Kind, string Reason, LeaveRequestStatus Status, Guid? DocumentId, string? DocumentName, long? DocumentSize, DateTimeOffset SubmittedAt,
-    string? DecisionNote, string? DecidedBy, DateTimeOffset? DecidedAt, IReadOnlyList<string> Overlaps);
+    string? DecisionNote, string? DecidedBy, DateTimeOffset? DecidedAt, IReadOnlyList<string> Overlaps, bool AddedByAdmin = false);
 
 public sealed record DecideLeaveRequestRequest(string? Note);
 public sealed record DecideLeaveRequestResult(LeaveRequestRangeDto Range, IReadOnlyList<string> Warnings);

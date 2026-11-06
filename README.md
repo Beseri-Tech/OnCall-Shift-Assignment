@@ -92,4 +92,6 @@ The user manual and officers' uploaded documents (e.g. proof for a leave request
 
 4. Put the four values in `.env` and restart. An admin then uploads the manual from **Admin → Manual**.
 
-Uploads are checked on the server before they become downloadable (size, file type and the file's real signature; PDF, PNG, JPG or DOCX, up to 20 MB), and a new manual replaces the old one. Back up the bucket separately: database backups don't include the files.
+Uploads are checked on the server before they become downloadable (size, file type and the file's real signature; PDF, PNG, JPG or DOCX, up to 20 MB), and a new manual replaces the old one. Housekeeping runs in the background every 6 hours (`R2__CleanupEveryHours`, off with `R2__CleanupEnabled=false`): uploads never confirmed within 24 hours (`R2__QuarantineHours`) are deleted, and so are the documents of rejected leave requests after 30 days (`R2__RejectedRetentionDays`). A withdrawn request's document is deleted straight away. Approved leave keeps its document.
+
+Back up the bucket separately: database backups don't include the files.
