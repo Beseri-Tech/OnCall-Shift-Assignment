@@ -252,7 +252,8 @@ public static class AdminRotaEndpoints
         var totals = await Totals.ForPeopleAsync(db, excludePeriodId: period.Id, ct: ct);
         var holidays = (await Mapping.HolidaysAsync(db, period.Id, ct)).Keys;
 
-        var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
+        var left = await db.PeriodExclusions.Where(x => x.PeriodId == period.Id).Select(x => x.PersonId).ToListAsync(ct);
+        var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id)).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
             .Select(p => new
             {
                 p.Id, p.Name, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight, p.BlockedWeekdays,
@@ -303,7 +304,8 @@ public static class AdminRotaEndpoints
         var byPerson = run.Assignments.Where(a => a.PersonId != null).GroupBy(a => a.PersonId!.Value)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var stats = people.Where(p => p.Status == OfficerStatus.OnCall || byPerson.ContainsKey(p.Id))
+        var left = await db.PeriodExclusions.Where(x => x.PeriodId == period.Id).Select(x => x.PersonId).ToListAsync(ct);
+        var stats = people.Where(p => (p.Status == OfficerStatus.OnCall && !left.Contains(p.Id)) || byPerson.ContainsKey(p.Id))
             .Select(p =>
             {
                 var mine = byPerson.GetValueOrDefault(p.Id, []);

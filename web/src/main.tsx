@@ -19,6 +19,7 @@ import { LeavePage } from './pages/LeavePage'
 import { MyOnCallPage } from './pages/MyOnCallPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { RotaPage } from './pages/RotaPage'
+import { LeaveRequestsPage } from './pages/LeaveRequestsPage'
 import { RulesPage } from './pages/RulesPage'
 
 // Admin screens are only needed by the admin, so they load on demand.
@@ -70,6 +71,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="overview" element={<OverviewPage />} />
                   <Route path="rota" element={<RotaPage />} />
                   <Route path="rules" element={<RulesPage />} />
+                  <Route path="leave-requests" element={<LeaveRequestsPage />} />
                   <Route element={<AdminOnly />}>
                     <Route path="leave" element={<LeavePage />} />
                     <Route path="admin/*" element={<Suspense fallback={<Loading />}><AdminPage /></Suspense>} />

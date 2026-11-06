@@ -153,6 +153,13 @@ public enum PeriodStatus
     Published,
 }
 
+/// <summary>An officer the admin left out of one rota period: no shifts are generated for them in it.</summary>
+public sealed class PeriodExclusion
+{
+    public Guid PeriodId { get; set; }
+    public Guid PersonId { get; set; }
+}
+
 public sealed class RotaPeriod
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
@@ -249,9 +256,47 @@ public sealed class LeaveApproval
     /// <summary>Approval letter or memo number, if any.</summary>
     public string? Reference { get; set; }
 
+    /// <summary>Why the officer is away (trip, CR, relief duty...). Every kind keeps the officer off call.</summary>
+    public LeaveKind Kind { get; set; } = LeaveKind.Other;
+
     public Guid? CreatedByAccountId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public enum LeaveKind { Trip, Cr, Relief, Other }
+
+public enum LeaveRequestStatus { Pending, Approved, Rejected, Cancelled }
+
+/// <summary>An officer's request for confirmed leave: one or more date ranges, each with its own reason and optional document.</summary>
+public sealed class LeaveRequest
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid PersonId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<LeaveRequestRange> Ranges { get; set; } = [];
+}
+
+/// <summary>One date range of a request. The admin approves or rejects each range on its own.</summary>
+public sealed class LeaveRequestRange
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid RequestId { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public LeaveKind Kind { get; set; }
+    public string Reason { get; set; } = "";
+    public LeaveRequestStatus Status { get; set; } = LeaveRequestStatus.Pending;
+
+    /// <summary>The supporting document (a stored <see cref="DocumentRecord"/> attached to this range), if the officer added one.</summary>
+    public Guid? DocumentId { get; set; }
+
+    public string? DecisionNote { get; set; }
+    public Guid? DecidedByAccountId { get; set; }
+    public DateTimeOffset? DecidedAt { get; set; }
+
+    /// <summary>The confirmed leave created when the range was approved (cleared if the admin later removes it).</summary>
+    public Guid? ApprovalId { get; set; }
 }
 
 public sealed class PreferredDate
@@ -402,4 +447,53 @@ public sealed class Feedback
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ResolvedAt { get; set; }
     public Guid? ResolvedByAccountId { get; set; }
+}
+
+public enum DocumentKind
+{
+    /// <summary>The user manual PDF: admins upload it, every signed-in user can read it.</summary>
+    Manual,
+    /// <summary>A supporting document an officer attaches to a confirmed-leave request: the officer and admins can read it.</summary>
+    LeaveDocument,
+    /// <summary>Anything else an officer uploads: the uploader and admins can read it.</summary>
+    Other,
+}
+
+public enum DocumentStatus
+{
+    /// <summary>Upload link issued; the file has not been confirmed. Never downloadable.</summary>
+    Pending,
+    /// <summary>Checked by the server and downloadable.</summary>
+    Available,
+    /// <summary>Removed (or rejected on upload); the bytes are deleted from R2.</summary>
+    Deleted,
+}
+
+/// <summary>Metadata for a file kept in the private R2 bucket. The bytes never touch the database; presigned links are never stored.</summary>
+public sealed class DocumentRecord
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public DocumentKind Kind { get; set; }
+    public DocumentStatus Status { get; set; } = DocumentStatus.Pending;
+
+    /// <summary>Server-generated R2 key. Quarantine key while Pending, then a new permanent key once checked.</summary>
+    public string ObjectKey { get; set; } = "";
+
+    /// <summary>Display name only; never used as a key.</summary>
+    public string FileName { get; set; } = "";
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+
+    public Guid? UploadedByAccountId { get; set; }
+
+    /// <summary>The officer the document belongs to (they can read and delete it), if the uploader has one.</summary>
+    public Guid? OwnerPersonId { get; set; }
+
+    /// <summary>What the document is attached to, e.g. "ConfirmedLeaveRequest" and its id. Null until attached.</summary>
+    public string? ParentType { get; set; }
+    public string? ParentId { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? UploadedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
 }

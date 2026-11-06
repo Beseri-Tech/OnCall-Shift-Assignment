@@ -371,6 +371,34 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task Officers_left_out_of_a_period_get_no_shifts()
+    {
+        await using var app = fixture.CreateApp();
+        var admin = await ApiFixture.AdminClientAsync(app);
+        var (people, period) = await SeedAsync(admin);
+        var left = people[0];
+
+        var updated = await Read<PeriodDto>(await admin.PutAsJsonAsync($"/api/admin/periods/{period.Id}",
+            new UpsertPeriodRequest(period.Name, period.StartDate, period.EndDate, period.LeaveDeadline, period.PointsBudget, [left.Id]), ApiFixture.Json));
+        Assert.Equal([left.Id], updated.ExcludedPersonIds);
+        var listed = (await Read<List<PeriodDto>>(await admin.GetAsync("/api/admin/periods"))).Single(x => x.Id == period.Id);
+        Assert.Equal([left.Id], listed.ExcludedPersonIds);
+
+        (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
+        var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(1)));
+        Assert.DoesNotContain(run.Days, d => d.PersonId == left.Id);
+        Assert.DoesNotContain(run.Stats, s => s.PersonId == left.Id);
+
+        // Saving without a list keeps it; an empty list brings everyone back.
+        var kept = await Read<PeriodDto>(await admin.PutAsJsonAsync($"/api/admin/periods/{period.Id}",
+            new UpsertPeriodRequest(period.Name, period.StartDate, period.EndDate, period.LeaveDeadline, period.PointsBudget), ApiFixture.Json));
+        Assert.Equal([left.Id], (await Read<List<PeriodDto>>(await admin.GetAsync("/api/admin/periods"))).Single(x => x.Id == kept.Id).ExcludedPersonIds);
+        await admin.PutAsJsonAsync($"/api/admin/periods/{period.Id}",
+            new UpsertPeriodRequest(period.Name, period.StartDate, period.EndDate, period.LeaveDeadline, period.PointsBudget, []), ApiFixture.Json);
+        Assert.Empty((await Read<List<PeriodDto>>(await admin.GetAsync("/api/admin/periods"))).Single(x => x.Id == period.Id).ExcludedPersonIds!);
+    }
+
+    [Fact]
     public async Task Generate_publish_and_totals_follow_the_published_run()
     {
         await using var app = fixture.CreateApp();

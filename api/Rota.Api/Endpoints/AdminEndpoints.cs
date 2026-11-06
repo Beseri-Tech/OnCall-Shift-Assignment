@@ -207,7 +207,9 @@ public static class AdminEndpoints
         g.MapGet("/", async (RotaDbContext db, LocalClock clock, CancellationToken ct) =>
         {
             var periods = await db.Periods.OrderByDescending(p => p.StartDate).ToListAsync(ct);
-            return periods.Select(p => p.ToDto(clock.Today));
+            var excluded = (await db.PeriodExclusions.ToListAsync(ct)).GroupBy(x => x.PeriodId)
+                .ToDictionary(x => x.Key, x => (IReadOnlyList<Guid>)x.Select(e => e.PersonId).ToList());
+            return periods.Select(p => p.ToDto(clock.Today) with { ExcludedPersonIds = excluded.GetValueOrDefault(p.Id, []) });
         });
 
         g.MapPost("/", async (UpsertPeriodRequest req, RotaDbContext db, LocalClock clock, Notifier notify, HttpContext http,
@@ -221,13 +223,15 @@ public static class AdminEndpoints
                 PointsBudget = req.PointsBudget,
             };
             db.Periods.Add(period);
+            var excluded = await SetExclusionsAsync(db, period.Id, req.ExcludedPersonIds, ct);
             await PeriodDays.CopyFromMasterAsync(db, period, period.StartDate, period.EndDate, ct);
             string deadline = req.LeaveDeadline is { } d ? $" until {SwapEndpoints.Day(d)}" : "";
             await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"Enter your leave for {period.Name}",
-                $"Leave for {SwapEndpoints.Day(req.StartDate)} - {SwapEndpoints.Day(req.EndDate)} is open{deadline}.", "/", email: false, ct);
+                $"Leave for {SwapEndpoints.Day(req.StartDate)} - {SwapEndpoints.Day(req.EndDate)} is open{deadline}.", "/", email: false, ct,
+                except: excluded);
             Mapping.Log(db, http, "period.create", null, null, period.Id, after: Audit.Period(period));
             await db.SaveChangesAsync(ct);
-            return Results.Ok(period.ToDto(clock.Today));
+            return Results.Ok(period.ToDto(clock.Today) with { ExcludedPersonIds = excluded });
         });
 
         g.MapPut("/{id:guid}", async (Guid id, UpsertPeriodRequest req, RotaDbContext db, LocalClock clock, HttpContext http, CancellationToken ct) =>
@@ -248,9 +252,11 @@ public static class AdminEndpoints
             period.LeaveDeadline = req.LeaveDeadline;
             period.PointsBudget = req.PointsBudget;
             if (datesChanged) await PeriodDays.MoveAsync(db, period, oldStart, oldEnd, ct);
+            if (req.ExcludedPersonIds is not null) await SetExclusionsAsync(db, id, req.ExcludedPersonIds, ct);
             Mapping.Log(db, http, "period.update", null, null, id, before, Audit.Period(period));
             await db.SaveChangesAsync(ct);
-            return Results.Ok(period.ToDto(clock.Today));
+            var kept = await db.PeriodExclusions.Where(x => x.PeriodId == id).Select(x => x.PersonId).ToListAsync(ct);
+            return Results.Ok(period.ToDto(clock.Today) with { ExcludedPersonIds = kept });
         });
 
         g.MapDelete("/{id:guid}", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
@@ -401,6 +407,18 @@ public static class AdminEndpoints
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return Results.Ok(period.ToDto(clock.Today));
+    }
+
+    /// <summary>Replaces the period's left-out officers. Unknown ids are dropped. Returns the saved list.</summary>
+    private static async Task<IReadOnlyList<Guid>> SetExclusionsAsync(RotaDbContext db, Guid periodId, IReadOnlyList<Guid>? ids, CancellationToken ct)
+    {
+        var wanted = (ids ?? []).Distinct().ToList();
+        var valid = await db.People.Where(p => wanted.Contains(p.Id)).Select(p => p.Id).ToListAsync(ct);
+        var current = await db.PeriodExclusions.Where(x => x.PeriodId == periodId).ToListAsync(ct);
+        db.PeriodExclusions.RemoveRange(current.Where(x => !valid.Contains(x.PersonId)));
+        db.PeriodExclusions.AddRange(valid.Where(v => current.All(x => x.PersonId != v))
+            .Select(v => new PeriodExclusion { PeriodId = periodId, PersonId = v }));
+        return valid;
     }
 
     private static async Task<IResult?> ValidatePeriodAsync(RotaDbContext db, UpsertPeriodRequest req, Guid? id, CancellationToken ct)

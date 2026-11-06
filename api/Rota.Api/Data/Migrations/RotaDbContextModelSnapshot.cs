@@ -226,6 +226,79 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("districts", (string)null);
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.DocumentRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("OwnerPersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ParentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ParentType")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset?>("UploadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UploadedByAccountId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ObjectKey")
+                        .IsUnique();
+
+                    b.HasIndex("OwnerPersonId");
+
+                    b.HasIndex("UploadedByAccountId");
+
+                    b.HasIndex("Kind", "Status");
+
+                    b.HasIndex("ParentType", "ParentId");
+
+                    b.ToTable("documents", (string)null);
+                });
+
             modelBuilder.Entity("Rota.Api.Data.Feedback", b =>
                 {
                     b.Property<long>("Id")
@@ -286,6 +359,11 @@ namespace Rota.Api.Data.Migrations
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<Guid>("PersonId")
                         .HasColumnType("uuid");
 
@@ -333,6 +411,80 @@ namespace Rota.Api.Data.Migrations
                     b.HasIndex("Date");
 
                     b.ToTable("leave_days", (string)null);
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.LeaveRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonId", "CreatedAt");
+
+                    b.ToTable("leave_requests", (string)null);
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.LeaveRequestRange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ApprovalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DecidedByAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("leave_request_ranges", (string)null);
                 });
 
             modelBuilder.Entity("Rota.Api.Data.Notification", b =>
@@ -466,6 +618,21 @@ namespace Rota.Api.Data.Migrations
                     b.HasKey("PeriodId", "Kind", "Date");
 
                     b.ToTable("period_days", (string)null);
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.PeriodExclusion", b =>
+                {
+                    b.Property<Guid>("PeriodId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("PeriodId", "PersonId");
+
+                    b.HasIndex("PersonId");
+
+                    b.ToTable("period_exclusions", (string)null);
                 });
 
             modelBuilder.Entity("Rota.Api.Data.Person", b =>
@@ -811,6 +978,19 @@ namespace Rota.Api.Data.Migrations
                     b.Navigation("State");
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.DocumentRecord", b =>
+                {
+                    b.HasOne("Rota.Api.Data.Person", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerPersonId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Rota.Api.Data.Account", null)
+                        .WithMany()
+                        .HasForeignKey("UploadedByAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("Rota.Api.Data.Feedback", b =>
                 {
                     b.HasOne("Rota.Api.Data.Account", null)
@@ -847,6 +1027,24 @@ namespace Rota.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.LeaveRequest", b =>
+                {
+                    b.HasOne("Rota.Api.Data.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.LeaveRequestRange", b =>
+                {
+                    b.HasOne("Rota.Api.Data.LeaveRequest", null)
+                        .WithMany("Ranges")
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Rota.Api.Data.Notification", b =>
                 {
                     b.HasOne("Rota.Api.Data.Account", null)
@@ -861,6 +1059,21 @@ namespace Rota.Api.Data.Migrations
                     b.HasOne("Rota.Api.Data.RotaPeriod", null)
                         .WithMany()
                         .HasForeignKey("PeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.PeriodExclusion", b =>
+                {
+                    b.HasOne("Rota.Api.Data.RotaPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("PeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Rota.Api.Data.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -950,6 +1163,11 @@ namespace Rota.Api.Data.Migrations
             modelBuilder.Entity("Rota.Api.Data.District", b =>
                 {
                     b.Navigation("Clinics");
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.LeaveRequest", b =>
+                {
+                    b.Navigation("Ranges");
                 });
 
             modelBuilder.Entity("Rota.Api.Data.Person", b =>

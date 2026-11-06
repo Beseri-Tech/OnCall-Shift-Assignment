@@ -20,6 +20,9 @@ public sealed class LeaveRules
 
     public required Dictionary<Guid, PointGrant> Grants { get; init; }
 
+    /// <summary>Confirmed-leave dates that are relief duty: the officer is off call but nothing is deducted.</summary>
+    public Dictionary<Guid, HashSet<DateOnly>> ReliefByPerson { get; init; } = [];
+
     /// <summary>Weekdays each on-call officer can never be on call (bitmask, see <see cref="BlockedDays"/>).</summary>
     public Dictionary<Guid, int> BlockedWeekdays { get; init; } = [];
 
@@ -85,7 +88,8 @@ public sealed class LeaveRules
 
     /// <summary>Confirmed leave that counts for the deduction: blocked weekdays and clinic event days inside a trip could never have been marked as leave.</summary>
     private IEnumerable<DateOnly> ConfirmedDates(Guid personId) =>
-        (ConfirmedByPerson.GetValueOrDefault(personId) ?? []).Where(d => !IsBlocked(personId, d));
+        (ConfirmedByPerson.GetValueOrDefault(personId) ?? [])
+            .Where(d => !IsBlocked(personId, d) && ReliefByPerson.GetValueOrDefault(personId)?.Contains(d) != true);
 
     /// <summary>What the officer has for their own leave once confirmed leave is taken into account.</summary>
     public int OwnBudget(Guid personId) => Budget(personId) - PointsDeducted(personId);
@@ -122,14 +126,17 @@ public sealed class LeaveRules
         var onCall = onCallPeople.Select(p => p.Id).ToList();
         var leave = await db.LeaveDays
             .Where(l => l.Date >= period.StartDate && l.Date <= period.EndDate)
-            .Select(l => new { l.PersonId, l.Date, l.ApprovalId }).ToListAsync(ct);
+            .Select(l => new { l.PersonId, l.Date, l.ApprovalId, Relief = db.LeaveApprovals.Any(a => a.Id == l.ApprovalId && a.Kind == LeaveKind.Relief) })
+            .ToListAsync(ct);
         var byPerson = onCall.ToDictionary(id => id, _ => new List<DateOnly>());
         var confirmed = onCall.ToDictionary(id => id, _ => new HashSet<DateOnly>());
+        var relief = onCall.ToDictionary(id => id, _ => new HashSet<DateOnly>());
         foreach (var l in leave)
         {
             if (!byPerson.TryGetValue(l.PersonId, out var dates)) continue;
             dates.Add(l.Date);
             if (l.ApprovalId is not null) confirmed[l.PersonId].Add(l.Date);
+            if (l.Relief) relief[l.PersonId].Add(l.Date);
         }
 
         // Reward points: busy-day shifts in the rota right before this one, if it was published. They are for this rota only.
@@ -162,6 +169,7 @@ public sealed class LeaveRules
             Peaks = peaks,
             LeaveByPerson = byPerson,
             ConfirmedByPerson = confirmed,
+            ReliefByPerson = relief,
             Grants = await db.PointGrants.Where(g => g.PeriodId == period.Id).ToDictionaryAsync(g => g.PersonId, ct),
         };
     }

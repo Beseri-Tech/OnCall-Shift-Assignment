@@ -9,7 +9,8 @@ public sealed record TotalsDto(int Total, int Weekday, int WeekendHoliday);
 
 public sealed record PeriodDto(
     Guid Id, string Name, DateOnly StartDate, DateOnly EndDate, DateOnly? LeaveDeadline,
-    PeriodStatus Status, bool IsEditable, int? PointsBudget, DateOnly? SwapDeadline);
+    PeriodStatus Status, bool IsEditable, int? PointsBudget, DateOnly? SwapDeadline,
+    IReadOnlyList<Guid>? ExcludedPersonIds = null);
 
 public sealed record HolidayDto(DateOnly Date, string Name);
 
@@ -156,7 +157,8 @@ public sealed record IssuedPasswordDto(string Name, string Email, string TempPas
 
 public sealed record ReorderRequest(IReadOnlyList<Guid> Ids);
 
-public sealed record UpsertPeriodRequest(string Name, DateOnly StartDate, DateOnly EndDate, DateOnly? LeaveDeadline, int? PointsBudget = null);
+public sealed record UpsertPeriodRequest(string Name, DateOnly StartDate, DateOnly EndDate, DateOnly? LeaveDeadline, int? PointsBudget = null,
+    IReadOnlyList<Guid>? ExcludedPersonIds = null);
 
 /// <summary>Leave limits for one officer in one period. Budget excludes Extra (admin top-up).</summary>
 public sealed record LeaveRulesDto(
@@ -196,7 +198,8 @@ public sealed record OverrideRequest(Guid? PersonId);
 
 public sealed record OverrideResponse(RotaDayDto Day, IReadOnlyList<string> Warnings);
 
-public sealed record UpsertLeaveApprovalRequest(Guid PersonId, DateOnly StartDate, DateOnly EndDate, string? Reason, string? Reference);
+public sealed record UpsertLeaveApprovalRequest(Guid PersonId, DateOnly StartDate, DateOnly EndDate, string? Reason, string? Reference,
+    LeaveKind? Kind = null);
 
 /// <summary>Someone who could take a shift instead: on call, not on leave that day and not working the day before or after.</summary>
 public sealed record ShiftCandidateDto(Guid PersonId, string Name, int Shifts);
@@ -207,11 +210,13 @@ public sealed record ApprovalConflictDto(
 
 public sealed record LeaveApprovalDto(
     Guid Id, Guid PersonId, string PersonCode, string PersonName, DateOnly StartDate, DateOnly EndDate, string Reason,
-    string? Reference, string? CreatedBy, DateTimeOffset CreatedAt, IReadOnlyList<ApprovalConflictDto> Conflicts);
+    string? Reference, string? CreatedBy, DateTimeOffset CreatedAt, IReadOnlyList<ApprovalConflictDto> Conflicts,
+    LeaveKind Kind = LeaveKind.Other);
 
 /// <param name="Warnings">Days now over the leave limit, ordinary leave that became confirmed, and similar notes for the admin.</param>
 public sealed record DateRangeRequest(DateOnly StartDate, DateOnly EndDate);
-public sealed record BatchLeaveApprovalRequest(Guid PersonId, List<DateRangeRequest>? Ranges, string? Reason, string? Reference);
+public sealed record BatchLeaveApprovalRequest(Guid PersonId, List<DateRangeRequest>? Ranges, string? Reason, string? Reference,
+    LeaveKind? Kind = null);
 public sealed record LeaveApprovalBatchResultDto(IReadOnlyList<LeaveApprovalDto> Approvals, IReadOnlyList<string> Warnings);
 public sealed record LeaveApprovalResultDto(LeaveApprovalDto Approval, IReadOnlyList<string> Warnings);
 
@@ -238,3 +243,16 @@ public sealed record FeedbackDto(
 
 /// <summary>Open counts every unresolved item, whatever the filters, for the tab's badge.</summary>
 public sealed record FeedbackPageDto(IReadOnlyList<FeedbackDto> Items, int Total, int Page, int PageSize, int Open);
+
+
+/// <summary>One range in a leave request as the officer sends it. DocumentId is a finished upload (kind LeaveDocument) from /api/documents.</summary>
+public sealed record LeaveRequestRangeInput(DateOnly StartDate, DateOnly EndDate, LeaveKind Kind, string? Reason, Guid? DocumentId = null);
+public sealed record LeaveRequestInput(List<LeaveRequestRangeInput>? Ranges);
+
+public sealed record LeaveRequestRangeDto(
+    Guid Id, Guid RequestId, Guid PersonId, string PersonCode, string PersonName, DateOnly StartDate, DateOnly EndDate,
+    LeaveKind Kind, string Reason, LeaveRequestStatus Status, Guid? DocumentId, string? DocumentName, long? DocumentSize, DateTimeOffset SubmittedAt,
+    string? DecisionNote, string? DecidedBy, DateTimeOffset? DecidedAt, IReadOnlyList<string> Overlaps);
+
+public sealed record DecideLeaveRequestRequest(string? Note);
+public sealed record DecideLeaveRequestResult(LeaveRequestRangeDto Range, IReadOnlyList<string> Warnings);

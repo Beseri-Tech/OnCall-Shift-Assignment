@@ -11,6 +11,8 @@ export interface Totals { total: number; weekday: number; weekendHoliday: number
 export interface Period {
   id: string; name: string; startDate: IsoDate; endDate: IsoDate; leaveDeadline: IsoDate | null
   status: PeriodStatus; isEditable: boolean; pointsBudget: number | null; swapDeadline: IsoDate | null
+  /** Officers left out of this period's rota (admin list only). */
+  excludedPersonIds?: string[]
 }
 export interface Holiday { date: IsoDate; name: string }
 /** A public holiday or peak day applied to one rota period. */
@@ -52,16 +54,40 @@ export interface OverviewPerson { id: string; code: string; name: string; leave:
 export interface Overview { period: Period; days: OverviewDay[]; people: OverviewPerson[] }
 export interface PublishedRota { period: Period; runId: string; days: RotaDay[]; inReview: boolean }
 
+export type DocumentKind = 'Manual' | 'LeaveDocument' | 'Other'
+export interface StoredDocument {
+  id: string; kind: DocumentKind; fileName: string; contentType: string; sizeBytes: number
+  uploadedAt: string | null; parentType: string | null; parentId: string | null
+}
+export interface UploadTicket { documentId: string; uploadUrl: string; method: string; expiresInSeconds: number; requiredHeaders: Record<string, string> }
+
 export interface ShiftCandidate { personId: string; name: string; shifts: number }
 export interface ApprovalConflict {
   runId: string; periodId: string; periodName: string; date: IsoDate; isPublished: boolean; candidates: ShiftCandidate[]
 }
 export interface LeaveApproval {
   id: string; personId: string; personCode: string; personName: string; startDate: IsoDate; endDate: IsoDate
-  reason: string; reference: string | null; createdBy: string | null; createdAt: string; conflicts: ApprovalConflict[]
+  reason: string; reference: string | null; createdBy: string | null; createdAt: string; conflicts: ApprovalConflict[]; kind: LeaveKind
 }
-export interface UpsertLeaveApproval { personId: string; startDate: IsoDate; endDate: IsoDate; reason: string; reference: string | null }
-export interface LeaveApprovalBatchRequest { personId: string; ranges: { startDate: IsoDate; endDate: IsoDate }[]; reason: string; reference: string | null }
+export type LeaveKind = 'Trip' | 'Cr' | 'Relief' | 'Other'
+export const LEAVE_KINDS: { value: LeaveKind; label: string }[] = [
+  { value: 'Trip', label: 'Trip' },
+  { value: 'Cr', label: 'CR (cuti rehat)' },
+  { value: 'Relief', label: 'Relief duty' },
+  { value: 'Other', label: 'Other' },
+]
+export const kindLabel = (k: LeaveKind) => LEAVE_KINDS.find(x => x.value === k)?.label ?? k
+export interface UpsertLeaveApproval { personId: string; startDate: IsoDate; endDate: IsoDate; reason: string; reference: string | null; kind?: LeaveKind }
+export interface LeaveApprovalBatchRequest { personId: string; ranges: { startDate: IsoDate; endDate: IsoDate }[]; reason: string; reference: string | null; kind?: LeaveKind }
+export type LeaveRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled'
+export interface LeaveRequestRange {
+  id: string; requestId: string; personId: string; personCode: string; personName: string
+  startDate: IsoDate; endDate: IsoDate; kind: LeaveKind; reason: string; status: LeaveRequestStatus
+  documentId: string | null; documentName: string | null; documentSize: number | null; submittedAt: string
+  decisionNote: string | null; decidedBy: string | null; decidedAt: string | null; overlaps: string[]
+}
+export interface NewLeaveRequestRange { startDate: IsoDate; endDate: IsoDate; kind: LeaveKind; reason: string; file: File | null }
+export interface DecideLeaveRequestResult { range: LeaveRequestRange; warnings: string[] }
 export interface LeaveApprovalBatchResult { approvals: LeaveApproval[]; warnings: string[] }
 export interface LeaveApprovalResult { approval: LeaveApproval; warnings: string[] }
 
@@ -118,6 +144,7 @@ export interface ImportResult {
 }
 export interface UpsertPeriod {
   name: string; startDate: IsoDate; endDate: IsoDate; leaveDeadline: IsoDate | null; pointsBudget: number | null
+  excludedPersonIds?: string[]
 }
 /** Leave limits for one officer in one period; budget excludes the admin's extra points. */
 export interface LeaveRules {
@@ -226,6 +253,17 @@ export const api = {
   shifts: (personId: string) => get<Shift[]>(`/api/people/${personId}/shifts`),
   periods: (status?: PeriodStatus) => get<Period[]>(`/api/periods${q({ status })}`),
   holidays: (from?: IsoDate, to?: IsoDate) => get<Holiday[]>(`/api/holidays${q({ from, to })}`),
+  myLeaveRequests: () => get<LeaveRequestRange[]>('/api/leave-requests/mine'),
+  cancelLeaveRequest: (rangeId: string) => del<void>(`/api/leave-requests/ranges/${rangeId}`),
+  /** Uploads each range's document straight to R2 first, then sends the ranges with the finished documents' ids. */
+  sendLeaveRequest: async (ranges: NewLeaveRequestRange[]) => {
+    const body = []
+    for (const { file, ...r } of ranges) {
+      const documentId = file ? (await uploadDocument(file, 'LeaveDocument')).id : null
+      body.push({ ...r, documentId })
+    }
+    return post<LeaveRequestRange[]>('/api/leave-requests', { ranges: body })
+  },
   entries: (personId: string, periodId: string) => get<Entries>(`/api/people/${personId}/entries${q({ periodId })}`),
   saveEntries: (personId: string, periodId: string, body: Entries) =>
     put<Entries>(`/api/people/${personId}/entries${q({ periodId })}`, body),
@@ -243,6 +281,19 @@ export const api = {
   readAllNotifications: () => post<void>('/api/notifications/read-all'),
   sendFeedback: (category: FeedbackCategory, message: string, page: string | null) =>
     post<{ id: number }>('/api/feedback', { category, message, page }),
+
+  /** Private document storage (Cloudflare R2). Use uploadDocument / openDocument below rather than these directly. */
+  documents: {
+    uploadUrl: (kind: DocumentKind, fileName: string, contentType: string, fileSize: number) =>
+      post<UploadTicket>('/api/documents/upload-url', { kind, fileName, contentType, fileSize }),
+    complete: (id: string) => post<StoredDocument>(`/api/documents/${id}/complete`),
+    get: (id: string) => get<StoredDocument>(`/api/documents/${id}`),
+    downloadUrl: (id: string, inline = false) =>
+      get<{ downloadUrl: string; expiresInSeconds: number }>(`/api/documents/${id}/download-url${q({ inline: inline ? 'true' : undefined })}`),
+    remove: (id: string) => del<void>(`/api/documents/${id}`),
+    /** The current user manual, or undefined when none has been uploaded. */
+    manual: () => get<StoredDocument | undefined>('/api/documents/manual'),
+  },
   leaveRules: (periodId: string, personId: string) => get<LeaveRules>(`/api/periods/${periodId}/leave-rules${q({ personId })}`),
 
   auth: {
@@ -329,6 +380,10 @@ export const api = {
     createLeaveApprovals: (a: LeaveApprovalBatchRequest) => post<LeaveApprovalBatchResult>('/api/admin/leave-approvals/batch', a),
     updateLeaveApproval: (id: string, a: UpsertLeaveApproval) => put<LeaveApprovalResult>(`/api/admin/leave-approvals/${id}`, a),
     deleteLeaveApproval: (id: string) => del<void>(`/api/admin/leave-approvals/${id}`),
+    leaveRequests: (status?: LeaveRequestStatus) => get<LeaveRequestRange[]>(`/api/admin/leave-requests${q({ status })}`),
+    approveLeaveRequest: (id: string, note?: string) =>
+      post<DecideLeaveRequestResult>(`/api/admin/leave-requests/ranges/${id}/approve`, { note: note || null }),
+    rejectLeaveRequest: (id: string, note: string) => post<DecideLeaveRequestResult>(`/api/admin/leave-requests/ranges/${id}/reject`, { note }),
 
     audit: ({ page, pageSize, ...f }: AuditQuery) =>
       get<AuditPage>(`/api/admin/audit${q({ ...f, page: page?.toString(), pageSize: pageSize?.toString() })}`),
@@ -345,4 +400,31 @@ export const api = {
       leave: (periodId: string) => `${API}/api/admin/periods/${periodId}/leave.xlsx`,
     },
   },
+}
+
+const EXTENSION_TYPES: Record<string, string> = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+}
+
+/**
+ * Uploads a file to private storage and returns its record once the server has checked it. Reusable for any feature:
+ * keep the returned `id` on your own record (and ask the API to attach it to that record).
+ */
+export async function uploadDocument(file: File, kind: DocumentKind): Promise<StoredDocument> {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const contentType = EXTENSION_TYPES[ext]
+  if (!contentType) throw new ApiError(400, 'Only PDF, PNG, JPG or DOCX files can be uploaded.')
+
+  const ticket = await api.documents.uploadUrl(kind, file.name, contentType, file.size)
+  // No cookies here: the signed link is the credential, and it goes to R2, not to this app.
+  const put = await fetch(ticket.uploadUrl, { method: ticket.method, headers: ticket.requiredHeaders, body: file })
+  if (!put.ok) throw new ApiError(put.status, 'The file could not be uploaded. Please try again.')
+  return api.documents.complete(ticket.documentId)
+}
+
+/** Opens a stored document in a new tab (PDFs and images show in the browser) through a short-lived link. */
+export async function openDocument(id: string): Promise<void> {
+  const { downloadUrl } = await api.documents.downloadUrl(id, true)
+  window.open(downloadUrl, '_blank', 'noopener')
 }

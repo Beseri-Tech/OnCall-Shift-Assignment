@@ -91,7 +91,7 @@ public static class AdminLeaveApprovalEndpoints
         var before = isNew ? null : AuditOf(approval);
         var oldRange = isNew ? null : Range(approval.StartDate, approval.EndDate);
         var warnings = new List<string>();
-        var failure = await ApplyAsync(db, approval, person, req.StartDate, req.EndDate, reason, reference, isNew, warnings, ct);
+        var failure = await ApplyAsync(db, approval, person, req.StartDate, req.EndDate, reason, reference, req.Kind ?? approval.Kind, isNew, warnings, ct);
         if (failure is not null) return failure;
 
         string title = isNew
@@ -116,8 +116,8 @@ public static class AdminLeaveApprovalEndpoints
     }
 
     /// <summary>Saves one range of confirmed leave (no transaction, lock or notification: the caller does those).</summary>
-    private static async Task<IResult?> ApplyAsync(RotaDbContext db, LeaveApproval approval, Person person, DateOnly start, DateOnly end,
-        string reason, string? reference, bool isNew, List<string> warnings, CancellationToken ct)
+    internal static async Task<IResult?> ApplyAsync(RotaDbContext db, LeaveApproval approval, Person person, DateOnly start, DateOnly end,
+        string reason, string? reference, LeaveKind kind, bool isNew, List<string> warnings, CancellationToken ct)
     {
         var overlap = await db.LeaveApprovals.Where(a => a.PersonId == person.Id && a.Id != approval.Id &&
                                                          a.StartDate <= end && a.EndDate >= start)
@@ -131,6 +131,7 @@ public static class AdminLeaveApprovalEndpoints
         approval.EndDate = end;
         approval.Reason = reason;
         approval.Reference = reference;
+        approval.Kind = kind;
         approval.UpdatedAt = DateTimeOffset.UtcNow;
         if (isNew) db.LeaveApprovals.Add(approval);
         else await db.LeaveDays.Where(l => l.ApprovalId == approval.Id).ExecuteDeleteAsync(ct);
@@ -187,7 +188,7 @@ public static class AdminLeaveApprovalEndpoints
         foreach (var r in ranges)
         {
             var approval = new LeaveApproval { CreatedByAccountId = http.User.AccountId() };
-            var failure = await ApplyAsync(db, approval, person, r.StartDate, r.EndDate, reason, reference, isNew: true, warnings, ct);
+            var failure = await ApplyAsync(db, approval, person, r.StartDate, r.EndDate, reason, reference, req.Kind ?? LeaveKind.Other, isNew: true, warnings, ct);
             if (failure is not null) return failure;   // the transaction is rolled back on dispose
             created.Add(approval);
         }
@@ -213,7 +214,7 @@ public static class AdminLeaveApprovalEndpoints
     }
 
     /// <summary>Days pushed over the leave limit, a hint to exclude the officer instead, and drafts made before this leave.</summary>
-    private static async Task<List<string>> PeriodWarningsAsync(RotaDbContext db, LeaveLimits limits, LeaveApproval a, Person person,
+    internal static async Task<List<string>> PeriodWarningsAsync(RotaDbContext db, LeaveLimits limits, LeaveApproval a, Person person,
         CancellationToken ct)
     {
         var warnings = new List<string>();
@@ -310,28 +311,28 @@ public static class AdminLeaveApprovalEndpoints
                 .Select(c => new ApprovalConflictDto(c.RunId, c.PeriodId, c.PeriodName, c.Date, c.IsPublished, Candidates(c.RunId, c.Date)))
                 .ToList();
             return new LeaveApprovalDto(a.Id, a.PersonId, person?.Code ?? "", person?.Name ?? "", a.StartDate, a.EndDate, a.Reason,
-                a.Reference, a.CreatedByAccountId is { } cid ? creatorName.GetValueOrDefault(cid) : null, a.CreatedAt, conflicts);
+                a.Reference, a.CreatedByAccountId is { } cid ? creatorName.GetValueOrDefault(cid) : null, a.CreatedAt, conflicts, a.Kind);
         }).ToList();
     }
 
     /// <summary>Takes the per-period leave lock (see PUT /people/{id}/entries) of every period the dates touch.</summary>
-    private static async Task LockPeriodsAsync(RotaDbContext db, DateOnly from, DateOnly to, CancellationToken ct)
+    internal static async Task LockPeriodsAsync(RotaDbContext db, DateOnly from, DateOnly to, CancellationToken ct)
     {
         var ids = await db.Periods.Where(p => p.StartDate <= to && p.EndDate >= from).Select(p => p.Id).ToListAsync(ct);
         foreach (var id in ids.Order())
             await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({id.ToString()}, 0))", ct);
     }
 
-    private static object AuditOf(LeaveApproval a) => new { a.StartDate, a.EndDate, a.Reason, a.Reference };
+    internal static object AuditOf(LeaveApproval a) => new { a.StartDate, a.EndDate, a.Reason, a.Reference, a.Kind };
 
-    private static string Range(DateOnly from, DateOnly to) =>
+    internal static string Range(DateOnly from, DateOnly to) =>
         from == to ? LeaveText.Format(from) : $"{LeaveText.Format(from)} – {LeaveText.Format(to)}";
 
     private static DateOnly Min(DateOnly a, DateOnly b) => a < b ? a : b;
     private static DateOnly Max(DateOnly a, DateOnly b) => a > b ? a : b;
 
-    private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+    internal static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
-    private static IResult Problem(string field, string message) =>
+    internal static IResult Problem(string field, string message) =>
         Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 }

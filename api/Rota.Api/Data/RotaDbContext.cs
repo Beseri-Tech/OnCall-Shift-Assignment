@@ -16,9 +16,12 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
     public DbSet<PublicHoliday> Holidays => Set<PublicHoliday>();
     public DbSet<PeakDay> PeakDays => Set<PeakDay>();
     public DbSet<PeriodDay> PeriodDays => Set<PeriodDay>();
+    public DbSet<PeriodExclusion> PeriodExclusions => Set<PeriodExclusion>();
     public DbSet<PointGrant> PointGrants => Set<PointGrant>();
     public DbSet<LeaveDay> LeaveDays => Set<LeaveDay>();
     public DbSet<LeaveApproval> LeaveApprovals => Set<LeaveApproval>();
+    public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
+    public DbSet<LeaveRequestRange> LeaveRequestRanges => Set<LeaveRequestRange>();
     public DbSet<PreferredDate> PreferredDates => Set<PreferredDate>();
     public DbSet<RotaRun> Runs => Set<RotaRun>();
     public DbSet<ShiftAssignment> Assignments => Set<ShiftAssignment>();
@@ -27,6 +30,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<OutboxEmail> OutboxEmails => Set<OutboxEmail>();
     public DbSet<Feedback> Feedback => Set<Feedback>();
+    public DbSet<DocumentRecord> Documents => Set<DocumentRecord>();
 
     /// <summary>Keys that encrypt the admin cookie; stored here so logins survive redeploys.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -125,6 +129,14 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasOne<RotaPeriod>().WithMany().HasForeignKey(d => d.PeriodId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        b.Entity<PeriodExclusion>(e =>
+        {
+            e.ToTable("period_exclusions");
+            e.HasKey(x => new { x.PeriodId, x.PersonId });
+            e.HasOne<RotaPeriod>().WithMany().HasForeignKey(x => x.PeriodId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Person>().WithMany().HasForeignKey(x => x.PersonId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         b.Entity<PointGrant>(e =>
         {
             e.ToTable("point_grants");
@@ -150,7 +162,26 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasIndex(a => new { a.PersonId, a.StartDate });
             e.Property(a => a.Reason).HasMaxLength(200);
             e.Property(a => a.Reference).HasMaxLength(100);
+            e.Property(a => a.Kind).HasConversion<string>().HasMaxLength(16);
             e.HasOne<Person>().WithMany().HasForeignKey(a => a.PersonId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<LeaveRequest>(e =>
+        {
+            e.ToTable("leave_requests");
+            e.HasIndex(r => new { r.PersonId, r.CreatedAt });
+            e.HasOne<Person>().WithMany().HasForeignKey(r => r.PersonId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(r => r.Ranges).WithOne().HasForeignKey(r => r.RequestId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<LeaveRequestRange>(e =>
+        {
+            e.ToTable("leave_request_ranges");
+            e.HasIndex(r => r.Status);
+            e.Property(r => r.Kind).HasConversion<string>().HasMaxLength(16);
+            e.Property(r => r.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(r => r.Reason).HasMaxLength(200);
+            e.Property(r => r.DecisionNote).HasMaxLength(200);
         });
 
         b.Entity<PreferredDate>(e =>
@@ -218,6 +249,23 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasIndex(f => f.CreatedAt);
             e.HasOne<Account>().WithMany().HasForeignKey(f => f.AccountId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne<Account>().WithMany().HasForeignKey(f => f.ResolvedByAccountId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<DocumentRecord>(e =>
+        {
+            e.ToTable("documents");
+            e.Property(d => d.Kind).HasConversion<string>().HasMaxLength(24);
+            e.Property(d => d.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(d => d.ObjectKey).HasMaxLength(200);
+            e.Property(d => d.FileName).HasMaxLength(200);
+            e.Property(d => d.ContentType).HasMaxLength(100);
+            e.Property(d => d.ParentType).HasMaxLength(40);
+            e.Property(d => d.ParentId).HasMaxLength(64);
+            e.HasIndex(d => d.ObjectKey).IsUnique();
+            e.HasIndex(d => new { d.ParentType, d.ParentId });
+            e.HasIndex(d => new { d.Kind, d.Status });
+            e.HasOne<Account>().WithMany().HasForeignKey(d => d.UploadedByAccountId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<Person>().WithMany().HasForeignKey(d => d.OwnerPersonId).OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<DataProtectionKey>().ToTable("data_protection_keys");
