@@ -156,6 +156,8 @@ export interface LeaveRules {
   busyDayCap: number; weekdayCap: number; onCall: number
   weekendCost: number; holidayCost: number; peakCost: number
   peaks: Holiday[]; othersOff: Record<IsoDate, number>
+  /** Daily limit per date: a share of the officers available that day (on call minus confirmed leave). othersOff excludes confirmed leave. */
+  dayCaps?: Record<IsoDate, number>
   /** Confirmed leave takes away the share of points and weekdays equal to the share of the period it covers. */
   confirmedDays: number; periodDays: number; pointsDeducted: number; weekdaysDeducted: number
   /** Bonus points for busy-day shifts in the previous rota: reward is the points, rewardFrom that rota's name, rewardDetail what earned it. */

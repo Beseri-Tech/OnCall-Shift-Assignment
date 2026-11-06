@@ -165,7 +165,8 @@ public sealed record LeaveRulesDto(
     int Budget, int Extra, string? ExtraReason, int WeekdayAllowance, int BusyDayCap, int WeekdayCap, int OnCall,
     int WeekendCost, int HolidayCost, int PeakCost, IReadOnlyList<HolidayDto> Peaks, IReadOnlyDictionary<DateOnly, int> OthersOff,
     int ConfirmedDays = 0, int PeriodDays = 0, int PointsDeducted = 0, int WeekdaysDeducted = 0,
-    int Reward = 0, string? RewardFrom = null, string? RewardDetail = null);
+    int Reward = 0, string? RewardFrom = null, string? RewardDetail = null,
+    IReadOnlyDictionary<DateOnly, int>? DayCaps = null);
 
 public sealed record PointsRowDto(
     Guid PersonId, string Code, string Name, int PointsUsed, int Budget, int Extra, string? Reason,

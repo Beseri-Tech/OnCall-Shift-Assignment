@@ -78,9 +78,13 @@ public sealed class LeavePolicy(
     /// <summary>How many officers may be off on <paramref name="d"/>: stricter on weekends, public holidays and peak days.</summary>
     public int DayCap(DateOnly d, int onCall) => Kind(d) == DayKind.Weekday ? WeekdayCap(onCall) : BusyDayCap(onCall);
 
+    /// <summary>Officers available on <paramref name="d"/>: everyone on call minus those on confirmed leave that day.</summary>
+    public static int Available(DateOnly d, int onCall, IReadOnlyDictionary<DateOnly, int>? confirmedOff) =>
+        Math.Max(0, onCall - (confirmedOff?.GetValueOrDefault(d) ?? 0));
+
     public int BusyDayCap(int onCall) => Cap(onCall, limits.BusyDayCapPercent);
     public int WeekdayCap(int onCall) => Cap(onCall, limits.WeekdayCapPercent);
-    private static int Cap(int onCall, double percent) => Math.Max(1, (int)Math.Floor(onCall * percent));
+    private static int Cap(int onCall, double percent) => onCall <= 0 ? 0 : Math.Max(1, (int)Math.Floor(onCall * percent));
 
     /// <summary>
     /// Errors for replacing <paramref name="before"/> with <paramref name="after"/>. A save must end within the points budget
@@ -88,10 +92,12 @@ public sealed class LeavePolicy(
     /// holiday...): they may leave things as they are or remove days (fewer points / weekdays than before), but never swap or
     /// add days while over, so nobody can stay over by rearranging leave.
     /// </summary>
-    /// <param name="othersOff">Per day, how many other on-call officers are already off.</param>
+    /// <param name="othersOff">Per day, how many other on-call officers are already off on ordinary leave (confirmed leave is not counted here).</param>
+    /// <param name="confirmedOff">Per day, how many on-call officers are away on confirmed leave. They are taken out of the base the daily limit is worked out on.</param>
     /// <param name="weekdayAllowance">Overrides <see cref="WeekdayAllowance"/> (e.g. reduced for confirmed leave).</param>
     public List<string> Validate(IReadOnlyCollection<DateOnly> before, IReadOnlyCollection<DateOnly> after,
-        IReadOnlyDictionary<DateOnly, int> othersOff, int budget, int onCall, int? weekdayAllowance = null)
+        IReadOnlyDictionary<DateOnly, int> othersOff, int budget, int onCall, int? weekdayAllowance = null,
+        IReadOnlyDictionary<DateOnly, int>? confirmedOff = null)
     {
         var errors = new List<string>();
         bool unchanged = before.ToHashSet().SetEquals(after);
@@ -108,10 +114,10 @@ public sealed class LeavePolicy(
                 ? $"Too many weekdays: {weekdays} marked, at most {allowance} in this period."
                 : $"You are over your weekdays ({weekdays} of {allowance}). You can only remove days until you are within the allowance.");
 
-        var full = after.Except(before).Distinct().Where(d => othersOff.GetValueOrDefault(d) >= DayCap(d, onCall)).Order().ToList();
+        var full = after.Except(before).Distinct().Where(d => othersOff.GetValueOrDefault(d) >= DayCap(d, Available(d, onCall, confirmedOff))).Order().ToList();
         if (full.Count > 0)
             errors.Add($"Already full (at most {BusyDayCap(onCall)} of {onCall} officers off on a weekend/public holiday/peak day, " +
-                       $"{WeekdayCap(onCall)} on other days): " +
+                       $"{WeekdayCap(onCall)} on other days, counting only officers not on confirmed leave that day): " +
                        string.Join(", ", full.Select(d => d.ToString("d MMM", CultureInfo.InvariantCulture))) + ".");
 
         return errors;

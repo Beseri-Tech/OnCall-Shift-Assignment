@@ -50,7 +50,7 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         // The admin can still confirm it; nobody's leave is removed and the admin is told the day is over the limit.
         var result = await Read<LeaveApprovalResultDto>(await Confirm(admin, people[4].Id, Oct16, Oct18, reference: "MEMO 12/2026"));
         Assert.Equal(("Overseas trip, approved by HOD", "MEMO 12/2026"), (result.Approval.Reason, result.Approval.Reference));
-        Assert.Contains(result.Warnings, w => w.Contains("Sat 17 Oct now has 4 of 10 officers off (limit 3)"));
+        Assert.Contains(result.Warnings, w => w.Contains("Sat 17 Oct now has 3 officers on leave, over the limit of 2 (9 of 10 officers available)"));
         Assert.Empty(result.Approval.Conflicts);
 
         // Even a short trip (Fri 16 to Sun 18: 2 points of busy days, 1 weekday) takes one point away because the share rounds up: 2 left.
@@ -65,13 +65,14 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal(2, entries.Leave.Count);
         Assert.Equal((Oct16, Oct18), entries.Confirmed!.Select(c => (c.StartDate, c.EndDate)).Single());
 
-        // Confirmed days count for everyone else: when one officer cancels, the day stays full (2 + the trip = 3).
+        // The trip takes the officer out of the base (9 available, limit 2): when one officer cancels, the day stays full (2 off).
         (await Save(officers[1], people[1].Id, period.Id)).EnsureSuccessStatusCode();
         var full = await Save(officers[5], people[5].Id, period.Id, Oct17);
         Assert.Equal(HttpStatusCode.BadRequest, full.StatusCode);
         Assert.Contains("Already full", await full.Content.ReadAsStringAsync());
         var rules = await Read<LeaveRulesDto>(await officers[5].GetAsync($"/api/periods/{period.Id}/leave-rules?personId={people[5].Id}"));
-        Assert.Equal(3, rules.OthersOff[Oct17]);
+        Assert.Equal(2, rules.OthersOff[Oct17]);
+        Assert.Equal(2, rules.DayCaps![Oct17]);
 
         // Other officers see "confirmed" without the reason; the officer sees the reason.
         var theirs = await Read<OverviewDto>(await officers[5].GetAsync($"/api/periods/{period.Id}/overview"));

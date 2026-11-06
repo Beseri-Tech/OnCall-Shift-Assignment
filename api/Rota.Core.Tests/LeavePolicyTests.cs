@@ -33,6 +33,8 @@ public class LeavePolicyTests
         Assert.Equal(17, p.DayCap(Mon, 58));                   // holiday: 30%
         Assert.Equal(29, p.DayCap(new DateOnly(2026, 10, 7), 58)); // ordinary weekday: 50%
         Assert.Equal(1, p.DayCap(Sat, 2));
+        Assert.Equal(15, p.DayCap(Sat, LeavePolicy.Available(Sat, 58, new Dictionary<DateOnly, int> { [Sat] = 8 }))); // 50 available: 30%
+        Assert.Equal(0, p.DayCap(Sat, LeavePolicy.Available(Sat, 3, new Dictionary<DateOnly, int> { [Sat] = 3 })));
     }
 
     [Fact]
