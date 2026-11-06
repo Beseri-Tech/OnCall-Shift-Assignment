@@ -30,10 +30,12 @@ public sealed class Notifier
         Add(accounts, kind, title, body, link, email);
     }
 
-    public async Task ToOnCallOfficersAsync(string kind, string title, string? body, string? link, bool email, CancellationToken ct)
+    public async Task ToOnCallOfficersAsync(string kind, string title, string? body, string? link, bool email, CancellationToken ct,
+        IReadOnlyCollection<Guid>? except = null)
     {
         var accounts = await _db.Accounts
             .Where(a => a.Enabled && a.Person != null && a.Person.Status == OfficerStatus.OnCall).ToListAsync(ct);
+        if (except is { Count: > 0 }) accounts = accounts.Where(a => a.PersonId is not { } pid || !except.Contains(pid)).ToList();
         Add(accounts, kind, title, body, link, email);
     }
 

@@ -559,6 +559,21 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("period_days", (string)null);
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.PeriodExclusion", b =>
+                {
+                    b.Property<Guid>("PeriodId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("PeriodId", "PersonId");
+
+                    b.HasIndex("PersonId");
+
+                    b.ToTable("period_exclusions", (string)null);
+                });
+
             modelBuilder.Entity("Rota.Api.Data.Person", b =>
                 {
                     b.Property<Guid>("Id")
@@ -970,6 +985,21 @@ namespace Rota.Api.Data.Migrations
                     b.HasOne("Rota.Api.Data.RotaPeriod", null)
                         .WithMany()
                         .HasForeignKey("PeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.PeriodExclusion", b =>
+                {
+                    b.HasOne("Rota.Api.Data.RotaPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("PeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Rota.Api.Data.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
