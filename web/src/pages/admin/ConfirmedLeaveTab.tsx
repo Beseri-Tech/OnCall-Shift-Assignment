@@ -448,7 +448,7 @@ function RequestsPanel({ onDecided }: { onDecided: () => void }) {
 
 function RequestRow({ r, children }: { r: LeaveRequestRange; children?: React.ReactNode }) {
   const days = diffDays(r.startDate, r.endDate) + 1
-  const color = { Pending: 'yellow', Approved: 'teal', Rejected: 'red', Cancelled: 'gray' }[r.status]
+  const color = { Pending: 'yellow', Approved: 'teal', Rejected: 'red', Cancelled: 'gray', Removed: 'gray' }[r.status]
   return (
     <Paper withBorder p="sm" radius="md">
       <Group justify="space-between" align="flex-start" gap="sm">

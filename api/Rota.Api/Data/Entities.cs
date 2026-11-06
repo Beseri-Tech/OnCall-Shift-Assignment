@@ -266,7 +266,8 @@ public sealed class LeaveApproval
 
 public enum LeaveKind { Trip, Cr, Relief, Other }
 
-public enum LeaveRequestStatus { Pending, Approved, Rejected, Cancelled }
+/// <summary>Removed: approved, then the admin removed the confirmed leave.</summary>
+public enum LeaveRequestStatus { Pending, Approved, Rejected, Cancelled, Removed }
 
 /// <summary>An officer's request for confirmed leave: one or more date ranges, each with its own reason and optional document.</summary>
 public sealed class LeaveRequest

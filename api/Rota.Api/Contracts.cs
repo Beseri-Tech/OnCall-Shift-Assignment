@@ -252,7 +252,7 @@ public sealed record LeaveRequestInput(List<LeaveRequestRangeInput>? Ranges);
 public sealed record LeaveRequestRangeDto(
     Guid Id, Guid RequestId, Guid PersonId, string PersonCode, string PersonName, DateOnly StartDate, DateOnly EndDate,
     LeaveKind Kind, string Reason, LeaveRequestStatus Status, Guid? DocumentId, string? DocumentName, long? DocumentSize, DateTimeOffset SubmittedAt,
-    string? DecisionNote, string? DecidedBy, DateTimeOffset? DecidedAt, IReadOnlyList<string> Overlaps);
+    string? DecisionNote, string? DecidedBy, DateTimeOffset? DecidedAt, IReadOnlyList<string> Overlaps, bool AddedByAdmin = false);
 
 public sealed record DecideLeaveRequestRequest(string? Note);
 public sealed record DecideLeaveRequestResult(LeaveRequestRangeDto Range, IReadOnlyList<string> Warnings);

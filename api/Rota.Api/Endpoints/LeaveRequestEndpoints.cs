@@ -91,7 +91,15 @@ public static class LeaveRequestEndpoints
             if (http.User.PersonId() is not { } personId) return Results.Ok(new List<LeaveRequestRangeDto>());
             var ranges = await db.LeaveRequestRanges.Where(r => db.LeaveRequests.Any(q => q.Id == r.RequestId && q.PersonId == personId))
                 .ToListAsync(ct);
-            return Results.Ok((await ToDtosAsync(db, ranges, ct)).OrderByDescending(r => r.SubmittedAt).ThenBy(r => r.StartDate).ToList());
+            var list = await ToDtosAsync(db, ranges, ct);
+
+            // Confirmed leave the admin entered directly (not from a request) is listed too, as approved.
+            var fromRequests = ranges.Where(r => r.ApprovalId != null).Select(r => r.ApprovalId!.Value).ToList();
+            var direct = await db.LeaveApprovals.AsNoTracking()
+                .Where(a => a.PersonId == personId && !fromRequests.Contains(a.Id)).ToListAsync(ct);
+            list.AddRange(direct.Select(a => new LeaveRequestRangeDto(a.Id, Guid.Empty, personId, "", "", a.StartDate, a.EndDate, a.Kind,
+                a.Reason, LeaveRequestStatus.Approved, null, null, null, a.CreatedAt, null, null, a.CreatedAt, [], AddedByAdmin: true)));
+            return Results.Ok(list.OrderByDescending(r => r.SubmittedAt).ThenBy(r => r.StartDate).ToList());
         });
 
         // The officer withdraws a range nobody has decided on yet.
@@ -214,6 +222,8 @@ public static class LeaveRequestEndpoints
         var docs = docIds.Count == 0 ? [] : await db.Documents.AsNoTracking().Where(d => docIds.Contains(d.Id) && d.Status == DocumentStatus.Available)
             .ToDictionaryAsync(d => d.Id, ct);
 
+        var liveApprovals = (await db.LeaveApprovals.AsNoTracking().Where(a => personIds.Contains(a.PersonId)).Select(a => a.Id).ToListAsync(ct)).ToHashSet();
+
         var pending = ranges.Where(r => r.Status == LeaveRequestStatus.Pending).ToList();
         var existing = pending.Count == 0 ? [] : await db.LeaveApprovals.AsNoTracking()
             .Where(a => personIds.Contains(a.PersonId)).ToListAsync(ct);
@@ -226,7 +236,7 @@ public static class LeaveRequestEndpoints
                 .Where(a => a.PersonId == req.PersonId && a.StartDate <= r.EndDate && a.EndDate >= r.StartDate)
                 .Select(a => $"Already has confirmed leave on {AdminLeaveApprovalEndpoints.Range(a.StartDate, a.EndDate)}.").ToList();
             return new LeaveRequestRangeDto(r.Id, r.RequestId, req.PersonId, p?.Code ?? "", p?.Name ?? "", r.StartDate, r.EndDate, r.Kind,
-                r.Reason, r.Status, r.DocumentId is { } did && docs.ContainsKey(did) ? did : null,
+                r.Reason, r.Status == LeaveRequestStatus.Approved && (r.ApprovalId is null || !liveApprovals.Contains(r.ApprovalId.Value)) ? LeaveRequestStatus.Removed : r.Status, r.DocumentId is { } did && docs.ContainsKey(did) ? did : null,
                 r.DocumentId is { } d1 ? docs.GetValueOrDefault(d1)?.FileName : null, r.DocumentId is { } d2 ? docs.GetValueOrDefault(d2)?.SizeBytes : null, req.CreatedAt, r.DecisionNote,
                 r.DecidedByAccountId is { } d ? deciderName.GetValueOrDefault(d) : null, r.DecidedAt, overlaps);
         }).ToList();

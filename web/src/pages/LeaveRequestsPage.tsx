@@ -14,7 +14,7 @@ const MAX_BYTES = 20 * 1024 * 1024
 interface Draft { dates: [string | null, string | null]; kind: LeaveKind; reason: string; file: File | null }
 const blank = (): Draft => ({ dates: [null, null], kind: 'Trip', reason: '', file: null })
 
-const STATUS_COLOR: Record<LeaveRequestStatus, string> = { Pending: 'yellow', Approved: 'teal', Rejected: 'red', Cancelled: 'gray' }
+const STATUS_COLOR: Record<LeaveRequestStatus, string> = { Pending: 'yellow', Approved: 'teal', Rejected: 'red', Cancelled: 'gray', Removed: 'gray' }
 
 /** Officers ask for confirmed leave (trip, CR, relief duty): several date ranges, a reason and an optional document for each. */
 export function LeaveRequestsPage() {
@@ -93,7 +93,7 @@ export function LeaveRequestsPage() {
       </Paper>
 
       <Paper withBorder p="md">
-        <Title order={4} mb="xs">My requests</Title>
+        <Title order={4} mb="xs">My requests and confirmed leave</Title>
         {mine.isLoading ? <Loading /> : mine.error ? <ErrorBox error={mine.error} /> : (mine.data ?? []).length === 0 ? (
           <Text size="sm" c="dimmed">You haven't sent any requests yet.</Text>
         ) : (
@@ -132,8 +132,9 @@ function MyRow({ r, onCancel }: { r: LeaveRequestRange; onCancel: () => void }) 
             </Text>
           )}
           <Text size="xs" c="dimmed">
-            Sent {formatLong(r.submittedAt.slice(0, 10))}
-            {r.decidedAt && r.status !== 'Cancelled' && <> · {r.status.toLowerCase()} {formatLong(r.decidedAt.slice(0, 10))}{r.decidedBy ? ` by ${r.decidedBy}` : ''}</>}
+            {r.addedByAdmin ? <>Added by the admin {formatLong(r.submittedAt.slice(0, 10))}</> : <>Sent {formatLong(r.submittedAt.slice(0, 10))}</>}
+            {r.status === 'Removed' && <> · the admin removed this leave</>}
+            {!r.addedByAdmin && r.status !== 'Removed' && r.decidedAt && r.status !== 'Cancelled' && <> · {r.status.toLowerCase()} {formatLong(r.decidedAt.slice(0, 10))}{r.decidedBy ? ` by ${r.decidedBy}` : ''}</>}
           </Text>
           {r.decisionNote && <Alert color={r.status === 'Rejected' ? 'red' : 'gray'} p="xs" mt={4}><Text size="sm">{r.decisionNote}</Text></Alert>}
         </Stack>

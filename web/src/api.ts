@@ -81,12 +81,14 @@ export const LEAVE_KINDS: { value: LeaveKind; label: string }[] = [
 export const kindLabel = (k: LeaveKind) => LEAVE_KINDS.find(x => x.value === k)?.label ?? k
 export interface UpsertLeaveApproval { personId: string; startDate: IsoDate; endDate: IsoDate; reason: string; reference: string | null; kind?: LeaveKind }
 export interface LeaveApprovalBatchRequest { personId: string; ranges: { startDate: IsoDate; endDate: IsoDate }[]; reason: string; reference: string | null; kind?: LeaveKind }
-export type LeaveRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled'
+export type LeaveRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | 'Removed'
 export interface LeaveRequestRange {
   id: string; requestId: string; personId: string; personCode: string; personName: string
   startDate: IsoDate; endDate: IsoDate; kind: LeaveKind; reason: string; status: LeaveRequestStatus
   documentId: string | null; documentName: string | null; documentSize: number | null; submittedAt: string
   decisionNote: string | null; decidedBy: string | null; decidedAt: string | null; overlaps: string[]
+  /** Confirmed leave the admin entered directly, not from a request. */
+  addedByAdmin?: boolean
 }
 export interface NewLeaveRequestRange { startDate: IsoDate; endDate: IsoDate; kind: LeaveKind; reason: string; file: File | null }
 export interface DecideLeaveRequestResult { range: LeaveRequestRange; warnings: string[] }

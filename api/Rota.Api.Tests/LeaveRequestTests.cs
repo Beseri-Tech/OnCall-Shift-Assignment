@@ -95,9 +95,18 @@ public class LeaveRequestTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal(LeaveRequestStatus.Approved, mine.Single(r => r.Id == relief.Id).Status);
         Assert.Equal("Dates clash", mine.Single(r => r.Id == trip.Id).DecisionNote);
 
+        // Leave the admin enters directly shows up for the officer too, and removing approved leave updates the request.
+        (await admin.PostAsJsonAsync("/api/admin/leave-approvals", new UpsertLeaveApprovalRequest(people[0].Id,
+            new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 3), "Course", null, LeaveKind.Other), ApiFixture.Json)).EnsureSuccessStatusCode();
+        mine = await Read(await officer.GetAsync("/api/leave-requests/mine"));
+        Assert.Contains(mine, r => r.AddedByAdmin && r.Reason == "Course" && r.Status == LeaveRequestStatus.Approved);
+        (await admin.DeleteAsync($"/api/admin/leave-approvals/{a.Id}")).EnsureSuccessStatusCode();
+        mine = await Read(await officer.GetAsync("/api/leave-requests/mine"));
+        Assert.Equal(LeaveRequestStatus.Removed, mine.Single(r => r.Id == relief.Id).Status);
+
         // A decided range can't be decided again or withdrawn.
-        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync($"/api/admin/leave-requests/ranges/{relief.Id}/approve", new { })).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await officer.DeleteAsync($"/api/leave-requests/ranges/{relief.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync($"/api/admin/leave-requests/ranges/{trip.Id}/approve", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await officer.DeleteAsync($"/api/leave-requests/ranges/{trip.Id}")).StatusCode);
     }
 
     [Fact]

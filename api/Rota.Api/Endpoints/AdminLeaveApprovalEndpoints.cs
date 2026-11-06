@@ -57,6 +57,9 @@ public static class AdminLeaveApprovalEndpoints
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             await LockPeriodsAsync(db, approval.StartDate, approval.EndDate, ct);
             await db.LeaveDays.Where(l => l.ApprovalId == id).ExecuteDeleteAsync(ct);
+            // A request that was approved into this leave now shows as removed instead of still approved.
+            await db.LeaveRequestRanges.Where(r => r.ApprovalId == id).ExecuteUpdateAsync(u => u
+                .SetProperty(r => r.Status, LeaveRequestStatus.Removed).SetProperty(r => r.ApprovalId, (Guid?)null), ct);
             db.LeaveApprovals.Remove(approval);
 
             await notify.ToPeopleAsync([approval.PersonId], Notifier.ConfirmedLeave,
