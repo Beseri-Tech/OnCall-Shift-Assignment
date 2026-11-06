@@ -1,5 +1,5 @@
 import {
-  ActionIcon, Alert, Badge, Button, Group, List, Modal, Paper, SegmentedControl, Select, Stack, Text, TextInput, Textarea, Title, Tooltip,
+  ActionIcon, Alert, Badge, Button, Group, List, Modal, Paper, Select, Stack, Table, Text, TextInput, Textarea, Title, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
@@ -24,7 +24,8 @@ type Editing = { id: string | null; value: Partial<UpsertLeaveApproval> }
 export function ConfirmedLeaveTab() {
   const qc = useQueryClient()
   const approvals = useQuery({ queryKey: ['admin', 'leaveApprovals'], queryFn: () => api.admin.leaveApprovals() })
-  const [show, setShow] = useState<'upcoming' | 'all'>('upcoming')
+  const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people })
+  const [f, setF] = useState<Filters>(NO_FILTERS)
   const [editing, setEditing] = useState<Editing | null>(null)
   const [result, setResult] = useState<LeaveApprovalBatchResult | null>(null)
 
@@ -45,16 +46,15 @@ export function ConfirmedLeaveTab() {
   if (approvals.error) return <ErrorBox error={approvals.error} />
 
   const today = todayIso()
-  const rows = (approvals.data ?? []).filter(a => show === 'all' || a.endDate >= today)
-    .sort((a, b) => a.startDate.localeCompare(b.startDate))
-  // One card per officer (sorted by name) with their leave listed under the name.
-  const byPerson = new Map<string, { personId: string; name: string; code: string; items: LeaveApproval[] }>()
-  for (const a of rows) {
-    const g = byPerson.get(a.personId) ?? { personId: a.personId, name: a.personName, code: a.personCode, items: [] }
-    g.items.push(a)
-    byPerson.set(a.personId, g)
-  }
-  const groups = [...byPerson.values()].sort((x, y) => x.name.localeCompare(y.name))
+  const clinicOf = new Map((people.data ?? []).map(p => [p.id, { id: p.clinicId, name: p.clinicName }]))
+  const all = approvals.data ?? []
+  const rows = all.filter(a => matches(a, f, today, clinicOf.get(a.personId)?.id ?? null))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.personName.localeCompare(b.personName))
+  const officerOptions = [...new Map(all.map(a => [a.personId, `${a.personName} (${a.personCode})`])).entries()]
+    .map(([value, label]) => ({ value, label })).sort((x, y) => x.label.localeCompare(y.label))
+  const clinicOptions = [...new Map((people.data ?? []).filter(p => p.clinicId && all.some(a => a.personId === p.id))
+    .map(p => [p.clinicId!, p.clinicName ?? ''])).entries()].map(([value, label]) => ({ value, label })).sort((x, y) => x.label.localeCompare(y.label))
+  const filtered = JSON.stringify(f) !== JSON.stringify(NO_FILTERS)
 
   return (
     <Stack gap="md">
@@ -63,8 +63,6 @@ export function ConfirmedLeaveTab() {
         <Group justify="space-between" mb="xs" wrap="wrap">
           <Group gap={8}><IconPlaneDeparture size={20} /><Title order={4}>Confirmed leave</Title></Group>
           <Group gap="xs">
-            <SegmentedControl size="xs" value={show} onChange={v => setShow(v as 'upcoming' | 'all')}
-              data={[{ value: 'upcoming', label: 'Current and upcoming' }, { value: 'all', label: 'All' }]} />
             <Button leftSection={<IconPlus size={16} />} onClick={() => { setResult(null); setEditing({ id: null, value: {} }) }}>
               Add confirmed leave
             </Button>
@@ -79,42 +77,59 @@ export function ConfirmedLeaveTab() {
 
         {result && <ResultAlert result={result} onClose={() => setResult(null)} />}
 
+        <Group gap="xs" mb="sm" align="flex-end" wrap="wrap">
+          <Select size="xs" label="Officer" placeholder="All" clearable searchable data={officerOptions} w={200}
+            value={f.personId} onChange={v => setF({ ...f, personId: v })} />
+          <Select size="xs" label="Clinic" placeholder="All" clearable searchable data={clinicOptions} w={200}
+            value={f.clinicId} onChange={v => setF({ ...f, clinicId: v })} />
+          <Select size="xs" label="Type" placeholder="All" clearable data={LEAVE_KINDS} w={150}
+            value={f.kind} onChange={v => setF({ ...f, kind: v as LeaveKind | null })} />
+          <Select size="xs" label="Status" allowDeselect={false} w={170} value={f.when}
+            data={[{ value: 'current', label: 'Current and upcoming' }, { value: 'now', label: 'Away now' }, { value: 'past', label: 'Past' }, { value: 'all', label: 'All' }]}
+            onChange={v => setF({ ...f, when: (v as Filters['when']) ?? 'current' })} />
+          <DatePickerInput size="xs" type="range" label="Dates overlapping" placeholder="Any dates" clearable valueFormat="D MMM YYYY"
+            w={220} allowSingleDateInRange value={f.range} onChange={v => setF({ ...f, range: v as [string | null, string | null] })} />
+          {filtered && <Button size="xs" variant="subtle" onClick={() => setF(NO_FILTERS)}>Clear filters</Button>}
+        </Group>
+        <Text size="xs" c="dimmed" mb={6}>
+          {rows.length} {rows.length === 1 ? 'entry' : 'entries'} · {new Set(rows.map(r => r.personId)).size} officer(s)
+        </Text>
+
         {rows.length === 0 ? (
-          <Text size="sm" c="dimmed">{show === 'upcoming' ? 'No current or upcoming confirmed leave.' : 'No confirmed leave yet.'}</Text>
+          <Text size="sm" c="dimmed">{all.length === 0 ? 'No confirmed leave yet.' : 'Nothing matches these filters.'}</Text>
         ) : (
-          <Stack gap="sm">
-            {groups.map(g => (
-              <Paper key={g.personId} withBorder p="sm" radius="md">
-                <Group gap="xs" mb="xs" align="baseline">
-                  <Text fw={700}>{g.name}</Text>
-                  <Text size="xs" c="dimmed">{g.code}</Text>
-                  <Badge variant="light" size="sm">{g.items.length} {g.items.length === 1 ? 'entry' : 'entries'}</Badge>
-                </Group>
-                <Stack gap="xs">
-                  {g.items.map(a => (
-              <Row key={a.id} a={a}
-                onEdit={() => {
-                  setResult(null)
-                  setEditing({ id: a.id, value: { personId: a.personId, startDate: a.startDate, endDate: a.endDate, reason: a.reason, reference: a.reference, kind: a.kind } })
-                }}
-                onDelete={() => modals.openConfirmModal({
-                  title: 'Remove confirmed leave?',
-                  children: (
-                    <Text size="sm">
-                      {a.personName} will no longer be on leave on {formatRange([a.startDate, a.endDate])} and may be put on call on
-                      those days. They'll get a notification and an email.
-                    </Text>
-                  ),
-                  labels: { confirm: 'Remove', cancel: 'Cancel' },
-                  confirmProps: { color: 'red' },
-                  onConfirm: () => remove.mutate(a.id),
-                })}
-              />
-                  ))}
-                </Stack>
-              </Paper>
-            ))}
-          </Stack>
+          <Table.ScrollContainer minWidth={900}>
+            <Table highlightOnHover verticalSpacing={6} stickyHeader>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Officer</Table.Th><Table.Th>Clinic</Table.Th><Table.Th>Dates</Table.Th><Table.Th>Days</Table.Th>
+                  <Table.Th>Type</Table.Th><Table.Th>Reason</Table.Th><Table.Th>Status</Table.Th><Table.Th />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {rows.map(a => (
+                  <LeaveRow key={a.id} a={a} clinic={clinicOf.get(a.personId)?.name ?? null} today={today}
+                    onEdit={() => {
+                      setResult(null)
+                      setEditing({ id: a.id, value: { personId: a.personId, startDate: a.startDate, endDate: a.endDate, reason: a.reason, reference: a.reference, kind: a.kind } })
+                    }}
+                    onDelete={() => modals.openConfirmModal({
+                      title: 'Remove confirmed leave?',
+                      children: (
+                        <Text size="sm">
+                          {a.personName} will no longer be on leave on {formatRange([a.startDate, a.endDate])} and may be put on call on
+                          those days. They'll get a notification and an email.
+                        </Text>
+                      ),
+                      labels: { confirm: 'Remove', cancel: 'Cancel' },
+                      confirmProps: { color: 'red' },
+                      onConfirm: () => remove.mutate(a.id),
+                    })}
+                  />
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
       </Paper>
 
@@ -126,41 +141,70 @@ export function ConfirmedLeaveTab() {
   )
 }
 
-function Row({ a, onEdit, onDelete }: { a: LeaveApproval; onEdit: () => void; onDelete: () => void }) {
+interface Filters {
+  personId: string | null; clinicId: string | null; kind: LeaveKind | null
+  when: 'current' | 'now' | 'past' | 'all'; range: [string | null, string | null]
+}
+const NO_FILTERS: Filters = { personId: null, clinicId: null, kind: null, when: 'current', range: [null, null] }
+
+function matches(a: LeaveApproval, f: Filters, today: string, clinicId: string | null) {
+  if (f.personId && a.personId !== f.personId) return false
+  if (f.clinicId && clinicId !== f.clinicId) return false
+  if (f.kind && a.kind !== f.kind) return false
+  if (f.when === 'current' && a.endDate < today) return false
+  if (f.when === 'now' && !(a.startDate <= today && a.endDate >= today)) return false
+  if (f.when === 'past' && a.endDate >= today) return false
+  const [from, to] = f.range
+  if (from && a.endDate < from) return false
+  if (to && a.startDate > to) return false
+  return true
+}
+
+function LeaveRow({ a, clinic, today, onEdit, onDelete }: {
+  a: LeaveApproval; clinic: string | null; today: string; onEdit: () => void; onDelete: () => void
+}) {
   const days = diffDays(a.startDate, a.endDate) + 1
+  const status = a.endDate < today ? { label: 'Past', color: 'gray' } : a.startDate <= today ? { label: 'Away now', color: 'teal' } : { label: 'Upcoming', color: 'blue' }
   return (
-    <Paper withBorder p="sm" radius="md" style={a.conflicts.length ? { borderColor: 'var(--mantine-color-red-4)' } : undefined}>
-      <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
-        <Group gap="xl" align="flex-start" wrap="wrap" style={{ flex: 1, minWidth: 0, rowGap: 6 }}>
-          <Stack gap={0} w={150}>
-            <Text size="sm" fw={600}>{formatRange([a.startDate, a.endDate])}</Text>
-            <Text size="xs" c="dimmed">{days} day{days === 1 ? '' : 's'}</Text>
-          </Stack>
-          <Stack gap={0} style={{ flex: 1, minWidth: 200 }}>
-            <Group gap={6}><Badge variant="light" size="sm">{kindLabel(a.kind)}</Badge><Text size="sm">{a.reason}</Text></Group>
-            <Text size="xs" c="dimmed">
-              {a.reference ? `Ref. ${a.reference} · ` : ''}Entered by {a.createdBy ?? 'unknown'}, {formatLong(a.createdAt.slice(0, 10))}
-            </Text>
-          </Stack>
-        </Group>
-        <Group gap={4} wrap="nowrap">
-          <Tooltip label="Edit"><ActionIcon variant="subtle" aria-label="Edit" onClick={onEdit}><IconEdit size={16} /></ActionIcon></Tooltip>
-          <Tooltip label="Remove"><ActionIcon variant="subtle" color="red" aria-label="Remove" onClick={onDelete}><IconTrash size={16} /></ActionIcon></Tooltip>
-        </Group>
-      </Group>
-      {a.conflicts.length > 0 && (
-        <Stack gap="xs" mt="sm" p="sm" bg="var(--mantine-color-red-0)" style={{ borderRadius: 8 }}>
-          <Group gap={6} wrap="nowrap" align="flex-start">
-            <IconAlertTriangle size={18} color="var(--mantine-color-red-7)" style={{ flexShrink: 0 }} />
-            <Text size="sm" fw={600}>
-              {a.personName} is on call on {a.conflicts.length} day{a.conflicts.length === 1 ? '' : 's'} of this leave. Give
-              {a.conflicts.length === 1 ? ' that shift' : ' those shifts'} to someone else:
-            </Text>
+    <>
+      <Table.Tr style={a.conflicts.length ? { background: 'var(--mantine-color-red-0)' } : undefined}>
+        <Table.Td><Text size="sm" fw={600}>{a.personName}</Text><Text size="xs" c="dimmed">{a.personCode}</Text></Table.Td>
+        <Table.Td><Text size="sm">{clinic ?? '–'}</Text></Table.Td>
+        <Table.Td style={{ whiteSpace: 'nowrap' }}><Text size="sm" fw={600}>{formatRange([a.startDate, a.endDate])}</Text></Table.Td>
+        <Table.Td>{days}</Table.Td>
+        <Table.Td><Badge variant="light" size="sm">{kindLabel(a.kind)}</Badge></Table.Td>
+        <Table.Td maw={280}>
+          <Text size="sm">{a.reason}</Text>
+          <Text size="xs" c="dimmed">{a.reference ? `Ref. ${a.reference} · ` : ''}Entered by {a.createdBy ?? 'unknown'}, {formatLong(a.createdAt.slice(0, 10))}</Text>
+        </Table.Td>
+        <Table.Td>
+          <Badge color={status.color} size="sm" variant="light">{status.label}</Badge>
+          {a.conflicts.length > 0 && <Badge color="red" size="sm" ml={4} leftSection={<IconAlertTriangle size={10} />}>On call</Badge>}
+        </Table.Td>
+        <Table.Td>
+          <Group gap={4} wrap="nowrap" justify="flex-end">
+            <Tooltip label="Edit"><ActionIcon variant="subtle" aria-label="Edit" onClick={onEdit}><IconEdit size={16} /></ActionIcon></Tooltip>
+            <Tooltip label="Remove"><ActionIcon variant="subtle" color="red" aria-label="Remove" onClick={onDelete}><IconTrash size={16} /></ActionIcon></Tooltip>
           </Group>
-          {a.conflicts.map(c => <ConflictRow key={`${c.runId}:${c.date}`} c={c} />)}
-        </Stack>
+        </Table.Td>
+      </Table.Tr>
+      {a.conflicts.length > 0 && (
+        <Table.Tr style={{ background: 'var(--mantine-color-red-0)' }}>
+          <Table.Td colSpan={8}>
+            <Stack gap="xs" pb="xs">
+              <Group gap={6} wrap="nowrap" align="flex-start">
+                <IconAlertTriangle size={18} color="var(--mantine-color-red-7)" style={{ flexShrink: 0 }} />
+                <Text size="sm" fw={600}>
+                  {a.personName} is on call on {a.conflicts.length} day{a.conflicts.length === 1 ? '' : 's'} of this leave. Give
+                  {a.conflicts.length === 1 ? ' that shift' : ' those shifts'} to someone else:
+                </Text>
+              </Group>
+              {a.conflicts.map(c => <ConflictRow key={`${c.runId}:${c.date}`} c={c} />)}
+            </Stack>
+          </Table.Td>
+        </Table.Tr>
       )}
-    </Paper>
+    </>
   )
 }
 
