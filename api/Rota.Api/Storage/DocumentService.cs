@@ -83,9 +83,9 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
                 : $"Only {AllowedExtensions} files can be uploaded.");
         if (!string.Equals(contentType, type.ContentType, StringComparison.OrdinalIgnoreCase))
             throw new DocumentException(400, "The file type doesn't match its name.");
-        long max = MaxBytes;
+        long max = MaxBytes(kind);
         if (fileSize <= 0) throw new DocumentException(400, "The file is empty.");
-        if (fileSize > max) throw new DocumentException(400, $"The file is too large (limit {Options.MaxFileSizeMb} MB).");
+        if (fileSize > max) throw new DocumentException(400, $"The file is too large (limit {MaxMb(kind)} MB).");
 
         await DiscardStalePendingAsync(ct);
 
@@ -117,7 +117,7 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
 
         var meta = await storage.GetMetadataAsync(doc.ObjectKey, ct);
         if (meta is null) throw new DocumentException(409, "The file hasn't arrived yet. Try again in a moment.");
-        if (meta.Size > MaxBytes || meta.Size != doc.SizeBytes)
+        if (meta.Size > MaxBytes(doc.Kind) || meta.Size != doc.SizeBytes)
             throw await RejectAsync(http, doc, "The uploaded file doesn't match what was announced.", ct);
 
         string ext = Path.GetExtension(doc.FileName).ToLowerInvariant();
@@ -218,7 +218,8 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
 
     // ---- helpers ----
 
-    private long MaxBytes => Options.MaxFileSizeMb * 1024L * 1024L;
+    private int MaxMb(DocumentKind kind) => kind == DocumentKind.Manual ? Math.Max(Options.ManualMaxFileSizeMb, Options.MaxFileSizeMb) : Options.MaxFileSizeMb;
+    private long MaxBytes(DocumentKind kind) => MaxMb(kind) * 1024L * 1024L;
 
     private void RequireStorage()
     {
