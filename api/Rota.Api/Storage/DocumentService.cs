@@ -52,14 +52,15 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
     {
         DocumentKind.Manual => user.IsAdmin(),
         DocumentKind.LeaveDocument => user.PersonId() is not null || user.IsAdmin(),
+        DocumentKind.RotaReport => false,   // only the server saves these, never an upload
         _ => true,
     };
 
     public static bool CanRead(ClaimsPrincipal user, DocumentRecord d) =>
-        user.IsAdmin() || d.Kind == DocumentKind.Manual || IsOwner(user, d);
+        user.IsAdmin() || (d.Kind != DocumentKind.RotaReport && (d.Kind == DocumentKind.Manual || IsOwner(user, d)));
 
     public static bool CanDelete(ClaimsPrincipal user, DocumentRecord d) =>
-        user.IsAdmin() || (d.Kind != DocumentKind.Manual && IsOwner(user, d));
+        user.IsAdmin() || (d.Kind is not (DocumentKind.Manual or DocumentKind.RotaReport) && IsOwner(user, d));
 
     private static bool IsOwner(ClaimsPrincipal user, DocumentRecord d) =>
         (user.AccountId() is { } a && d.UploadedByAccountId == a) ||

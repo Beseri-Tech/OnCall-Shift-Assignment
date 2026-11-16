@@ -21,8 +21,9 @@ RUN dotnet publish Rota.Api/Rota.Api.csproj -c Release -o /app --no-restore
 # ---- runtime: API serves the built web app from wwwroot ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 # Npgsql/.NET probe for GSSAPI at startup; without it the log shows a harmless but noisy error.
+# libfontconfig1: the PDF report engine (QuestPDF) loads it for text rendering.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+ && apt-get install -y --no-install-recommends libgssapi-krb5-2 libfontconfig1 \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=api /app ./

@@ -458,6 +458,8 @@ public enum DocumentKind
     LeaveDocument,
     /// <summary>Anything else an officer uploads: the uploader and admins can read it.</summary>
     Other,
+    /// <summary>The PDF report of a published rota, saved when it is published. Admins only.</summary>
+    RotaReport,
 }
 
 public enum DocumentStatus

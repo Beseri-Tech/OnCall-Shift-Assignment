@@ -54,7 +54,13 @@ export interface OverviewPerson { id: string; code: string; name: string; leave:
 export interface Overview { period: Period; days: OverviewDay[]; people: OverviewPerson[] }
 export interface PublishedRota { period: Period; runId: string; days: RotaDay[]; inReview: boolean }
 
-export type DocumentKind = 'Manual' | 'LeaveDocument' | 'Other'
+export type DocumentKind = 'Manual' | 'LeaveDocument' | 'Other' | 'RotaReport'
+export interface ArchivedReport {
+  documentId: string; runId: string; periodName: string; fileName: string; sizeBytes: number
+  createdAt: string; createdBy: string | null; runIsPublished: boolean
+}
+export interface UnarchivedRun { runId: string; periodName: string; publishedAt: string | null }
+export interface ReportArchive { storageEnabled: boolean; reports: ArchivedReport[]; unarchived: UnarchivedRun[] }
 export interface StoredDocument {
   id: string; kind: DocumentKind; fileName: string; contentType: string; sizeBytes: number
   uploadedAt: string | null; parentType: string | null; parentId: string | null
@@ -395,6 +401,9 @@ export const api = {
       get<AuditPage>(`/api/admin/audit${q({ ...f, page: page?.toString(), pageSize: pageSize?.toString() })}`),
     auditFilters: () => get<AuditFilters>('/api/admin/audit/filters'),
 
+    reportArchive: () => get<ReportArchive>('/api/admin/reports'),
+    archiveReport: (runId: string) => post<ArchivedReport>(`/api/admin/runs/${runId}/report/archive`),
+
     feedback: ({ page, pageSize, ...f }: FeedbackQuery) =>
       get<FeedbackPage>(`/api/admin/feedback${q({ ...f, page: page?.toString(), pageSize: pageSize?.toString() })}`),
     resolveFeedback: (id: number) => post<void>(`/api/admin/feedback/${id}/resolve`),
@@ -402,6 +411,7 @@ export const api = {
 
     exports: {
       timetable: (runId: string) => `${API}/api/admin/runs/${runId}/timetable.xlsx`,
+      report: (runId: string) => `${API}/api/admin/runs/${runId}/report.pdf`,
       tally: () => `${API}/api/admin/tally/export.xlsx`,
       leave: (periodId: string) => `${API}/api/admin/periods/${periodId}/leave.xlsx`,
     },
@@ -433,4 +443,10 @@ export async function uploadDocument(file: File, kind: DocumentKind): Promise<St
 export async function openDocument(id: string): Promise<void> {
   const { downloadUrl } = await api.documents.downloadUrl(id, true)
   window.open(downloadUrl, '_blank', 'noopener')
+}
+
+/** Saves a stored document to disk (not inline) through a short-lived link. */
+export async function downloadDocument(id: string): Promise<void> {
+  const { downloadUrl } = await api.documents.downloadUrl(id, false)
+  window.location.assign(downloadUrl)
 }
