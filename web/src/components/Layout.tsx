@@ -41,7 +41,7 @@ export function Layout() {
   ]
 
   return (
-    <Box mih="100vh" bg="var(--app-bg)">
+    <Box mih="100vh" bg="var(--app-bg)" style={{ display: 'flex', flexDirection: 'column' }}>
       <Box component="header" className="app-header">
         <Container size="xl" h="100%" px={{ base: 'xs', sm: 'md' }}>
           <Group h="100%" justify="space-between" wrap="nowrap" gap="xs">
@@ -142,9 +142,11 @@ export function Layout() {
 
       <FeedbackModal opened={feedback} onClose={() => setFeedback(false)} />
 
-      <Container size="xl" py={{ base: 'md', sm: 'lg' }} px={{ base: 'sm', sm: 'md' }}>
+      <Container size="xl" w="100%" py={{ base: 'md', sm: 'lg' }} px={{ base: 'sm', sm: 'md' }} style={{ flex: 1 }}>
         <Outlet />
-        <Text component={Link} to="/changelog" size="xs" c="dimmed" ta="center" display="block" mt="xl" td="none">
+      </Container>
+      <Container size="xl" w="100%" pb="md" px={{ base: 'sm', sm: 'md' }}>
+        <Text component={Link} to="/changelog" size="xs" c="dimmed" ta="center" display="block" td="none">
           On-Call Rota v{APP_VERSION} · What's new
         </Text>
         <Text size="xs" c="dimmed" ta="center" mt={4}>Developed by Beseri-Tech</Text>
