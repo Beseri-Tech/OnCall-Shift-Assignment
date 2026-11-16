@@ -18,6 +18,12 @@ export const CHANGELOG: Release[] = [
     ],
   },
   {
+    version: '2.6.1', date: '2026-11-16', title: 'Rules page update',
+    changes: [
+      { kind: 'improved', text: 'The Rules page now explains the CL / EX / RW badges on My leave.' },
+    ],
+  },
+  {
     version: '2.6.0', date: '2026-11-16', title: 'New sign-in page',
     changes: [
       { kind: 'improved', text: 'The sign-in page has a fresh split layout with the logo and a short intro; forgot password and choose-password pages match.' },
