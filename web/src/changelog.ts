@@ -12,6 +12,12 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.6.0', date: '2026-11-16', title: 'Shorter generator notes',
+    changes: [
+      { kind: 'improved', text: 'When an admin reviews a generated rota, the generator notes are collapsed to a short summary so the rota is visible straight away. Press "Show all" to read every note.' },
+    ],
+  },
+  {
     version: '2.5.0', date: '2026-11-16', title: 'Versioning and changelog',
     changes: [
       { kind: 'new', text: 'The app now shows its version in the footer and the account menu.' },
