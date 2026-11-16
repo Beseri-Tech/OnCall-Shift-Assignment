@@ -31,6 +31,7 @@ function AuthCard({ title, subtitle, children }: { title: string; subtitle?: str
               ))}
             </Stack>
           </div>
+          <Text size="xs" c="brand.2" className="auth-brand-credit">Developed by Beseri-Tech</Text>
         </div>
       </aside>
       <main className="auth-form-side">
@@ -40,6 +41,7 @@ function AuthCard({ title, subtitle, children }: { title: string; subtitle?: str
             {subtitle && <Text size="sm" c="dimmed" mt={8}>{subtitle}</Text>}
           </div>
           {children}
+          <Text size="xs" c="dimmed" ta="center" className="auth-form-credit">Developed by Beseri-Tech</Text>
         </Stack>
       </main>
     </div>
