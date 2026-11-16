@@ -12,6 +12,12 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.8.2', date: '2026-11-16', title: 'Security updates',
+    changes: [
+      { kind: 'fixed', text: 'Updated two build tools (Vite and source-map-js) to versions with security fixes. Nothing changes in how the app looks or works.' },
+    ],
+  },
+  {
     version: '2.8.1', date: '2026-11-16', title: 'Footer stays at the bottom',
     changes: [
       { kind: 'fixed', text: 'On short pages the footer (version, What\'s new, Developed by Beseri-Tech) now stays at the bottom of the screen instead of floating right under the content. On long pages it still follows the content.' },
