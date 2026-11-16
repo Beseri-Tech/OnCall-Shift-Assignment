@@ -73,6 +73,10 @@ dotnet test api/Rota.sln         # tests
 
 Layout: `api/Rota.Core` (rota algorithm, Excel, leave parsing), `api/Rota.Api` (endpoints, EF/Postgres), `web/` (React + Mantine). CI runs tests, lint, build and the Docker image build.
 
+## Versioning and changelog
+
+The app has one semantic version in `web/package.json`, shown in the footer. Each change that users can see bumps it (MAJOR / MINOR / PATCH) and adds an entry to `web/src/changelog.ts`, which feeds the in-app Changelog page. See [AGENTS.md](AGENTS.md) for the rules.
+
 ## License
 
 [AGPL-3.0](LICENSE.txt)
