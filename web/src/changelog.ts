@@ -12,9 +12,16 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
-    version: '2.5.1', date: '2026-11-16', title: 'Rules page update',
+    version: '2.6.1', date: '2026-11-16', title: 'Rules page update',
     changes: [
       { kind: 'improved', text: 'The Rules page now explains the CL / EX / RW badges on My leave.' },
+    ],
+  },
+  {
+    version: '2.6.0', date: '2026-11-16', title: 'New sign-in page',
+    changes: [
+      { kind: 'improved', text: 'The sign-in page has a fresh split layout with the logo and a short intro; forgot password and choose-password pages match.' },
+      { kind: 'improved', text: 'On phones the sign-in page shows a compact logo header above the form.' },
     ],
   },
   {
