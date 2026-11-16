@@ -34,7 +34,6 @@ export function ChangelogPage() {
           </Stack>
         </Paper>
       ))}
-      <Text size="xs" c="dimmed" ta="center">Developed by Beseri-Tech</Text>
     </Stack>
   )
 }
