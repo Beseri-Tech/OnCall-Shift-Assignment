@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Rota.Api.Data;
+using Rota.Api.Auth;
+using Rota.Api.Reports;
 using Rota.Api.Services;
 using Rota.Core.Excel;
 using Rota.Core.Generation;
@@ -232,6 +234,27 @@ public static class AdminRotaEndpoints
                 .ToList();
 
             return Results.File(ExcelExports.Timetable(days), Xlsx, $"Rota {run.Period.Name}.xlsx");
+        });
+
+        // Record of a published rota for the admin's files: assignments, reasons, swaps, overrides and the audit trail.
+        g.MapGet("/runs/{id:guid}/report.pdf", async (Guid id, RotaDbContext db, LeaveLimits limits, LocalClock clock, HttpContext http,
+            CancellationToken ct) =>
+        {
+            var run = await db.Runs.Include(r => r.Period).FirstOrDefaultAsync(r => r.Id == id, ct);
+            if (run?.Period is null) return Results.NotFound();
+            if (!run.IsPublished)
+                return Results.Problem("The report is only available once the rota is published.", statusCode: StatusCodes.Status409Conflict);
+
+            var accountId = http.User.AccountId();
+            string by = await db.Accounts.Where(a => a.Id == accountId).Select(a => a.Person != null ? a.Person.Name : a.Email)
+                .FirstOrDefaultAsync(ct) ?? "Admin";
+            var data = await RotaReportBuilder.BuildAsync(db, limits, clock, id, by, ct);
+            if (data is null) return Results.NotFound();
+
+            var pdf = await Task.Run(() => RotaReportPdf.Render(data), ct);
+            Mapping.Log(db, http, "run.report", null, new { period = run.Period.Name }, id);
+            await db.SaveChangesAsync(ct);
+            return Results.File(pdf, "application/pdf", $"Rota report {run.Period.Name}.pdf");
         });
 
         g.MapGet("/periods/{id:guid}/leave.xlsx", async (Guid id, RotaDbContext db, CancellationToken ct) =>

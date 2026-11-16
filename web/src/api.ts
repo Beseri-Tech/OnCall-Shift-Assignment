@@ -402,6 +402,7 @@ export const api = {
 
     exports: {
       timetable: (runId: string) => `${API}/api/admin/runs/${runId}/timetable.xlsx`,
+      report: (runId: string) => `${API}/api/admin/runs/${runId}/report.pdf`,
       tally: () => `${API}/api/admin/tally/export.xlsx`,
       leave: (periodId: string) => `${API}/api/admin/periods/${periodId}/leave.xlsx`,
     },

@@ -12,6 +12,12 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.8.0', date: '2026-11-16', title: 'Published rota report',
+    changes: [
+      { kind: 'new', text: 'Admins can download a PDF report of a published rota from the Rota tab ("Report (PDF)"). It has a cover page, the final assignments, why each officer is on each day, every swap, admin overrides with who and when, officer totals and leave points, and the audit trail.' },
+    ],
+  },
+  {
     version: '2.7.0', date: '2026-11-16', title: 'Shorter generator notes',
     changes: [
       { kind: 'improved', text: 'When an admin reviews a generated rota, the generator notes are collapsed to a short summary so the rota is visible straight away. Press "Show all" to read every note.' },

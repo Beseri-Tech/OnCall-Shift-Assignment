@@ -5,7 +5,7 @@ import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconAlertTriangle, IconArrowsExchange, IconChevronDown, IconChevronUp, IconDownload, IconEye, IconEyeOff, IconLock, IconTrash, IconWand,
+  IconAlertTriangle, IconArrowsExchange, IconChevronDown, IconChevronUp, IconDownload, IconEye, IconEyeOff, IconFileText, IconLock, IconTrash, IconWand,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api, type Period, type RotaDay, type RunDetail } from '../../api'
@@ -167,6 +167,11 @@ function RunView({ runId, period, onChanged, onDeleted }: {
             <Button variant="default" leftSection={<IconDownload size={16} />} component="a" href={api.admin.exports.timetable(run.id)}>
               Timetable (Excel)
             </Button>
+            {run.isPublished && (
+              <Button variant="default" leftSection={<IconFileText size={16} />} component="a" href={api.admin.exports.report(run.id)}>
+                Report (PDF)
+              </Button>
+            )}
             {run.isPublished ? (
               <Button color="orange" variant="light" leftSection={<IconEyeOff size={16} />} loading={act.isPending}
                 onClick={() => act.mutate('unpublish')}>Unpublish</Button>
