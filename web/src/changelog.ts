@@ -12,6 +12,12 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.8.1', date: '2026-11-16', title: 'Footer stays at the bottom',
+    changes: [
+      { kind: 'fixed', text: 'On short pages the footer (version, What\'s new, Developed by Beseri-Tech) now stays at the bottom of the screen instead of floating right under the content. On long pages it still follows the content.' },
+    ],
+  },
+  {
     version: '2.8.0', date: '2026-11-16', title: 'Published rota report',
     changes: [
       { kind: 'new', text: 'Admins can download a PDF report of a published rota from the Rota tab ("Report (PDF)"). It has a cover page, the final assignments, why each officer is on each day, every swap, admin overrides with who and when, officer totals and leave points, and the audit trail.' },
