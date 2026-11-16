@@ -2,13 +2,14 @@ import { Box, Burger, Container, Divider, Drawer, Group, Menu, ScrollArea, Stack
 import { useDisclosure } from '@mantine/hooks'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  IconBook, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconKey, IconLayoutGrid, IconLogout, IconMessage2, IconPlaneDeparture, IconShieldLock, IconUserCircle,
+  IconBook, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconHistory, IconKey, IconLayoutGrid, IconLogout, IconMessage2, IconPlaneDeparture, IconShieldLock, IconUserCircle,
 } from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { api } from '../api'
 import { isAdmin, useMe } from '../auth'
 import { FeedbackButton, FeedbackModal } from './FeedbackButton'
+import { APP_VERSION } from '../changelog'
 import { NotificationBell } from './NotificationBell'
 
 /** Below this the header nav moves into a side drawer (Mantine's md: 62em, about 992px), so phones and tablets get the menu. */
@@ -79,6 +80,7 @@ export function Layout() {
                       <Text size="xs" c="dimmed">{me?.email} · {me?.role}</Text>
                     </Menu.Label>
                     <Menu.Item leftSection={<IconKey size={16} />} component={Link} to="/account/password">Change password</Menu.Item>
+                    <Menu.Item leftSection={<IconHistory size={16} />} component={Link} to="/changelog">Changelog · v{APP_VERSION}</Menu.Item>
                     <Menu.Item leftSection={<IconLogout size={16} />} onClick={() => logout.mutate()}>Sign out</Menu.Item>
                   </Menu.Dropdown>
                 </Menu>
@@ -126,6 +128,10 @@ export function Layout() {
               <IconKey size={20} stroke={1.8} />
               <span>Change password</span>
             </UnstyledButton>
+            <UnstyledButton component={Link} to="/changelog" className="drawer-link">
+              <IconHistory size={20} stroke={1.8} />
+              <span>Changelog · v{APP_VERSION}</span>
+            </UnstyledButton>
             <UnstyledButton className="drawer-link" onClick={() => logout.mutate()}>
               <IconLogout size={20} stroke={1.8} />
               <span>Sign out</span>
@@ -138,6 +144,10 @@ export function Layout() {
 
       <Container size="xl" py={{ base: 'md', sm: 'lg' }} px={{ base: 'sm', sm: 'md' }}>
         <Outlet />
+        <Text component={Link} to="/changelog" size="xs" c="dimmed" ta="center" display="block" mt="xl" td="none">
+          On-Call Rota v{APP_VERSION} · What's new
+        </Text>
+        <Text size="xs" c="dimmed" ta="center" mt={4}>Developed by Beseri-Tech</Text>
       </Container>
     </Box>
   )
