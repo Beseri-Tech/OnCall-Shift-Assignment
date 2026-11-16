@@ -163,7 +163,8 @@ public static class AdminRotaEndpoints
             return Results.NoContent();
         });
 
-        g.MapPost("/runs/{id:guid}/publish", async (Guid id, RotaDbContext db, Notifier notify, HttpContext http, CancellationToken ct) =>
+        g.MapPost("/runs/{id:guid}/publish", async (Guid id, RotaDbContext db, Notifier notify, ReportArchive archive, HttpContext http,
+            CancellationToken ct) =>
         {
             var run = await db.Runs.Include(r => r.Period).Include(r => r.Assignments).FirstOrDefaultAsync(r => r.Id == id, ct);
             if (run?.Period is null) return Results.NotFound();
@@ -187,6 +188,9 @@ public static class AdminRotaEndpoints
             Mapping.Log(db, http, "run.publish", null, new { period = run.Period.Name }, id);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
+
+            // Keep a PDF record of the published rota in R2 (never blocks the publish).
+            await archive.TrySaveAsync(id, http.User.AccountId(), ct);
             return Results.NoContent();
         });
 
@@ -237,17 +241,15 @@ public static class AdminRotaEndpoints
         });
 
         // Record of a published rota for the admin's files: assignments, reasons, swaps, overrides and the audit trail.
-        g.MapGet("/runs/{id:guid}/report.pdf", async (Guid id, RotaDbContext db, LeaveLimits limits, LocalClock clock, HttpContext http,
-            CancellationToken ct) =>
+        g.MapGet("/runs/{id:guid}/report.pdf", async (Guid id, RotaDbContext db, LeaveLimits limits, LocalClock clock, ReportArchive archive,
+            HttpContext http, CancellationToken ct) =>
         {
             var run = await db.Runs.Include(r => r.Period).FirstOrDefaultAsync(r => r.Id == id, ct);
             if (run?.Period is null) return Results.NotFound();
             if (!run.IsPublished)
                 return Results.Problem("The report is only available once the rota is published.", statusCode: StatusCodes.Status409Conflict);
 
-            var accountId = http.User.AccountId();
-            string by = await db.Accounts.Where(a => a.Id == accountId).Select(a => a.Person != null ? a.Person.Name : a.Email)
-                .FirstOrDefaultAsync(ct) ?? "Admin";
+            string by = await archive.NameOfAsync(http.User.AccountId(), ct);
             var data = await RotaReportBuilder.BuildAsync(db, limits, clock, id, by, ct);
             if (data is null) return Results.NotFound();
 
@@ -255,6 +257,25 @@ public static class AdminRotaEndpoints
             Mapping.Log(db, http, "run.report", null, new { period = run.Period.Name }, id);
             await db.SaveChangesAsync(ct);
             return Results.File(pdf, "application/pdf", $"Rota report {run.Period.Name}.pdf");
+        });
+
+        // The saved PDF reports (kept in R2) and the published rotas that don't have one yet.
+        g.MapGet("/reports", async (ReportArchive archive, CancellationToken ct) => await archive.ListAsync(ct));
+
+        g.MapPost("/runs/{id:guid}/report/archive", async (Guid id, ReportArchive archive, RotaDbContext db, HttpContext http,
+            CancellationToken ct) =>
+        {
+            if (!archive.Enabled)
+                return Results.Problem("Document storage isn't set up yet. Ask the admin to configure Cloudflare R2.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            var run = await db.Runs.FindAsync([id], ct);
+            if (run is null) return Results.NotFound();
+            if (!run.IsPublished)
+                return Results.Problem("The report is only available once the rota is published.", statusCode: StatusCodes.Status409Conflict);
+            var saved = await archive.SaveAsync(id, http.User.AccountId(), ct);
+            if (saved is null) return Results.NotFound();
+            Mapping.Log(db, http, "run.report-save", null, new { period = saved.PeriodName }, id);
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(saved);
         });
 
         g.MapGet("/periods/{id:guid}/leave.xlsx", async (Guid id, RotaDbContext db, CancellationToken ct) =>

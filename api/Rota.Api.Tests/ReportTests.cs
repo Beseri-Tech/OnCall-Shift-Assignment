@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using Rota.Api.Data;
+using Rota.Api.Reports;
+using Rota.Api.Storage;
 
 namespace Rota.Api.Tests;
 
@@ -73,5 +77,43 @@ public class ReportTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         // Set ROTA_REPORT_SAMPLE to a file path to keep the PDF (used for the sample report).
         if (Environment.GetEnvironmentVariable("ROTA_REPORT_SAMPLE") is { Length: > 0 } path) await File.WriteAllBytesAsync(path, pdf);
+    }
+
+    [Fact]
+    public async Task Publishing_saves_the_report_to_storage_and_admins_can_list_and_download_it()
+    {
+        var storage = new DocumentTests.FakeStorage();
+        await using var app = fixture.CreateApp().WithWebHostBuilder(b => b.ConfigureServices(s => s.AddSingleton<IDocumentStorage>(storage)));
+        var admin = await ApiFixture.AdminClientAsync(app);
+        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names = "Dr A\nDr B\nDr C" })).EnsureSuccessStatusCode();
+        var people = await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"));
+        var period = await Read<PeriodDto>(await admin.PostAsJsonAsync("/api/admin/periods",
+            new UpsertPeriodRequest("Jan 2027", new DateOnly(2027, 1, 4), new DateOnly(2027, 1, 10), null), ApiFixture.Json));
+        var officer = await ApiFixture.OfficerClientAsync(app, admin, people[0].Id);
+        (await admin.PostAsync($"/api/admin/periods/{period.Id}/lock", null)).EnsureSuccessStatusCode();
+        var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{period.Id}/generate", new GenerateRequest(3)));
+
+        var before = await Read<ReportArchiveDto>(await admin.GetAsync("/api/admin/reports"));
+        Assert.True(before.StorageEnabled);
+        Assert.Empty(before.Reports);
+
+        (await admin.PostAsync($"/api/admin/runs/{run.Run.Id}/publish", null)).EnsureSuccessStatusCode();
+        var after = await Read<ReportArchiveDto>(await admin.GetAsync("/api/admin/reports"));
+        var saved = Assert.Single(after.Reports);
+        Assert.Equal("Jan 2027", saved.PeriodName);
+        Assert.Empty(after.Unarchived);
+        Assert.StartsWith("%PDF-", System.Text.Encoding.ASCII.GetString(storage.Objects.Single(o => o.Key.StartsWith("reports/")).Value, 0, 5));
+
+        // Admins get a short-lived link; officers get nothing.
+        (await admin.GetAsync($"/api/documents/{saved.DocumentId}/download-url")).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.NotFound, (await officer.GetAsync($"/api/documents/{saved.DocumentId}/download-url")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await officer.GetAsync("/api/admin/reports")).StatusCode);
+
+        // A fresh snapshot can be saved again; unpublished rotas can't.
+        (await admin.PostAsync($"/api/admin/runs/{run.Run.Id}/report/archive", null)).EnsureSuccessStatusCode();
+        Assert.Equal(2, (await Read<ReportArchiveDto>(await admin.GetAsync("/api/admin/reports"))).Reports.Count);
+        (await admin.PostAsync($"/api/admin/runs/{run.Run.Id}/unpublish", null)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Conflict, (await admin.PostAsync($"/api/admin/runs/{run.Run.Id}/report/archive", null)).StatusCode);
+        Assert.All((await Read<ReportArchiveDto>(await admin.GetAsync("/api/admin/reports"))).Reports, r => Assert.False(r.RunIsPublished));
     }
 }

@@ -14,7 +14,7 @@ namespace Rota.Api.Tests;
 public class DocumentTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
     /// <summary>In-memory stand-in for R2: "uploading" writes straight into it.</summary>
-    private sealed class FakeStorage : IDocumentStorage
+    internal sealed class FakeStorage : IDocumentStorage
     {
         public readonly ConcurrentDictionary<string, byte[]> Objects = new();
         public bool IsEnabled { get; set; } = true;
