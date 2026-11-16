@@ -1,11 +1,11 @@
 import {
-  Alert, Badge, Button, Group, List, Modal, NumberInput, Paper, Select, Stack, Table, Text, Title, Tooltip,
+  Alert, Badge, Button, Collapse, Group, List, ScrollArea, Modal, NumberInput, Paper, Select, Stack, Table, Text, Title, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconAlertTriangle, IconArrowsExchange, IconDownload, IconEye, IconEyeOff, IconLock, IconTrash, IconWand,
+  IconAlertTriangle, IconArrowsExchange, IconChevronDown, IconChevronUp, IconDownload, IconEye, IconEyeOff, IconLock, IconTrash, IconWand,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api, type Period, type RotaDay, type RunDetail } from '../../api'
@@ -199,11 +199,7 @@ function RunView({ runId, period, onChanged, onDeleted }: {
             )}
           </Group>
         </Group>
-        {run.warnings.length > 0 && (
-          <Alert mt="md" color={run.unassigned || run.consecutivePairs ? 'orange' : 'brand'} icon={<IconAlertTriangle />} title="Notes from the generator">
-            <List size="sm" spacing={2}>{run.warnings.map((w, i) => <List.Item key={i}>{w}</List.Item>)}</List>
-          </Alert>
-        )}
+        {run.warnings.length > 0 && <GeneratorNotes warnings={run.warnings} attention={!!(run.unassigned || run.consecutivePairs)} />}
       </Paper>
 
       <Stack gap="md">
@@ -230,6 +226,29 @@ function RunView({ runId, period, onChanged, onDeleted }: {
           onSaved={() => qc.invalidateQueries({ queryKey: ['admin', 'run', runId] })} />
       )}
     </Stack>
+  )
+}
+
+function GeneratorNotes({ warnings, attention }: { warnings: string[]; attention: boolean }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Alert mt="md" py="xs" color={attention ? 'orange' : 'brand'} icon={<IconAlertTriangle />}
+      title={
+        <Group gap="xs" justify="space-between" wrap="nowrap">
+          <Text fw={600} size="sm">Notes from the generator ({warnings.length})</Text>
+          <Button size="compact-xs" variant="subtle" color="gray" onClick={() => setOpen(o => !o)}
+            rightSection={open ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}>
+            {open ? 'Hide' : 'Show all'}
+          </Button>
+        </Group>
+      }>
+      {!open && <Text size="sm" lineClamp={1}>{warnings[0]}</Text>}
+      <Collapse expanded={open}>
+        <ScrollArea.Autosize mah={220} type="auto">
+          <List size="sm" spacing={2}>{warnings.map((w, i) => <List.Item key={i}>{w}</List.Item>)}</List>
+        </ScrollArea.Autosize>
+      </Collapse>
+    </Alert>
   )
 }
 
