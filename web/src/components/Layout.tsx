@@ -147,6 +147,7 @@ export function Layout() {
         <Text component={Link} to="/changelog" size="xs" c="dimmed" ta="center" display="block" mt="xl" td="none">
           On-Call Rota v{APP_VERSION} · What's new
         </Text>
+        <Text size="xs" c="dimmed" ta="center" mt={4}>Developed by Beseri-Tech</Text>
       </Container>
     </Box>
   )
