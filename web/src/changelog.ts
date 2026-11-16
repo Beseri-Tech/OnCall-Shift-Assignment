@@ -12,6 +12,12 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.5.1', date: '2026-11-16', title: 'Rules page update',
+    changes: [
+      { kind: 'improved', text: 'The Rules page now explains the CL / EX / RW badges on My leave.' },
+    ],
+  },
+  {
     version: '2.5.0', date: '2026-11-16', title: 'Versioning and changelog',
     changes: [
       { kind: 'new', text: 'The app now shows its version in the footer and the account menu.' },
