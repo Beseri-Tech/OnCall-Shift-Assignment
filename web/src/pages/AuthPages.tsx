@@ -1,6 +1,6 @@
-import { Alert, Anchor, Box, Button, Center, Group, Paper, PasswordInput, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core'
+import { Alert, Anchor, Button, Group, PasswordInput, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { IconCircleCheck, IconLock } from '@tabler/icons-react'
+import { IconArrowsExchange, IconCalendarEvent, IconCircleCheck, IconScale } from '@tabler/icons-react'
 import { useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { api } from '../api'
@@ -10,33 +10,49 @@ import { notifyOk } from '../lib'
 
 function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <Box mih="100vh" className="auth-bg">
-      <Center py={60} px="md">
-        <Stack w="100%" maw={420} gap="lg">
-          <Group gap="sm" justify="center" wrap="nowrap">
-            <div className="brand-mark"><img src="/favicon.svg" width={26} height={26} alt="" /></div>
+    <div className="auth-split">
+      <aside className="auth-brand">
+        <div className="auth-brand-inner">
+          <Group gap="sm" wrap="nowrap">
+            <div className="brand-mark brand-mark-lg"><img src="/favicon.svg" width={34} height={34} alt="" /></div>
             <div>
               <Text fw={800} size="xl" c="white" lh={1.1}>On-Call Rota</Text>
               <Text size="sm" c="brand.1" lh={1.2}>Dental Officers · Perlis</Text>
             </div>
           </Group>
-        <Paper shadow="xl" p="xl" radius="lg">
-          <Stack>
-            <div>
-              <Group gap="sm" wrap="nowrap" align="center">
-                <ThemeIcon size={36} radius="md" variant="light"><IconLock size={20} /></ThemeIcon>
-                <Title order={3} c="brand.9">{title}</Title>
-              </Group>
-              {subtitle && <Text size="sm" c="dimmed" mt={8}>{subtitle}</Text>}
-            </div>
-            {children}
-          </Stack>
-        </Paper>
+          <div className="auth-brand-copy">
+            <Title order={2} c="white" fw={800} lh={1.2}>Fair on-call shifts, planned together.</Title>
+            <Stack gap="md" mt="xl">
+              {FEATURES.map(({ icon: Icon, text }) => (
+                <Group key={text} gap="sm" wrap="nowrap" align="flex-start">
+                  <ThemeIcon size={30} radius="md" variant="white" color="brand"><Icon size={18} /></ThemeIcon>
+                  <Text c="brand.0" size="sm" mt={4}>{text}</Text>
+                </Group>
+              ))}
+            </Stack>
+          </div>
+          <Text size="xs" c="brand.2" className="auth-brand-credit">Developed by Beseri-Tech</Text>
+        </div>
+      </aside>
+      <main className="auth-form-side">
+        <Stack w="100%" maw={400} gap="lg">
+          <div>
+            <Title order={2} c="brand.9">{title}</Title>
+            {subtitle && <Text size="sm" c="dimmed" mt={8}>{subtitle}</Text>}
+          </div>
+          {children}
+          <Text size="xs" c="dimmed" ta="center" className="auth-form-credit">Developed by Beseri-Tech</Text>
         </Stack>
-      </Center>
-    </Box>
+      </main>
+    </div>
   )
 }
+
+const FEATURES = [
+  { icon: IconCalendarEvent, text: 'Enter your leave and preferred days in one place.' },
+  { icon: IconScale, text: 'Points keep the load fair for every officer.' },
+  { icon: IconArrowsExchange, text: 'See the rota and swap shifts with colleagues.' },
+]
 
 export function LoginPage() {
   const qc = useQueryClient()

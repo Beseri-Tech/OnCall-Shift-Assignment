@@ -12,9 +12,16 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
-    version: '2.6.0', date: '2026-11-16', title: 'Shorter generator notes',
+    version: '2.7.0', date: '2026-11-16', title: 'Shorter generator notes',
     changes: [
       { kind: 'improved', text: 'When an admin reviews a generated rota, the generator notes are collapsed to a short summary so the rota is visible straight away. Press "Show all" to read every note.' },
+    ],
+  },
+  {
+    version: '2.6.0', date: '2026-11-16', title: 'New sign-in page',
+    changes: [
+      { kind: 'improved', text: 'The sign-in page has a fresh split layout with the logo and a short intro; forgot password and choose-password pages match.' },
+      { kind: 'improved', text: 'On phones the sign-in page shows a compact logo header above the form.' },
     ],
   },
   {
