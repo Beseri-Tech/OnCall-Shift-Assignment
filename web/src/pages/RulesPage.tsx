@@ -134,6 +134,10 @@ export function RulesPage() {
           </List.Item>
           <List.Item><b>Weekday allowance:</b> up to half of the normal weekdays in the period.</List.Item>
           <List.Item>
+            <b>On My leave, small badges show where your points come from:</b> <b>CL</b> is points or weekdays taken off for
+            confirmed leave, <b>EX</b> is extra points from the admin and <b>RW</b> is reward points. Hover or tap a badge for the detail.
+          </List.Item>
+          <List.Item>
             <b>Daily limit, first come first served:</b> at most 30% of on-call officers off on a weekend, public holiday or
             peak day, and 50% on other days. Officers on confirmed leave that day are taken out first: the limit is worked out on the officers available. Full days show <b>striped</b> on the calendar.
           </List.Item>
@@ -281,6 +285,8 @@ export function RulesPage() {
           <List.Item>Any question about points, limits or your tally: ask the admin.</List.Item>
         </List>
       </Alert>
+
+      <Text size="xs" c="dimmed" ta="center" pb="md">Developed by Beseri-Tech</Text>
     </Stack>
   )
 }
