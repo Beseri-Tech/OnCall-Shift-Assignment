@@ -274,7 +274,7 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
         while (true)
         {
             var stale = await db.Documents.Where(d => d.Status == DocumentStatus.Pending && d.CreatedAt < quarantineCutoff)
-                .OrderBy(d => d.CreatedAt).Take(100).ToListAsync(ct);
+                .OrderBy(d => d.CreatedAt).ThenBy(d => d.Id).Take(100).ToListAsync(ct);
             foreach (var d in stale) await RemoveAsync(d, ct);
             await db.SaveChangesAsync(ct);
             removed += stale.Count;
@@ -286,7 +286,7 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
             .Where(r => r.DocumentId != null &&
                         (r.Status == LeaveRequestStatus.Cancelled ||
                          (r.Status == LeaveRequestStatus.Rejected && r.DecidedAt != null && r.DecidedAt < rejectedCutoff)))
-            .Take(200).ToListAsync(ct);
+            .OrderBy(r => r.Id).Take(200).ToListAsync(ct);
         foreach (var r in ranges)
         {
             var docs = await db.Documents.Where(d => d.ParentType == "ConfirmedLeaveRange" && d.ParentId == r.Id.ToString() &&
@@ -302,7 +302,8 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
     private async Task DiscardStalePendingAsync(CancellationToken ct)
     {
         var cutoff = clock.GetUtcNow() - PendingLifetime;
-        var stale = await db.Documents.Where(d => d.Status == DocumentStatus.Pending && d.CreatedAt < cutoff).Take(50).ToListAsync(ct);
+        var stale = await db.Documents.Where(d => d.Status == DocumentStatus.Pending && d.CreatedAt < cutoff)
+            .OrderBy(d => d.CreatedAt).ThenBy(d => d.Id).Take(50).ToListAsync(ct);
         foreach (var d in stale) await RemoveAsync(d, ct);
         if (stale.Count > 0) await db.SaveChangesAsync(ct);
     }
