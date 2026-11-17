@@ -12,9 +12,15 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
-    version: '2.8.2', date: '2026-11-16', title: 'Security updates',
+    version: '2.8.3', date: '2026-11-17', title: 'Security updates',
     changes: [
       { kind: 'fixed', text: 'Updated two build tools (Vite and source-map-js) to versions with security fixes. Nothing changes in how the app looks or works.' },
+    ],
+  },
+  {
+    version: '2.8.2', date: '2026-11-17', title: 'Saving rota reports',
+    changes: [
+      { kind: 'fixed', text: 'Saving a rota report to private storage no longer fails with a server error. If saving ever fails again, the Reports tab now says why.' },
     ],
   },
   {
