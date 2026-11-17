@@ -21,7 +21,7 @@ public static class AdminLocationEndpoints
         // The whole tree above clinics: states with their districts.
         g.MapGet("/", async (RotaDbContext db, CancellationToken ct) =>
         {
-            var states = await db.States.Include(s => s.Districts).ThenInclude(d => d.Clinics).OrderBy(s => s.Name).ToListAsync(ct);
+            var states = await db.States.Include(s => s.Districts).ThenInclude(d => d.Clinics).AsSplitQuery().OrderBy(s => s.Name).ToListAsync(ct);
             return states.Select(s => new StateDto(s.Id, s.Name,
                 s.Districts.OrderBy(d => d.Name).Select(d => new DistrictDto(d.Id, d.Name, d.Clinics.Count)).ToList())).ToList();
         });
