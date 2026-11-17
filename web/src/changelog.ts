@@ -12,6 +12,12 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.8.2', date: '2026-11-17', title: 'Saving rota reports',
+    changes: [
+      { kind: 'fixed', text: 'Saving a rota report to private storage no longer fails with a server error. If saving ever fails again, the Reports tab now says why.' },
+    ],
+  },
+  {
     version: '2.8.1', date: '2026-11-16', title: 'Footer stays at the bottom',
     changes: [
       { kind: 'fixed', text: 'On short pages the footer (version, What\'s new, Developed by Beseri-Tech) now stays at the bottom of the screen instead of floating right under the content. On long pages it still follows the content.' },
