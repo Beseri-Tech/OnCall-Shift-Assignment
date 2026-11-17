@@ -263,7 +263,7 @@ public static class AdminRotaEndpoints
         g.MapGet("/reports", async (ReportArchive archive, CancellationToken ct) => await archive.ListAsync(ct));
 
         g.MapPost("/runs/{id:guid}/report/archive", async (Guid id, ReportArchive archive, RotaDbContext db, HttpContext http,
-            CancellationToken ct) =>
+            ILogger<ReportArchive> log, CancellationToken ct) =>
         {
             if (!archive.Enabled)
                 return Results.Problem("Document storage isn't set up yet. Ask the admin to configure Cloudflare R2.", statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -271,7 +271,14 @@ public static class AdminRotaEndpoints
             if (run is null) return Results.NotFound();
             if (!run.IsPublished)
                 return Results.Problem("The report is only available once the rota is published.", statusCode: StatusCodes.Status409Conflict);
-            var saved = await archive.SaveAsync(id, http.User.AccountId(), ct);
+            ArchivedReportDto? saved;
+            try { saved = await archive.SaveAsync(id, http.User.AccountId(), ct); }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                log.LogError(e, "Could not save the PDF report for rota run {RunId}", id);
+                return Results.Problem($"The report could not be saved ({e.GetType().Name}: {e.Message}). Check the R2 settings and try again.",
+                    statusCode: StatusCodes.Status502BadGateway);
+            }
             if (saved is null) return Results.NotFound();
             Mapping.Log(db, http, "run.report-save", null, new { period = saved.PeriodName }, id);
             await db.SaveChangesAsync(ct);

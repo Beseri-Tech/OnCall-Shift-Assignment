@@ -94,6 +94,10 @@ public sealed class R2DocumentStorage : IDocumentStorage, IDisposable
             Key = objectKey,
             InputStream = buffer,
             ContentType = contentType,
+            // R2 rejects the SDK's default streaming (aws-chunked) signed body; send it with an unsigned payload over HTTPS,
+            // as Cloudflare's own .NET example does.
+            DisablePayloadSigning = true,
+            UseChunkEncoding = false,
         }, ct);
     }
 
