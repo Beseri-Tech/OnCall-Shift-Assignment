@@ -12,6 +12,12 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.8.5', date: '2026-11-18', title: 'Lighter server',
+    changes: [
+      { kind: 'improved', text: 'The server now runs on a smaller, leaner base system, so it starts faster and has less that needs security patching. Nothing changes in how the app looks or works.' },
+    ],
+  },
+  {
     version: '2.8.4', date: '2026-11-17', title: 'Behind-the-scenes tuning',
     changes: [
       { kind: 'improved', text: 'Tidied how the server reads data so it stays quick as more officers and clinics are added. Nothing changes in how the app looks or works.' },
