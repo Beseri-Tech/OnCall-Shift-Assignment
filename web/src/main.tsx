@@ -27,6 +27,8 @@ import { RulesPage } from './pages/RulesPage'
 // Admin screens are only needed by the admin, so they load on demand.
 // oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
 const AdminPage = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const CasesPage = lazy(() => import('./pages/CasesPage').then(m => ({ default: m.CasesPage })))
 
 // Clinical teal. Shade 7 is the default so white button text keeps 4.5:1 contrast.
 const theme = createTheme({
@@ -76,6 +78,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="rules" element={<RulesPage />} />
                   <Route path="changelog" element={<ChangelogPage />} />
                   <Route path="leave-requests" element={<LeaveRequestsPage />} />
+                  <Route path="cases" element={<Suspense fallback={<Loading />}><CasesPage /></Suspense>} />
                   <Route element={<AdminOnly />}>
                     <Route path="leave" element={<LeavePage />} />
                     <Route path="admin/*" element={<Suspense fallback={<Loading />}><AdminPage /></Suspense>} />

@@ -144,6 +144,20 @@ export interface Account {
   /** The hospital it belongs to; null for masters. */
   facilityId: string | null; facilityCode: string | null
 }
+/** One patient seen on call. Times are "HH:mm:ss"; a finish at or before the start is the next day. */
+export interface CaseInput {
+  date: IsoDate; timeStart: string; timeFinish: string; onCallDate: IsoDate | null
+  patientName: string; patientIdNo: string; gender: string; age: string | null; race: string | null
+  referralSource: string | null; department: string | null; diagnosis: string | null; management: string | null; plan: string | null
+  /** The on-call officer in charge; null = whoever the rota has on call that date. */
+  officerId: string | null; taggers: string | null; dsaName: string | null; dsaStatus: string | null; confidential: boolean
+}
+export interface OnCallCase extends Omit<CaseInput, 'onCallDate' | 'officerId'> {
+  id: string; personId: string; officer: string; recordedBy: string; onCallDate: IsoDate; minutes: number; canEdit: boolean
+  updatedAt: string
+}
+export interface CaseImportRow { line: number; date: IsoDate | null; officer: string | null; duplicate: boolean; errors: ImportError[] }
+export interface CaseImportResult { rows: CaseImportRow[]; fileErrors: string[]; committed: boolean; added: number; duplicates: number }
 /** configured: SMTP is set up on the server; enabled: the masters' on/off switch. */
 export interface EmailSettings { configured: boolean; enabled: boolean }
 /** tempPassword only comes back when the email could not be sent. */
@@ -318,6 +332,19 @@ export const api = {
   sendFeedback: (category: FeedbackCategory, message: string, page: string | null, toFacility: boolean) =>
     post<{ id: number }>('/api/feedback', { category, message, page, toFacility }),
   facilities: () => get<Facility[]>('/api/facilities'),
+
+  /** The on-call case log (patient data: never put any of it in a URL). month = yyyy-MM. */
+  cases: {
+    list: (month: string, personId?: string) => get<OnCallCase[]>(`/api/cases${q({ month, personId })}`),
+    onCallOfficer: async (date: IsoDate) =>
+      (await get<{ personId: string; name: string } | undefined>(`/api/cases/on-call-officer${q({ date })}`)) ?? null,
+    create: (c: CaseInput) => post<{ id: string }>('/api/cases', c),
+    update: (id: string, c: CaseInput) => put<void>(`/api/cases/${id}`, c),
+    remove: (id: string) => del<void>(`/api/cases/${id}`),
+    import: (csv: string, commit: boolean, defaultPersonId: string | null) =>
+      post<CaseImportResult>('/api/cases/import', { csv, commit, defaultPersonId }),
+    exportUrl: (month: string, personId?: string) => `${API}/api/cases/export.xlsx${q({ month, personId })}`,
+  },
 
   /** Private document storage (Cloudflare R2). Use uploadDocument / openDocument below rather than these directly. */
   documents: {

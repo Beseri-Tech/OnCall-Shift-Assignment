@@ -2,7 +2,7 @@ import { Box, Burger, Container, Divider, Drawer, Group, Menu, ScrollArea, Stack
 import { useDisclosure } from '@mantine/hooks'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  IconBook, IconBuildingHospital, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconHistory, IconKey, IconLayoutGrid, IconLogout, IconMessage2, IconPlaneDeparture, IconShieldLock, IconUserCircle,
+  IconBook, IconBuildingHospital, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconHistory, IconKey, IconLayoutGrid, IconLogout, IconMessage2, IconPlaneDeparture, IconShieldLock, IconStethoscope, IconUserCircle,
 } from '@tabler/icons-react'
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
@@ -43,6 +43,7 @@ export function Layout() {
       : { to: '/leave', label: 'Leave', icon: IconCalendarUser, end: false },
     ...(me?.personId ? [{ to: '/leave-requests', label: 'Request leave', icon: IconPlaneDeparture, end: false }] : []),
     ...(me?.personId ? [{ to: '/my-oncall', label: 'My on-call', icon: IconCalendarCheck, end: false }] : []),
+    { to: '/cases', label: 'Cases', icon: IconStethoscope, end: false },
     { to: '/overview', label: 'Overview', icon: IconLayoutGrid, end: false },
     { to: '/rota', label: 'Rota', icon: IconCalendarEvent, end: false },
     { to: '/rules', label: 'Rules', icon: IconBook, end: false },

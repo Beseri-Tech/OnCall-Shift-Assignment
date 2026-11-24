@@ -278,3 +278,38 @@ public sealed record LeaveRequestRangeDto(
 
 public sealed record DecideLeaveRequestRequest(string? Note);
 public sealed record DecideLeaveRequestResult(LeaveRequestRangeDto Range, IReadOnlyList<string> Warnings);
+
+// ---------------- on-call case log ----------------
+
+/// <param name="OnCallDate">The shift the case belongs to; default: the case date, or the day before when it starts before 08:00.</param>
+/// <param name="TimeFinish">At or before TimeStart = the next day.</param>
+/// <param name="OfficerId">The on-call officer in charge; default: whoever the rota has on call that date.</param>
+/// <param name="Taggers">Free text: the taggers with the officer.</param>
+/// <param name="DsaName">The DSA on call (required).</param>
+/// <param name="DsaStatus">CALLED AND ATTENDED, CALLED BUT FTA, CALLED BUT NO ANSWER or NOT BEEN CALLED (required).</param>
+public sealed record CaseInput(
+    DateOnly Date, TimeOnly TimeStart, TimeOnly TimeFinish, DateOnly? OnCallDate, string PatientName, string PatientIdNo, string Gender,
+    string? Age, string? Race, string? ReferralSource, string? Department, string? Diagnosis, string? Management, string? Plan,
+    Guid? OfficerId, string? Taggers, string? DsaName, string? DsaStatus, bool Confidential);
+
+/// <summary>Whoever the rota (published, or in review) has on call on a date.</summary>
+public sealed record OnCallOfficerDto(Guid PersonId, string Name);
+
+/// <param name="Minutes">Length of the case (over midnight when the finish is at or before the start).</param>
+/// <param name="CanEdit">The signed-in user recorded it, or is an admin.</param>
+/// <param name="PersonId">The on-call officer in charge (Officer is their name).</param>
+public sealed record CaseDto(
+    Guid Id, Guid PersonId, string Officer, string RecordedBy, DateOnly OnCallDate, DateOnly Date, TimeOnly TimeStart, TimeOnly TimeFinish,
+    int Minutes, string PatientName, string PatientIdNo, string Gender, string? Age, string? Race, string? ReferralSource, string? Department,
+    string? Diagnosis, string? Management, string? Plan, string? Taggers, string? DsaName, string? DsaStatus, bool Confidential, bool CanEdit,
+    DateTimeOffset UpdatedAt);
+
+/// <param name="Csv">The Google Form's response sheet, exported as CSV.</param>
+/// <param name="DefaultPersonId">Officer in charge for rows whose "officer & taggers" column names nobody on the rota.</param>
+public sealed record CaseImportRequest(string Csv, bool Commit, Guid? DefaultPersonId);
+
+/// <param name="Duplicate">Already in the log (same officer, date, start time and patient number): skipped.</param>
+public sealed record CaseImportRowDto(int Line, DateOnly? Date, string? Officer, bool Duplicate, IReadOnlyList<ImportErrorDto> Errors);
+
+public sealed record CaseImportResultDto(
+    IReadOnlyList<CaseImportRowDto> Rows, IReadOnlyList<string> FileErrors, bool Committed, int Added, int Duplicates);

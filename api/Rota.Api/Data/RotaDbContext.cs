@@ -18,6 +18,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
 
     public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<AppSetting> Settings => Set<AppSetting>();
+    public DbSet<OnCallCase> Cases => Set<OnCallCase>();
     public DbSet<Person> People => Set<Person>();
 
     /// <summary>The people on the rota (officers and on-call admins): every rota, leave and tally list starts here.</summary>
@@ -305,6 +306,31 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.Property(s => s.Value).HasMaxLength(200);
         });
 
+        b.Entity<OnCallCase>(e =>
+        {
+            e.ToTable("oncall_cases");
+            e.HasIndex(c => new { c.FacilityId, c.OnCallDate });
+            e.HasIndex(c => new { c.PersonId, c.OnCallDate });
+            e.Property(c => c.PatientName).HasMaxLength(200);
+            e.Property(c => c.PatientIdNo).HasMaxLength(40);
+            e.Property(c => c.Gender).HasMaxLength(10);
+            e.Property(c => c.Age).HasMaxLength(20);
+            e.Property(c => c.Race).HasMaxLength(60);
+            e.Property(c => c.ReferralSource).HasMaxLength(60);
+            e.Property(c => c.Department).HasMaxLength(20);
+            e.Property(c => c.Diagnosis).HasMaxLength(500);
+            e.Property(c => c.Management).HasMaxLength(1000);
+            e.Property(c => c.Plan).HasMaxLength(1000);
+            e.Property(c => c.Taggers).HasMaxLength(200);
+            e.Property(c => c.DsaName).HasMaxLength(200);
+            e.Property(c => c.DsaStatus).HasMaxLength(40);
+            e.Ignore(c => c.Minutes);
+            e.HasOne<Facility>().WithMany().HasForeignKey(c => c.FacilityId).OnDelete(DeleteBehavior.Restrict);
+            // Restrict: removing an officer must never take their patients' records with them.
+            e.HasOne<Person>().WithMany().HasForeignKey(c => c.PersonId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Person>().WithMany().HasForeignKey(c => c.RecordedById).OnDelete(DeleteBehavior.Restrict);
+        });
+
         FacilityFilters(b);
 
         b.Entity<ChangeLog>(e =>
@@ -332,6 +358,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
         b.Entity<RotaPeriod>().HasQueryFilter(p => FacilityId == null || p.FacilityId == FacilityId);
         b.Entity<ChangeLog>().HasQueryFilter(c => FacilityId == null || c.FacilityId == FacilityId);
         b.Entity<Feedback>().HasQueryFilter(f => FacilityId == null || f.FacilityId == FacilityId);
+        b.Entity<OnCallCase>().HasQueryFilter(c => c.DeletedAt == null && (FacilityId == null || c.FacilityId == FacilityId));
         b.Entity<DocumentRecord>().HasQueryFilter(d => FacilityId == null || d.FacilityId == null || d.FacilityId == FacilityId);
 
         b.Entity<PublicHoliday>().HasQueryFilter(h => FacilityId == null ||
@@ -378,6 +405,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
                 {
                     case Person p when p.FacilityId is null && p.Role != AccountRole.Master: p.FacilityId = fid; break;
                     case RotaPeriod p when p.FacilityId == Guid.Empty: p.FacilityId = fid; break;
+                    case OnCallCase c when c.FacilityId == Guid.Empty: c.FacilityId = fid; break;
                     case ChangeLog c when c.FacilityId is null && !AppLevelEntities.Contains(c.Entity ?? ""): c.FacilityId = fid; break;
                     case DocumentRecord d when d.FacilityId is null && d.Kind != DocumentKind.Manual: d.FacilityId = fid; break;
                     case PublicHoliday h when h.StateId == Guid.Empty: h.StateId = stateId ??= await StateOfAsync(fid, ct); break;

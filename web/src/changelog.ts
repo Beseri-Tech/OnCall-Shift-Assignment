@@ -12,6 +12,15 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.3.0', date: '2026-11-24', title: 'On-call case log',
+    changes: [
+      { kind: 'new', text: 'Record every patient you see on call on the new Cases page, instead of the Google Form. The officer in charge comes from the rota, taggers are typed separately, and the DSA on call is always named.' },
+      { kind: 'new', text: 'The case log shows the hospital’s cases by month, with search, an officer filter and an Excel download. A case after midnight counts for the previous day’s shift.' },
+      { kind: 'new', text: 'Admins can import the existing Google Sheet (downloaded as CSV); cases already in the log are skipped.' },
+      { kind: 'improved', text: 'Patient details stay inside the hospital, are never cached by the browser, and every view and download is recorded in the audit log (without the patient’s details).' },
+    ],
+  },
+  {
     version: '3.2.0', date: '2026-11-24', title: 'One record per person',
     changes: [
       { kind: 'improved', text: 'An officer and their sign-in are now one record, managed on Admin → Officers. Adding someone needs their email and invites them straight away; email, role and “can sign in” are changed on the same form. The separate Accounts tab is gone.' },
