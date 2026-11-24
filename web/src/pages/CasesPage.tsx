@@ -1,16 +1,16 @@
 import {
-  ActionIcon, Alert, Autocomplete, Badge, Button, Checkbox, Fieldset, FileButton, Grid, Group, Input, Modal, Paper, SegmentedControl,
+  ActionIcon, Alert, Autocomplete, Badge, Button, Checkbox, Fieldset, FileButton, Grid, Group, Input, Menu, Modal, Paper, SegmentedControl,
   Select, SimpleGrid, Stack, Table, Tabs, Text, TextInput, Textarea, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput, MonthPickerInput, TimeInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconDownload, IconEdit, IconFileImport, IconLock, IconPlus, IconSearch, IconStethoscope, IconTrash } from '@tabler/icons-react'
+import { IconChevronDown, IconDownload, IconEdit, IconFileImport, IconLock, IconPlus, IconSearch, IconStethoscope, IconTrash } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api, type CaseImportResult, type CaseInput, type IsoDate, type OnCallCase } from '../api'
 import { isAdmin, useMe } from '../auth'
 import { ErrorBox, Loading, PageHeader } from '../components/common'
-import { addDays, formatLong, todayIso } from '../dates'
+import { addDays, formatLong, formatMonth, todayIso } from '../dates'
 import { notifyError, notifyOk, usePhone } from '../lib'
 
 const RACES = ['MALAY', 'CHINESE', 'INDIAN', 'SIAMESE']
@@ -241,8 +241,18 @@ function CaseLog() {
           {isAdmin(me) && (
             <Button variant="default" leftSection={<IconFileImport size={16} />} onClick={() => setImporting(true)}>Import Google Sheet</Button>
           )}
-          <Button variant="default" leftSection={<IconDownload size={16} />} component="a"
-            href={api.cases.exportUrl(ym, personId ?? undefined)}>Excel</Button>
+          <Menu position="bottom-end" withinPortal>
+            <Menu.Target>
+              <Button variant="default" leftSection={<IconDownload size={16} />} rightSection={<IconChevronDown size={14} />}>Excel</Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>{personId ? 'This officer’s cases' : 'All cases'}</Menu.Label>
+              <Menu.Item component="a" href={api.cases.exportUrl(ym, personId ?? undefined)}>{formatMonth(month)}</Menu.Item>
+              <Menu.Item component="a" href={api.cases.exportUrl(ym, personId ?? undefined, Number(month.slice(0, 4)))}>
+                Whole of {month.slice(0, 4)}
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         </Group>
       </Group>
       <Alert variant="light" color="gray" icon={<IconLock size={18} />} py={6}>

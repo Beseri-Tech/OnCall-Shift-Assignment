@@ -163,6 +163,7 @@ public sealed class LeaveRules
         }
 
         // Reward points: busy-day shifts in the rota right before this one, if it was published. They are for this rota only.
+        int weekendDays = await db.WeekendDaysAsync(period.FacilityId, ct);
         var previous = await db.Periods.Where(p => p.EndDate < period.StartDate).OrderByDescending(p => p.EndDate).FirstOrDefaultAsync(ct);
         if (previous is not null && !await db.Runs.AnyAsync(r => r.PeriodId == previous.Id && r.IsPublished, ct)) previous = null;
         var rewards = new Dictionary<Guid, ShiftReward>();
@@ -176,7 +177,7 @@ public sealed class LeaveRules
                 .Select(a => new { PersonId = a.PersonId!.Value, a.Date }).ToListAsync(ct);
             foreach (var g in worked.GroupBy(a => a.PersonId))
             {
-                var reward = ShiftRewardPolicy.For(limits, g.Select(a => a.Date), prevHolidays, prevPeaks);
+                var reward = ShiftRewardPolicy.For(limits, g.Select(a => a.Date), prevHolidays, prevPeaks, weekendDays);
                 if (reward.Points > 0) rewards[g.Key] = reward;
             }
         }
@@ -187,7 +188,7 @@ public sealed class LeaveRules
             BlockedWeekdays = onCallPeople.Where(p => p.BlockedWeekdays != 0).ToDictionary(p => p.Id, p => p.BlockedWeekdays),
             ClinicBlocked = await ClinicBlocks.ByPersonAsync(db, period.StartDate, period.EndDate, ct),
             Rewards = rewards,
-            Policy = new LeavePolicy(limits, period.StartDate, period.EndDate, holidays, peaks.Select(p => p.Date).ToHashSet()),
+            Policy = new LeavePolicy(limits, period.StartDate, period.EndDate, holidays, peaks.Select(p => p.Date).ToHashSet(), weekendDays),
             Period = period,
             Peaks = peaks,
             LeaveByPerson = byPerson,

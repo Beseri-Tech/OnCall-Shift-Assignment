@@ -248,8 +248,9 @@ public static class PublicEndpoints
             Guid? me = http.User.PersonId();
 
             var onLeave = people.SelectMany(p => p.Leave.Select(l => l.Date)).GroupBy(d => d).ToDictionary(g => g.Key, g => g.Count());
+            int weekendDays = await db.WeekendDaysAsync(period.FacilityId, ct);
             var days = Mapping.Days(period.StartDate, period.EndDate)
-                .Select(d => new OverviewDay(d, Mapping.IsWeekend(d) || holidays.ContainsKey(d), holidays.GetValueOrDefault(d),
+                .Select(d => new OverviewDay(d, Rota.Core.Weekends.Is(d, weekendDays) || holidays.ContainsKey(d), holidays.GetValueOrDefault(d),
                     people.Count - onLeave.GetValueOrDefault(d)))
                 .ToList();
 

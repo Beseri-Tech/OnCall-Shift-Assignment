@@ -325,7 +325,8 @@ public static class AdminRotaEndpoints
                 p.PreferWeekendHoliday, p.WeekendWeight, t.Known ? t.WeekendHoliday : null);
         }).ToList();
 
-        return new RotaInput(rotaPeople, period.StartDate, period.EndDate, holidays.ToHashSet(), seed);
+        return new RotaInput(rotaPeople, period.StartDate, period.EndDate, holidays.ToHashSet(), seed,
+            await db.WeekendDaysAsync(period.FacilityId, ct));
     }
 
     private static RunDto ToDto(RotaRun r)

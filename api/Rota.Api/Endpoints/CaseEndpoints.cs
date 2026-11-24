@@ -43,16 +43,25 @@ public static partial class CaseEndpoints
             return Results.Ok(rows);
         });
 
-        g.MapGet("/export.xlsx", async (string? month, Guid? personId, RotaDbContext db, LocalClock clock, HttpContext http,
+        // One month (month=yyyy-MM) or a whole year (year=yyyy).
+        g.MapGet("/export.xlsx", async (string? month, int? year, Guid? personId, RotaDbContext db, LocalClock clock, HttpContext http,
             CancellationToken ct) =>
         {
-            if (ParseMonth(month, clock.Today) is not var (from, to)) return Results.Problem("Month is yyyy-MM.", statusCode: 400);
+            DateOnly from, to;
+            if (year is { } y)
+            {
+                if (y is < 2000 or > 2100) return Results.Problem("Year is yyyy.", statusCode: 400);
+                (from, to) = (new DateOnly(y, 1, 1), new DateOnly(y + 1, 1, 1));
+            }
+            else if (ParseMonth(month, clock.Today) is var (f, t)) (from, to) = (f, t);
+            else return Results.Problem("Month is yyyy-MM.", statusCode: 400);
+            string label = year is null ? $"{from:yyyy-MM}" : $"{from:yyyy}";
             var rows = await ListAsync(db, http, from, to, personId, null, ct);
-            Mapping.Log(db, http, "case.download", personId, new { month = $"{from:yyyy-MM}", count = rows.Count });
+            Mapping.Log(db, http, "case.download", personId, new { period = label, count = rows.Count });
             await db.SaveChangesAsync(ct);
             return Results.File(ExcelExports.Table("Cases", ExportHeaders, rows.OrderBy(r => r.OnCallDate).ThenBy(r => r.Date)
                     .ThenBy(r => r.TimeStart).Select(ExportRow)),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Oncall cases {from:yyyy-MM}.xlsx");
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Oncall cases {label}.xlsx");
         }).RequireRateLimiting(DownloadLimit);
 
         g.MapPost("/", async (CaseInput input, RotaDbContext db, HttpContext http, CancellationToken ct) =>

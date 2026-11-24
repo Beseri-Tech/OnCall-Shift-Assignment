@@ -131,7 +131,8 @@ export interface Me {
   /** The hospital they work in; for a master the one they picked (null = none). */
   facility: FacilityRef | null
 }
-export interface FacilityRef { id: string; name: string; code: string }
+/** weekendDays: the state's weekly rest days (0 = Sunday ... 6 = Saturday). */
+export interface FacilityRef { id: string; name: string; code: string; weekendDays: number[] | null }
 /** A hospital that runs its own rota (state -> district -> hospital). */
 export interface Facility {
   id: string; name: string; code: string; districtId: string; district: string; stateId: string; state: string
@@ -379,7 +380,9 @@ export const api = {
     remove: (id: string) => del<void>(`/api/cases/${id}`),
     import: (csv: string, commit: boolean, defaultPersonId: string | null) =>
       post<CaseImportResult>('/api/cases/import', { csv, commit, defaultPersonId }),
-    exportUrl: (month: string, personId?: string) => `${API}/api/cases/export.xlsx${q({ month, personId })}`,
+    /** One month (yyyy-MM), or a whole year when `year` is given. */
+    exportUrl: (month: string, personId?: string, year?: number) =>
+      `${API}/api/cases/export.xlsx${q(year ? { year: String(year), personId } : { month, personId })}`,
   },
 
   /** Private document storage (Cloudflare R2). Use uploadDocument / openDocument below rather than these directly. */

@@ -7,7 +7,9 @@ using Rota.Api.Services;
 
 namespace Rota.Api.Reports;
 
-public sealed record EtapPdfData(OfficerProfile Profile, Person Person, int Year, int Month, EtapDto Claim);
+/// <param name="PatientDetails">The patient-details attachment (<see cref="EtapPatientsPdf"/>), appended after the form; null when
+/// no shift reached 4 hours.</param>
+public sealed record EtapPdfData(OfficerProfile Profile, Person Person, int Year, int Month, EtapDto Claim, byte[]? PatientDetails = null);
 
 /// <summary>
 /// The officer's ETAP claim, written over the official form (Borang Penyata Tuntutan ETAP, 30/10/2025; US Letter,
@@ -20,8 +22,9 @@ public static class EtapPdf
         ["JANUARI", "FEBRUARI", "MAC", "APRIL", "MEI", "JUN", "JULAI", "OGOS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DISEMBER"];
     private static readonly string[] Days = ["AHAD", "ISNIN", "SELASA", "RABU", "KHAMIS", "JUMAAT", "SABTU"];
 
-    /// <summary>Rows of the patient table on page 3; more go to the page 5 attachment (24 rows).</summary>
-    public const int Page3Patients = 6, Page5Patients = 24;
+    /// <summary>Rows of the patient table on page 3; it continues in the page 5 attachment (24 rows). A patient takes up to
+    /// <see cref="RowsPerPatient"/> rows so longer text fits; beyond that it ends in "...".</summary>
+    public const int Page3Rows = 6, Page5Rows = 24, RowsPerPatient = 3;
 
     private sealed record Item(float X, float Y, float W, string Text, float Size, bool Center, bool Right = false);
 
@@ -30,7 +33,23 @@ public static class EtapPdf
         QuestPDF.Settings.License = LicenseType.Community;
         var p = d.Profile;
         var c = d.Claim;
-        bool attachment = c.Patients.Count > Page3Patients;
+        // The >4h patient table runs from page 3 into the page 5 attachment; a patient is not split between the two.
+        var tables = new[]
+        {
+            new PatientTable(646.9f, 13.06f, 2.5f, 6.8f, Page3Rows, [66.9f, 119.3f, 226.6f, 309.4f, 366.9f, 445.0f, 540.8f]),
+            new PatientTable(153.4f, 17.52f, 4f, 7.2f, Page5Rows, [73.1f, 119.2f, 236.3f, 310.7f, 369.3f, 460.5f, 550.1f]),
+        };
+        var (p3Patients, p5Patients) = (new List<Item>(), new List<Item>());
+        int table = 0, row = 0;
+        foreach (var pt in c.Patients)
+        {
+            if (row + tables[table].RowsFor(pt) > tables[table].Rows) { table++; row = 0; }
+            if (table == tables.Length) break;
+            int rows = tables[table].RowsFor(pt);   // ponytail: over 30 rows the form stops; the patient-details pages still list everyone
+            tables[table].Add(table == 0 ? p3Patients : p5Patients, pt, row, rows);
+            row += rows;
+        }
+        bool attachment = p5Patients.Count > 0;
 
         // ---- page 1: section A ----
         var p1 = new List<Item>
@@ -83,13 +102,10 @@ public static class EtapPdf
         p3.Add(new(272.8f, 553.1f, 36.6f, c.TotalDays.ToString(CultureInfo.InvariantCulture), 9, true));
         p3.Add(new(c.Specialist ? 426.0f : 309.4f, 553.1f, c.Specialist ? 114.5f : 116.6f,
             "RM " + c.TotalAmount.ToString("N0", CultureInfo.InvariantCulture), 10, true));
-        AddPatients(p3, c.Patients.Take(Page3Patients), 646.9f, 13.06f, 2.5f, 6.8f, [66.9f, 119.3f, 226.6f, 309.4f, 366.9f, 445.0f, 540.8f]);
+        p3.AddRange(p3Patients);
 
-        // ---- page 5: the attachment for patients that don't fit on page 3 ----
-        var p5 = new List<Item>();
-        if (attachment)
-            AddPatients(p5, c.Patients.Skip(Page3Patients).Take(Page5Patients), 153.4f, 17.52f, 4f, 7.2f,
-                [73.1f, 119.2f, 236.3f, 310.7f, 369.3f, 460.5f, 550.1f]);
+        // ---- page 5: the attachment, where the page 3 patient table continues ----
+        var p5 = p5Patients;
 
         var pages = attachment ? new[] { p1, p2, p3, [], p5 } : new[] { p1, p2, p3, new List<Item>() };
         byte[] overlay = Document.Create(doc =>
@@ -121,9 +137,15 @@ public static class EtapPdf
                              ?? throw new InvalidOperationException("The ETAP template is missing from the build."))
             using (var f = File.Create(template)) res.CopyTo(f);
             File.WriteAllBytes(over, overlay);
-            DocumentOperation.LoadFile(template).TakePages(attachment ? "1-5" : "1-4")
-                .OverlayFile(new DocumentOperation.LayerConfiguration { FilePath = over })
-                .Save(output);
+            var op = DocumentOperation.LoadFile(template).TakePages(attachment ? "1-5" : "1-4")
+                .OverlayFile(new DocumentOperation.LayerConfiguration { FilePath = over });
+            if (d.PatientDetails is { } details)
+            {
+                string extra = Path.Combine(dir, "patients.pdf");
+                File.WriteAllBytes(extra, details);
+                op = op.MergeFile(extra);
+            }
+            op.Save(output);
             return File.ReadAllBytes(output);
         }
         finally
@@ -133,19 +155,33 @@ public static class EtapPdf
         }
     }
 
-    private static void AddPatients(List<Item> items, IEnumerable<EtapPatientDto> patients, float top, float rowHeight, float pad, float size,
-        float[] x)
+    /// <summary>One page's part of the patient table: where its rows are, how many, and the column edges.</summary>
+    private sealed record PatientTable(float Top, float RowHeight, float Pad, float Size, int Rows, float[] X)
     {
-        foreach (var (pt, i) in patients.Select((pt, i) => (pt, i)))
+        private static string[] Cells(EtapPatientDto pt) =>
+        [
+            pt.Date.ToString("dd/MM/yy", CultureInfo.InvariantCulture), pt.Name ?? "", pt.RegNo ?? "",
+            $"{pt.Minutes / 60}j {pt.Minutes % 60:00}m", pt.DiagnosisAndTreatment ?? "", pt.Notes ?? "",
+        ];
+
+        // ponytail: wraps by a generous capital width (0.70 em, so lines wrap early rather than get cut); a line that still overflows ends in "..." (ClampLines).
+        private int CharsPerLine(int col) => (int)((X[col + 1] - X[col] - 4) / (Size * 0.70f));
+
+        public int RowsFor(EtapPatientDto pt) =>
+            Math.Clamp(Cells(pt).Select((t, col) => Wrap(t, CharsPerLine(col)).Count()).Max(), 1, RowsPerPatient);
+
+        public void Add(List<Item> items, EtapPatientDto pt, int row, int rows)
         {
-            float y = top + i * rowHeight + pad;
-            string[] cells =
-            [
-                pt.Date.ToString("dd/MM/yy", CultureInfo.InvariantCulture), pt.Name ?? "", pt.RegNo ?? "",
-                $"{pt.Minutes / 60}j {pt.Minutes % 60:00}m", pt.DiagnosisAndTreatment ?? "", pt.Notes ?? "",
-            ];
+            float y = Top + row * RowHeight + Pad;
+            var cells = Cells(pt);
+            // One line per ruled row; the last row takes the rest and is cut with "...".
             for (int col = 0; col < cells.Length; col++)
-                if (cells[col].Length > 0) items.Add(new(x[col] + 2, y, x[col + 1] - x[col] - 4, cells[col], size, col is 0 or 3));
+            {
+                var lines = Wrap(cells[col], CharsPerLine(col)).ToList();
+                if (lines.Count > rows) lines = [.. lines[..(rows - 1)], string.Join(" ", lines[(rows - 1)..])];
+                foreach (var (line, k) in lines.Select((l, k) => (l, k)))
+                    items.Add(new(X[col] + 2, y + k * RowHeight, X[col + 1] - X[col] - 4, line, Size, col is 0 or 3));
+            }
         }
     }
 

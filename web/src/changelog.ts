@@ -12,6 +12,16 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.6.0', date: '2026-11-24', title: 'Patient details for ETAP, state weekends',
+    changes: [
+      { kind: 'new', text: 'The ETAP download now ends with a patient-details attachment for every day over 4 hours: each patient’s time, details, diagnosis, treatment, plan and DSA, with a “Disahkan oleh” signature space. No more screenshots of the response sheet.' },
+      { kind: 'improved', text: 'On the ETAP form a patient can take up to three rows, so longer diagnoses fit; the table continues from page 3 onto page 5.' },
+      { kind: 'improved', text: 'The weekend follows your state’s rest days (e.g. Friday + Saturday) in the rota, leave points and ETAP. Changing a state’s weekend only affects rotas generated afterwards; published rotas and tallies stay as they are.' },
+      { kind: 'improved', text: 'The ETAP button now says which rota it adds from, e.g. “Add my 4 on-call dates from the October rota”.' },
+      { kind: 'new', text: 'The case log Excel download can cover a whole year as well as a month.' },
+    ],
+  },
+  {
     version: '3.5.0', date: '2026-11-24', title: 'ETAP claim form',
     changes: [
       { kind: 'new', text: 'A new ETAP page builds your monthly on-call claim: add your rota dates (or type the days you did), adjust the times to match your punch card, and see each day priced as passive call under or over 4 hours, on a working day or a rest day / public holiday.' },

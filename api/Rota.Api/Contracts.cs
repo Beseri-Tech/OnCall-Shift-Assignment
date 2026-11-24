@@ -78,7 +78,8 @@ public sealed record LoginRequest(string Email, string Password);
 public sealed record MeDto(Guid AccountId, string Email, AccountRole Role, Guid? PersonId, string? PersonName, bool MustChangePassword,
     FacilityRef? Facility);
 
-public sealed record FacilityRef(Guid Id, string Name, string Code);
+/// <param name="WeekendDays">The state's weekly rest days (0 = Sunday ... 6 = Saturday).</param>
+public sealed record FacilityRef(Guid Id, string Name, string Code, IReadOnlyList<int>? WeekendDays = null);
 
 public sealed record SetFacilityRequest(Guid? FacilityId);
 

@@ -71,7 +71,7 @@ public static class Etap
         var claim = await db.EtapClaims.AsNoTracking().FirstOrDefaultAsync(c => c.PersonId == me.Id && c.Year == year && c.Month == month, ct);
         rows ??= claim is null ? [] : ReadRows(claim.Rows);
 
-        var weekend = await db.Facilities.Where(f => f.Id == me.FacilityId).Select(f => f.District!.State!.WeekendDays).FirstOrDefaultAsync(ct);
+        int weekend = await db.WeekendDaysAsync(me.FacilityId, ct);
         var holidays = (await db.Holidays.Where(h => h.Date >= first && h.Date < end).Select(h => new { h.Date, h.Name }).ToListAsync(ct))
             .Concat(await db.PeriodDays.Where(d => d.Kind == PeriodDayKind.Holiday && d.Date >= first && d.Date < end)
                 .Select(d => new { d.Date, d.Name }).ToListAsync(ct))

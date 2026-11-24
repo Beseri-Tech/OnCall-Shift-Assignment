@@ -244,7 +244,10 @@ function LocationModal({ form: initial, states, onClose, onSaved }: {
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => <Chip key={d} value={String(i)} size="xs">{d}</Chip>)}
                 </Group>
               </Chip.Group>
-              <Text size="xs" c="dimmed">Used for ETAP claims (working day or rest day). Most states: Sat + Sun; Kedah, Kelantan, Terengganu: Fri + Sat.</Text>
+              <Text size="xs" c="dimmed">
+                Most states: Sat + Sun; Kedah, Kelantan, Terengganu: Fri + Sat. Decides weekend shifts in the rota, leave points and ETAP
+                day types for this state's hospitals.{form.id && ' A change applies to rotas generated from now on; published rotas and tallies stay as they are.'}
+              </Text>
             </Stack>
           )}
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}

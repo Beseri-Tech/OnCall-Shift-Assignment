@@ -17,8 +17,6 @@ internal static class Mapping
 
     public static TotalsDto ToDto(this PersonTotals t) => new(t.Total, t.Weekday, t.WeekendHoliday);
 
-    public static bool IsWeekend(DateOnly d) => d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-
     public static IEnumerable<DateOnly> Days(DateOnly start, DateOnly end)
     {
         for (var d = start; d <= end; d = d.AddDays(1)) yield return d;

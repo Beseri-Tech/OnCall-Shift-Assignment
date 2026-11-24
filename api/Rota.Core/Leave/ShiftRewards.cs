@@ -1,3 +1,4 @@
+using Rota.Core;
 namespace Rota.Core.Leave;
 
 /// <summary>What an officer's busy-day shifts in one rota earned them for the next one.</summary>
@@ -18,15 +19,16 @@ public static class ShiftRewardPolicy
 {
     /// <summary>
     /// Reward for the days an officer worked: a public holiday (also on a weekend) earns the holiday reward, a Saturday or Sunday the
-    /// weekend reward, a peak weekday the peak reward; ordinary weekdays earn nothing.
+    /// weekend reward (the state's rest days), a peak weekday the peak reward; ordinary weekdays earn nothing.
     /// </summary>
-    public static ShiftReward For(LeaveLimits limits, IEnumerable<DateOnly> shifts, IReadOnlySet<DateOnly> holidays, IReadOnlySet<DateOnly> peaks)
+    public static ShiftReward For(LeaveLimits limits, IEnumerable<DateOnly> shifts, IReadOnlySet<DateOnly> holidays, IReadOnlySet<DateOnly> peaks,
+        int weekendDays = Weekends.SaturdaySunday)
     {
         int h = 0, w = 0, p = 0;
         foreach (var d in shifts.Distinct())
         {
             if (holidays.Contains(d)) h++;
-            else if (d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) w++;
+            else if (Weekends.Is(d, weekendDays)) w++;
             else if (peaks.Contains(d)) p++;
         }
         return new ShiftReward(h, w, p, h * limits.HolidayReward + w * limits.WeekendReward + p * limits.PeakReward);

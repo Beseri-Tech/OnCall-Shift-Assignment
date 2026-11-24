@@ -461,6 +461,16 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
         return await base.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// The weekly rest days of a hospital's state (default: the current hospital). Read when a rota is generated, so changing a
+    /// state's weekend only affects rotas generated afterwards: each run keeps its own weekend flags, and tallies follow them.
+    /// </summary>
+    public async Task<int> WeekendDaysAsync(Guid? facilityId, CancellationToken ct) =>
+        (facilityId ?? FacilityId) is { } id
+            ? await Facilities.Where(f => f.Id == id).Select(f => (int?)f.District!.State!.WeekendDays).FirstOrDefaultAsync(ct)
+              ?? Rota.Core.Weekends.SaturdaySunday
+            : Rota.Core.Weekends.SaturdaySunday;
+
     public Task<Guid> StateOfAsync(Guid facilityId, CancellationToken ct) =>
         Facilities.Where(f => f.Id == facilityId).Select(f => f.District!.StateId).FirstAsync(ct);
 }

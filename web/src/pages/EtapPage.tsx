@@ -12,7 +12,7 @@ import { Link, Navigate } from 'react-router'
 import { api, downloadDocument, type EtapClaim, type EtapRowInput, type IsoDate } from '../api'
 import { useMe } from '../auth'
 import { ErrorBox, Loading, PageHeader } from '../components/common'
-import { addDays, endOfMonth, formatLong, todayIso } from '../dates'
+import { addDays, endOfMonth, formatLong, formatMonth, todayIso } from '../dates'
 import { notifyError, notifyOk, usePhone } from '../lib'
 
 const hm = (t: string) => t.slice(0, 5)
@@ -82,7 +82,7 @@ function Claim({ month, claim }: { month: string; claim: EtapClaim }) {
               {claim.unclaimedRotaRows.length > 0 && (
                 <Button size="xs" variant="light" leftSection={<IconCalendarPlus size={14} />}
                   onClick={() => setRows(rs => [...rs, ...claim.unclaimedRotaRows.filter(r => free(r.date)).map(toDraft)].sort((a, b) => a.date.localeCompare(b.date)))}>
-                  Add my rota dates ({claim.unclaimedRotaRows.length})
+                  Add my {claim.unclaimedRotaRows.length} on-call {claim.unclaimedRotaRows.length === 1 ? 'date' : 'dates'} from the {formatMonth(first).split(' ')[0]} rota
                 </Button>
               )}
               <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} disabled={rows.length >= 30}

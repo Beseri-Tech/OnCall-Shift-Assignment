@@ -57,6 +57,44 @@ public class EtapTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public void The_form_patient_table_gives_long_text_up_to_three_rows_and_continues_on_page_5()
+    {
+        string diag = "ACUTE ODONTOGENIC INFECTION WITH LEFT SUBMANDIBULAR AND SUBLINGUAL SPACE INVOLVEMENT SECONDARY TO NON-RESTORABLE 36 AND 37,"
+            + " TRISMUS 15MM, ELEVATED FLOOR OF MOUTH, NO AIRWAY COMPROMISE. I&D UNDER LA, IV AUGMENTIN";
+        // Rows needed on page 3: 3 (long, clamped) + 1 + 2 = 6 fills it; the next long one moves to page 5.
+        var patients = new[] { diag, "ABSCESS. I&D", "FRACTURED MANDIBLE, IMF AND ADMIT", diag, "PERICORONITIS. IRRIGATION" }
+            .Select((d, i) => new EtapPatientDto(new DateOnly(2026, 10, 5 + i), "PATIENT NUMBER " + (i + 1), "900101011234", 120, d, "OMFS", false))
+            .ToList();
+        var claim = new EtapDto("2026-10", true, false, [], [], [], 0, 0, patients, null, true, []);
+        var profile = new OfficerProfile
+        {
+            FullName = "AMINAH BINTI ALI", IcNo = "900101091234", Jawatan = "PEGAWAI PERGIGIAN", Gred = "UD10",
+            UnitTempatBertugas = "JABATAN PERGIGIAN, HOSPITAL TUANKU FAUZIAH", AlamatRumah = "NO 1, JALAN KANGAR, 01000 KANGAR, PERLIS",
+            JarakKm = 12.5m, NoGaji = "123456", NoTelefonPejabat = "04-9761234", NoAkaunBank = "1234567890", NamaCawanganBank = "MAYBANK KANGAR",
+        };
+        var person = new Person { Phone = "012-3456789", Email = "aminah@example.com" };
+        byte[] pdf = Rota.Api.Reports.EtapPdf.Render(new Rota.Api.Reports.EtapPdfData(profile, person, 2026, 10, claim));
+        Assert.Equal(5, System.Text.RegularExpressions.Regex.Count(System.Text.Encoding.Latin1.GetString(pdf), @"/Type\s*/Page\b"));
+        if (Environment.GetEnvironmentVariable("ETAP_FORM_OUT") is { Length: > 0 } outPath) File.WriteAllBytes(outPath, pdf);
+    }
+
+    [Fact]
+    public void The_patient_details_attachment_wraps_long_text_across_pages()
+    {
+        // 500-character fields (the longest allowed) on 30 patients in one night: rows grow and the date breaks across pages.
+        string longText = string.Join(' ', Enumerable.Repeat("LONG DIAGNOSIS TEXT", 30))[..500];
+        var cases = Enumerable.Range(0, 30).Select(i => new OnCallCase
+        {
+            OnCallDate = new DateOnly(2026, 10, 5), Date = new DateOnly(2026, 10, 5), TimeStart = new TimeOnly(20, 0), TimeFinish = new TimeOnly(21, 0),
+            PatientName = "PATIENT " + i, PatientIdNo = "900101011234", Gender = "MALE", Diagnosis = longText, Management = longText, Plan = longText,
+        }).ToList();
+        byte[] pdf = Rota.Api.Reports.EtapPatientsPdf.Render("HOSPITAL", new OfficerProfile(), new Person(), 2026, 10,
+            [new Rota.Api.Reports.EtapLongShift(new DateOnly(2026, 10, 5), 1800, cases)], DateTimeOffset.UtcNow);
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(pdf, 0, 4));
+        if (Environment.GetEnvironmentVariable("ETAP_LONG_OUT") is { Length: > 0 } outPath) File.WriteAllBytes(outPath, pdf);
+    }
+
+    [Fact]
     public async Task The_claim_adds_up_case_time_per_shift_and_prices_each_day()
     {
         var s = await SetupAsync();

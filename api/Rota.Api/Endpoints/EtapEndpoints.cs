@@ -51,7 +51,14 @@ public static class EtapEndpoints
                 return Results.Problem("Verify your ETAP profile first (account menu → My ETAP profile).", statusCode: StatusCodes.Status400BadRequest);
             var claim = await Etap.BuildAsync(db, me, y, m, null, ct);
             if (claim.Rows.Count == 0) return Results.Problem("Add your on-call days and save first.", statusCode: StatusCodes.Status400BadRequest);
-            byte[] pdf = await Task.Run(() => EtapPdf.Render(new EtapPdfData(profile, me, y, m, claim)), ct);
+            // The proof for shifts of 4 hours or more: their patients in full, from the case log.
+            var longDates = claim.Rows.Where(r => r.Category.StartsWith('2')).Select(r => r.Date).ToList();
+            var longCases = await db.Cases.AsNoTracking().Where(c => c.PersonId == me.Id && longDates.Contains(c.OnCallDate))
+                .OrderBy(c => c.OnCallDate).ThenBy(c => c.Date).ThenBy(c => c.TimeStart).ToListAsync(ct);
+            var shifts = longCases.GroupBy(c => c.OnCallDate).Select(g => new EtapLongShift(g.Key, g.Sum(c => c.Minutes), g.ToList())).ToList();
+            string hospital = await db.Facilities.Where(f => f.Id == me.FacilityId).Select(f => f.Name).FirstOrDefaultAsync(ct) ?? "";
+            byte[] pdf = await Task.Run(() => EtapPdf.Render(new EtapPdfData(profile, me, y, m, claim,
+                shifts.Count == 0 ? null : EtapPatientsPdf.Render(hospital, profile, me, y, m, shifts, DateTimeOffset.UtcNow))), ct);
             Mapping.Log(db, http, "etap.generate", me.Id, new { month, days = claim.Rows.Count, claim.TotalAmount });
             await db.SaveChangesAsync(ct);
             return Results.File(pdf, "application/pdf", $"ETAP {month}.pdf");

@@ -12,6 +12,7 @@ import { FacilitySwitcher } from './FacilitySwitcher'
 import { Loading } from './common'
 import { FeedbackButton, FeedbackModal } from './FeedbackButton'
 import { APP_VERSION } from '../changelog'
+import { setWeekendDays } from '../dates'
 import { NotificationBell } from './NotificationBell'
 
 const HospitalsPage = lazy(() => import('../pages/HospitalsPage').then(m => ({ default: m.HospitalsPage })))
@@ -28,6 +29,7 @@ const matches = (n: NavItem, pathname: string) => (n.end ? pathname === n.to : p
 
 export function Layout() {
   const me = useMe().data
+  setWeekendDays(me?.facility?.weekendDays)   // before any page below reads isWeekend
   const qc = useQueryClient()
   const navigate = useNavigate()
   const { pathname } = useLocation()

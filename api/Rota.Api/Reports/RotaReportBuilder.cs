@@ -22,6 +22,7 @@ public static class RotaReportBuilder
         var people = await db.People.AsNoTracking().Include(p => p.Clinic).ToDictionaryAsync(p => p.Id, ct);
         string Name(Guid? id) => id is { } i && people.TryGetValue(i, out var p) ? p.Name : "Unknown officer";
         var rules = await LeaveRules.LoadAsync(db, limits, period, ct);
+        int weekendDays = await db.WeekendDaysAsync(period.FacilityId, ct);
         var holidays = await Endpoints.Mapping.HolidaysAsync(db, period.Id, ct);
         var peaks = await db.PeriodDays.AsNoTracking().Where(d => d.PeriodId == period.Id && d.Kind == PeriodDayKind.Peak)
             .ToDictionaryAsync(d => d.Date, d => d.Name, ct);
@@ -80,7 +81,7 @@ public static class RotaReportBuilder
         foreach (var a in run.Assignments.OrderBy(a => a.Date))
         {
             string kind = holidays.TryGetValue(a.Date, out var hn) ? $"Public holiday: {hn}"
-                : a.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "Weekend"
+                : Rota.Core.Weekends.Is(a.Date, weekendDays) ? "Weekend"
                 : peaks.TryGetValue(a.Date, out var pn) ? $"Peak day: {pn}"
                 : "Weekday";
             var evs = events.GetValueOrDefault(a.Date)?.OrderBy(e => e.At).ToList() ?? [];
@@ -136,7 +137,7 @@ public static class RotaReportBuilder
                 if (a.IsWeekendHoliday || peaks.ContainsKey(a.Date))
                 {
                     int pts = holidays.ContainsKey(a.Date) ? limits.HolidayReward
-                        : a.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? limits.WeekendReward : limits.PeakReward;
+                        : Rota.Core.Weekends.Is(a.Date, weekendDays) ? limits.WeekendReward : limits.PeakReward;
                     reasons.Add($"Earns +{pts} leave points for the next rota.");
                 }
             }
@@ -159,7 +160,7 @@ public static class RotaReportBuilder
             int weekend = assigned.Count(a => a.PersonId == id && a.IsWeekendHoliday);
             var t = before.GetValueOrDefault(id, PersonTotals.Unknown);
             var prefs = preferred.GetValueOrDefault(id) ?? [];
-            var reward = ShiftRewardPolicy.For(limits, mine, holidaySet, peakSet);
+            var reward = ShiftRewardPolicy.For(limits, mine, holidaySet, peakSet, weekendDays);
             int grant = rules.Grants.GetValueOrDefault(id)?.Points ?? 0;
             int rewardIn = rules.Reward(id).Points;
             int deducted = rules.PointsDeducted(id);

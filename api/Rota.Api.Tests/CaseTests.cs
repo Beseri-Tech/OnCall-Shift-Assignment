@@ -75,6 +75,12 @@ public class CaseTests(ApiFixture fixture) : IClassFixture<ApiFixture>
             Assert.Equal("A1234567", ws.Cell(2, 7).GetString());
             Assert.True(ws.Cell(3, 1).IsEmpty());
         }
+        // ... and the whole year downloads in one file.
+        var year = await two.GetAsync("/api/cases/export.xlsx?year=2026");
+        year.EnsureSuccessStatusCode();
+        Assert.Contains("2026", year.Content.Headers.ContentDisposition?.FileNameStar ?? year.Content.Headers.ContentDisposition?.FileName);
+        using (var wb = new XLWorkbook(await year.Content.ReadAsStreamAsync()))
+            Assert.Equal("SITI", wb.Worksheet(1).Cell(2, 6).GetString());
 
         // Another hospital sees nothing and can't reach the case by id.
         var kedah = await Read<Guid>(await admin.PostAsJsonAsync("/api/admin/states", new UpsertStateRequest("Kedah"), ApiFixture.Json));

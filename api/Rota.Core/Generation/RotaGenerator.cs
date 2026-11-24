@@ -1,3 +1,4 @@
+using Rota.Core;
 using System.Diagnostics;
 using System.Globalization;
 
@@ -122,10 +123,7 @@ public sealed class RotaGenerator
             Days = Enumerable.Range(0, M).Select(i => input.Start.AddDays(i)).ToArray();
 
             var holidaySet = input.Holidays as IReadOnlySet<DateOnly> ?? input.Holidays.ToHashSet();
-            IsWeekend = Days.Select(d =>
-                d.DayOfWeek == DayOfWeek.Saturday ||
-                d.DayOfWeek == DayOfWeek.Sunday ||
-                holidaySet.Contains(d)).ToArray();
+            IsWeekend = Days.Select(d => Weekends.Is(d, input.WeekendDays) || holidaySet.Contains(d)).ToArray();
 
             OnLeave = new bool[N, M];
             Preferred = new List<int>[N];
