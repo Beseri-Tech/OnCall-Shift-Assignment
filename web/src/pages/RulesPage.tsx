@@ -310,29 +310,39 @@ export function RulesPage() {
     },
 
     {
-      id: 'cases', chapter: 'oncall', icon: IconStethoscope, title: 'Recording on-call cases', blurb: 'The case log that replaces the Google Form',
-      keywords: 'cases case log patient record on call DSA taggers confidential excel trauma ED zone import',
+      id: 'newcase', chapter: 'oncall', icon: IconStethoscope, title: 'Recording a new case', blurb: 'The new case form, replacing the Google Form',
+      keywords: 'new case record patient on call DSA taggers confidential trauma non-trauma ED zone Ix Dx Mx Rx plan form',
       body: (
         <>
           <Text size="sm">
-            Record every patient you see on call on <Anchor inherit component={Link} to="/cases">Cases</Anchor> (under <b>On call</b>), instead of the
-            Google Form. Only officers on the rota record cases; everyone in the hospital can read the case log.
+            Record every patient you see on call on <Anchor inherit component={Link} to="/cases">Cases</Anchor> (under <b>On call</b>), on the <b>New case</b> tab,
+            instead of the Google Form. Only officers on the rota record cases.
           </Text>
           <Items>
             <List.Item><b>Pick the on-call date</b> (the shift) and whether you saw the patient that day or after midnight. A start time before 08:00 is taken as the day after, and you can change it.</List.Item>
             <List.Item><b>Department and case type come first</b> and are required: the patient and clinical details open once they are chosen. Department is what the ETAP form shows under Catatan. For an ED referral, choose the zone (green, yellow or red).</List.Item>
-            <List.Item><b>Trauma</b> cases are written as <i>presented with</i> (P/W), <b>non-trauma</b> cases as <i>complaint of</i> (C/O). Add investigations (Ix), diagnosis, management, prescription and plan. Each field shows an example.</List.Item>
+            <List.Item><b>Trauma</b> cases are written as <i>presented with</i> (P/W), <b>non-trauma</b> cases as <i>complaint of</i> (C/O). Add investigations (Ix), diagnosis (Dx), management (Mx), prescription (Rx) and plan. Each field shows an example.</List.Item>
             <List.Item><b>You are the officer in charge.</b> Type taggers separately, and always name the <b>DSA on call</b> with their status.</List.Item>
             <List.Item>The start and finish times set how long the patient took. The ETAP claim uses it (see below).</List.Item>
             <List.Item>Tick <b>Confidential</b> to leave the patient's name and registration number off the ETAP form.</List.Item>
-            <List.Item>After a case, the shift, taggers and DSA stay filled in for your next patient.</List.Item>
-            <List.Item>
-              The <b>Case log</b> tab shows the hospital's cases by month, with a search, an officer filter and an <b>Excel</b> download for a month or a whole year.
-              You can edit or remove your own cases; admins can edit any. Admins can import the old Google Sheet (as CSV); cases already in the log are skipped.
-            </List.Item>
+            <List.Item>After a case, the shift, taggers and DSA stay filled in for your next patient, and the app offers the WhatsApp passover.</List.Item>
             <List.Item><b>Patient details stay inside the hospital.</b> Other hospitals never see them, the browser doesn't keep them, and every view and download is recorded in the audit log (without the patient's details).</List.Item>
           </Items>
         </>
+      ),
+    },
+    {
+      id: 'caselog', chapter: 'oncall', icon: IconListCheck, title: 'The case log', blurb: 'Browse, search, edit and download the hospital\'s cases',
+      keywords: 'case log search filter officer excel month year edit remove import google sheet',
+      body: (
+        <Items>
+          <List.Item>The <b>Case log</b> tab on Cases lists the hospital's cases by month. Everyone in the hospital can read it.</List.Item>
+          <List.Item>Search by patient, IC or diagnosis, and filter by officer.</List.Item>
+          <List.Item><b>Excel</b> downloads a month, or the whole year.</List.Item>
+          <List.Item>The green WhatsApp icon opens the passover (for your own cases), the pencil edits and the bin removes. You can edit or remove your own cases; admins can edit any.</List.Item>
+          <List.Item>Admins can <b>import the old Google Sheet</b> (download it as CSV). Cases already in the log are skipped.</List.Item>
+          <List.Item>Patient details are confidential: only people of this hospital see them, and every view and download is recorded.</List.Item>
+        </Items>
       ),
     },
     {
