@@ -12,6 +12,12 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.9.1', date: '2026-11-25', title: 'Database backup upload fix',
+    changes: [
+      { kind: 'fixed', text: 'The nightly database backup now uploads to Cloudflare R2 correctly.' },
+    ],
+  },
+  {
     version: '3.9.0', date: '2026-11-24', title: 'Nightly database backup',
     changes: [
       { kind: 'new', text: 'The rota database is now backed up every night to a private Cloudflare R2 bucket and kept for 30 days, so nothing is lost if the server fails.' },
