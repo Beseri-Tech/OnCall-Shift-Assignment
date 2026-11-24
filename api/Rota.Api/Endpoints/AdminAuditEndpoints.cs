@@ -34,24 +34,25 @@ public static class AdminAuditEndpoints
                 .Select(c => new
                 {
                     Log = c,
-                    Actor = db.Accounts.Where(x => x.Id == c.AccountId)
-                        .Select(x => new { x.Email, Name = x.Person != null ? x.Person.Name : null }).FirstOrDefault(),
                     PersonName = db.People.Where(x => x.Id == c.PersonId).Select(x => x.Name).FirstOrDefault(),
                 })
                 .ToListAsync(ct);
+            var actors = await Audit.AccountNamesAsync(db, rows.Select(r => r.Log.AccountId), ct);
 
-            var items = rows.Select(r => new AuditEntryDto(
-                r.Log.Id, r.Log.At, r.Log.AccountId, r.Actor?.Email, r.Actor?.Name, r.Log.Action, r.Log.Entity, r.Log.EntityId,
-                r.Log.PersonId, r.PersonName, Parse(r.Log.Detail), Parse(r.Log.Before), Parse(r.Log.After), r.Log.Ip, r.Log.UserAgent))
+            var items = rows.Select(r => (r, Actor: r.Log.AccountId is { } a && actors.TryGetValue(a, out var x) ? x : default))
+                .Select(t => (r: t.r, t.Actor)).Select(t => new AuditEntryDto(
+                t.r.Log.Id, t.r.Log.At, t.r.Log.AccountId, t.Actor.Email, t.Actor.Name, t.r.Log.Action, t.r.Log.Entity, t.r.Log.EntityId,
+                t.r.Log.PersonId, t.r.PersonName, Parse(t.r.Log.Detail), Parse(t.r.Log.Before), Parse(t.r.Log.After), t.r.Log.Ip,
+                t.r.Log.UserAgent))
                 .ToList();
             return new AuditPageDto(items, total, number, size);
         });
 
         g.MapGet("/filters", async (RotaDbContext db, CancellationToken ct) =>
         {
-            var actorIds = db.ChangeLog.Where(c => c.AccountId != null).Select(c => c.AccountId!.Value).Distinct();
-            var actors = await db.Accounts.Where(a => actorIds.Contains(a.Id)).OrderBy(a => a.Email)
-                .Select(a => new AuditActorDto(a.Id, a.Email, a.Person != null ? a.Person.Name : null)).ToListAsync(ct);
+            var actorIds = await db.ChangeLog.Where(c => c.AccountId != null).Select(c => c.AccountId).Distinct().ToListAsync(ct);
+            var actors = (await Audit.AccountNamesAsync(db, actorIds, ct))
+                .Select(a => new AuditActorDto(a.Key, a.Value.Email, a.Value.Name)).OrderBy(a => a.Email).ToList();
             var actions = await db.ChangeLog.Select(c => c.Action).Distinct().OrderBy(x => x).ToListAsync(ct);
             var entities = await db.ChangeLog.Where(c => c.Entity != null).Select(c => c.Entity!).Distinct().OrderBy(x => x).ToListAsync(ct);
             return new AuditFiltersDto(actors, actions, entities);

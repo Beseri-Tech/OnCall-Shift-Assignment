@@ -24,9 +24,9 @@ public static class AdminAccountEndpoints
         g.MapPost("/", async (InviteRequest req, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>
         {
             string email = AuthEndpoints.NormalizeEmail(req.Email);
-            if (await ValidateAsync(db, email, req.Role, req.PersonId, null, ct) is { } problem) return problem;
+            if (await ValidateAsync(db, http, email, req.Role, req.PersonId, null, ct) is { } problem) return problem;
 
-            var result = Invite(db, mailer, http, email, req.Role, req.Role == AccountRole.Supervisor ? null : req.PersonId);
+            var result = Invite(db, mailer, http, email, req.Role, HasOfficer(req.Role) ? req.PersonId : null);
             await db.SaveChangesAsync(ct);
             return Results.Ok(result);
         });
@@ -34,7 +34,7 @@ public static class AdminAccountEndpoints
         // New temporary password: re-sends a lost invite, and is how the admin resets someone's password.
         g.MapPost("/{id:guid}/resend", async (Guid id, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>
         {
-            var account = await db.Accounts.FindAsync([id], ct);
+            var account = await FindAsync(db, http, id, ct);
             if (account is null) return Results.NotFound();
 
             string temp = SetTemporaryPassword(account);
@@ -47,22 +47,24 @@ public static class AdminAccountEndpoints
 
         g.MapPut("/{id:guid}", async (Guid id, UpdateAccountRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
-            var account = await db.Accounts.FindAsync([id], ct);
+            var account = await FindAsync(db, http, id, ct);
             if (account is null) return Results.NotFound();
 
-            // Blocking self-demotion/disable also guarantees at least one enabled admin remains.
-            bool stillAdmin = req.Role is AccountRole.Admin or AccountRole.Supervisor;
-            if (id == http.User.AccountId() && (!req.Enabled || !stillAdmin))
-                return Results.Problem("You can't disable your own account or remove your own admin rights.",
+            // Blocking self-demotion/disable also guarantees at least one enabled admin (and master) remains.
+            if (id == http.User.AccountId() && (!req.Enabled || req.Role != account.Role))
+                return Results.Problem("You can't disable your own account or change your own role.",
                     statusCode: StatusCodes.Status409Conflict);
 
             string email = AuthEndpoints.NormalizeEmail(req.Email);
-            if (await ValidateAsync(db, email, req.Role, req.PersonId, id, ct) is { } problem) return problem;
+            if (await ValidateAsync(db, http, email, req.Role, req.PersonId, id, ct) is { } problem) return problem;
+            if (req.Role != AccountRole.Master && account.FacilityId is null && db.FacilityId is null)
+                return Results.Problem("Pick the hospital this account will belong to first.", statusCode: StatusCodes.Status400BadRequest);
 
             var before = await Audit.AccountAsync(db, account, ct);
             account.Email = email;
             account.Role = req.Role;
-            account.PersonId = req.Role == AccountRole.Supervisor ? null : req.PersonId;
+            account.PersonId = HasOfficer(req.Role) ? req.PersonId : null;
+            account.FacilityId = req.Role == AccountRole.Master ? null : account.FacilityId ?? db.FacilityId;
             account.Enabled = req.Enabled;
             account.SecurityStamp = Guid.NewGuid().ToString("N");   // new rights apply at their next request
             Mapping.Log(db, http, "account.update", account.PersonId, null, id, before, await Audit.AccountAsync(db, account, ct));
@@ -74,7 +76,10 @@ public static class AdminAccountEndpoints
     /// <summary>Adds the account with a temporary password and queues the invite email; the caller saves.</summary>
     internal static InviteResult Invite(RotaDbContext db, Mailer mailer, HttpContext http, string email, AccountRole role, Guid? personId)
     {
-        var account = new Account { Email = email, Role = role, PersonId = personId };
+        var account = new Account
+        {
+            Email = email, Role = role, PersonId = personId, FacilityId = role == AccountRole.Master ? null : db.FacilityId,
+        };
         db.Accounts.Add(account);
         string temp = SetTemporaryPassword(account);
         bool sent = QueueInvite(db, mailer, http, account, temp);
@@ -85,24 +90,33 @@ public static class AdminAccountEndpoints
     /// <summary>Problem with a normalized email (invalid, or another account has it), else null.</summary>
     internal static async Task<string?> EmailErrorAsync(RotaDbContext db, string email, Guid? accountId, CancellationToken ct) =>
         !IsValidEmail(email) ? "Enter a valid email address."
-        : await db.Accounts.AnyAsync(a => a.Id != accountId && a.Email == email, ct) ? $"{email} already has an account."
+        : await db.Accounts.IgnoreQueryFilters().AnyAsync(a => a.Id != accountId && a.Email == email, ct) ? $"{email} already has an account."
         : null;
 
     internal static bool IsValidEmail(string email) =>
         MailAddress.TryCreate(email, out var parsed) && parsed.Address == email && email.Length <= 254;
 
-    private static async Task<IResult?> ValidateAsync(RotaDbContext db, string email, AccountRole role, Guid? personId, Guid? id,
-        CancellationToken ct)
+    /// <summary>A master reaches every account (masters belong to no hospital); others only their hospital's.</summary>
+    private static Task<Account?> FindAsync(RotaDbContext db, HttpContext http, Guid id, CancellationToken ct) =>
+        (http.User.IsMaster() ? db.Accounts.IgnoreQueryFilters() : db.Accounts).FirstOrDefaultAsync(a => a.Id == id, ct);
+
+    /// <summary>Officers and admins (on call) are linked to their officer record; supervisors and masters are not.</summary>
+    private static bool HasOfficer(AccountRole role) => role is AccountRole.Officer or AccountRole.Admin;
+
+    private static async Task<IResult?> ValidateAsync(RotaDbContext db, HttpContext http, string email, AccountRole role, Guid? personId,
+        Guid? id, CancellationToken ct)
     {
         var errors = new Dictionary<string, string[]>();
 
         if (await EmailErrorAsync(db, email, id, ct) is { } emailError) errors["email"] = [emailError];
 
         if (!Enum.IsDefined(role)) errors["role"] = ["Unknown role."];
-        else if (role != AccountRole.Supervisor)
+        else if (role == AccountRole.Master && !http.User.IsMaster()) errors["role"] = ["Only a master can make master accounts."];
+        else if (role != AccountRole.Master && db.FacilityId is null) errors["role"] = ["Pick the hospital this account belongs to first."];
+        else if (HasOfficer(role))
         {
             if (personId is null)
-                errors["personId"] = ["Pick the officer this account belongs to (supervisors have none)."];
+                errors["personId"] = ["Pick the officer this account belongs to (supervisors and masters have none)."];
             else if (!await db.People.AnyAsync(p => p.Id == personId && p.Status != OfficerStatus.Left, ct))
                 errors["personId"] = ["Unknown officer, or the officer has left."];
             else if (await db.Accounts.AnyAsync(a => a.Id != id && a.PersonId == personId, ct))
@@ -130,7 +144,9 @@ public static class AdminAccountEndpoints
             Heading: "You've been invited to On-Call Rota",
             Paragraphs:
             [
-                "You have been invited to On-Call Rota, the on-call roster and leave planner for dental officers in Perlis.",
+                "You have been invited to On-Call Rota, the on-call roster and leave planner for dental officers" +
+                (a.FacilityId is { } fid && db.Facilities.Find(fid)?.Name is { } name
+                    ? $" at {name}." : "."),
                 "Use it to apply for leave, see your on-call dates and swap shifts with colleagues.",
                 "Sign in with the details below:",
             ],

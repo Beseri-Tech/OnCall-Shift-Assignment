@@ -6,17 +6,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconEdit, IconMailForward, IconSearch, IconUserPlus } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api, type Account, type AccountRole, type AdminPerson, type InviteResult } from '../../api'
-import { useMe } from '../../auth'
+import { isMaster, useMe } from '../../auth'
 import { ErrorBox, Loading } from '../../components/common'
 import { notifyError, notifyOk } from '../../lib'
 import { type IssuedLogin, TempPasswordsModal } from './TempPasswords'
 
-const ROLE_LABEL: Record<AccountRole, string> = { Officer: 'Officer', Admin: 'Admin (on call)', Supervisor: 'Supervisor' }
+const ROLE_LABEL: Record<AccountRole, string> = { Officer: 'Officer', Admin: 'Admin (on call)', Supervisor: 'Supervisor', Master: 'Master' }
 const ROLE_HELP: Record<AccountRole, string> = {
   Officer: 'Enters their own leave, sees the overview and rota.',
   Admin: 'An on-call officer who also runs the admin pages.',
   Supervisor: 'Runs the admin pages; not on the rota.',
+  Master: 'Sees and runs every hospital; not on any rota.',
 }
+/** Officers and on-call admins are linked to their officer record. */
+const hasOfficer = (r: AccountRole) => r === 'Officer' || r === 'Admin'
 
 const status = (a: Account) =>
   !a.enabled ? { label: 'Disabled', color: 'gray' }
@@ -29,7 +32,9 @@ export function AccountsTab() {
   const qc = useQueryClient()
   const me = useMe().data
   const accounts = useQuery({ queryKey: ['admin', 'accounts'], queryFn: api.admin.accounts })
-  const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people })
+  // A master with no hospital picked manages masters only: there are no officers to link.
+  const inHospital = !!me?.facility
+  const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people, enabled: inHospital })
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<Account | 'new' | null>(null)
   const [issued, setIssued] = useState<IssuedLogin[]>([])
@@ -56,7 +61,9 @@ export function AccountsTab() {
   if (accounts.isLoading || people.isLoading) return <Loading />
   if (accounts.error || people.error) return <ErrorBox error={accounts.error ?? people.error} />
 
-  const withoutAccount = people.data!.filter(p => p.status !== 'Left' && !accounts.data!.some(a => a.personId === p.id)).length
+  const roles: AccountRole[] = !inHospital ? ['Master']
+    : isMaster(me) ? ['Officer', 'Admin', 'Supervisor', 'Master'] : ['Officer', 'Admin', 'Supervisor']
+  const withoutAccount = (people.data ?? []).filter(p => p.status !== 'Left' && !accounts.data!.some(a => a.personId === p.id)).length
 
   return (
     <Stack gap="md">
@@ -125,7 +132,7 @@ export function AccountsTab() {
       </Paper>
 
       {editing && (
-        <AccountModal account={editing === 'new' ? null : editing} people={people.data!} accounts={accounts.data!}
+        <AccountModal account={editing === 'new' ? null : editing} people={people.data ?? []} accounts={accounts.data!} roles={roles}
           isSelf={editing !== 'new' && editing.id === me?.accountId}
           onClose={() => setEditing(null)} onSaved={refresh} onIssued={onIssued} />
       )}
@@ -135,12 +142,12 @@ export function AccountsTab() {
   )
 }
 
-function AccountModal({ account, people, accounts, isSelf, onClose, onSaved, onIssued }: {
-  account: Account | null; people: AdminPerson[]; accounts: Account[]; isSelf: boolean
+function AccountModal({ account, people, accounts, roles, isSelf, onClose, onSaved, onIssued }: {
+  account: Account | null; people: AdminPerson[]; accounts: Account[]; roles: AccountRole[]; isSelf: boolean
   onClose: () => void; onSaved: () => void; onIssued: (email: string, r: InviteResult) => void
 }) {
   const [email, setEmail] = useState(account?.email ?? '')
-  const [role, setRole] = useState<AccountRole>(account?.role ?? 'Officer')
+  const [role, setRole] = useState<AccountRole>(account?.role ?? roles[0])
   const [personId, setPersonId] = useState<string | null>(account?.personId ?? null)
   const [enabled, setEnabled] = useState(account?.enabled ?? true)
 
@@ -151,7 +158,7 @@ function AccountModal({ account, people, accounts, isSelf, onClose, onSaved, onI
 
   const save = useMutation({
     mutationFn: async () => {
-      const pid = role === 'Supervisor' ? null : personId
+      const pid = hasOfficer(role) ? personId : null
       if (account) await api.admin.updateAccount(account.id, { email, role, personId: pid, enabled })
       else return api.admin.invite(email, role, pid)
     },
@@ -171,10 +178,10 @@ function AccountModal({ account, people, accounts, isSelf, onClose, onSaved, onI
           <Stack gap={4}>
             <Text fw={500} size="sm">Role</Text>
             <SegmentedControl value={role} onChange={v => setRole(v as AccountRole)} disabled={isSelf}
-              data={(['Officer', 'Admin', 'Supervisor'] as const).map(r => ({ value: r, label: ROLE_LABEL[r] }))} />
+              data={(roles.includes(role) ? roles : [...roles, role]).map(r => ({ value: r, label: ROLE_LABEL[r] }))} />
             <Text size="xs" c="dimmed">{ROLE_HELP[role]}</Text>
           </Stack>
-          {role !== 'Supervisor' && (
+          {hasOfficer(role) && (
             <Select label="Officer" required searchable placeholder="Pick the officer" data={options} value={personId}
               onChange={setPersonId} nothingFoundMessage="No officer without an account – add them (with their email) on the Officers tab" />
           )}
@@ -185,7 +192,7 @@ function AccountModal({ account, people, accounts, isSelf, onClose, onSaved, onI
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancel</Button>
-            <Button type="submit" loading={save.isPending} disabled={!email.trim() || (role !== 'Supervisor' && !personId)}>
+            <Button type="submit" loading={save.isPending} disabled={!email.trim() || (hasOfficer(role) && !personId)}>
               {account ? 'Save' : 'Send invite'}
             </Button>
           </Group>

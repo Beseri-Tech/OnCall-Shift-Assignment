@@ -17,7 +17,7 @@ function AuthCard({ title, subtitle, children }: { title: string; subtitle?: str
             <div className="brand-mark brand-mark-lg"><img src="/favicon.svg" width={34} height={34} alt="" /></div>
             <div>
               <Text fw={800} size="xl" c="white" lh={1.1}>On-Call Rota</Text>
-              <Text size="sm" c="brand.1" lh={1.2}>Dental Officers · Perlis</Text>
+              <Text size="sm" c="brand.1" lh={1.2}>Dental Officers</Text>
             </div>
           </Group>
           <div className="auth-brand-copy">

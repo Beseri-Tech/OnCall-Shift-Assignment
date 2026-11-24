@@ -5,7 +5,7 @@ export type IsoDate = string
 export type PeriodStatus = 'Open' | 'Locked' | 'Review' | 'Published'
 export type SwapStatus = 'Pending' | 'Accepted' | 'Declined' | 'Cancelled' | 'Expired'
 export type OfficerStatus = 'OnCall' | 'Excluded' | 'Left'
-export type AccountRole = 'Officer' | 'Admin' | 'Supervisor'
+export type AccountRole = 'Officer' | 'Admin' | 'Supervisor' | 'Master'
 
 export interface Totals { total: number; weekday: number; weekendHoliday: number }
 export interface Period {
@@ -122,7 +122,16 @@ export interface SavePersonResult { id: string; invite: InviteResult | null }
 export interface Me {
   accountId: string; email: string; role: AccountRole; personId: string | null; personName: string | null
   mustChangePassword: boolean
+  /** The hospital they work in; for a master the one they picked (null = none). */
+  facility: FacilityRef | null
 }
+export interface FacilityRef { id: string; name: string; code: string }
+/** A hospital that runs its own rota (state -> district -> hospital). */
+export interface Facility {
+  id: string; name: string; code: string; districtId: string; district: string; stateId: string; state: string
+  officers: number; accounts: number; currentPeriod: string | null; currentPeriodStatus: PeriodStatus | null
+}
+export interface UpsertFacility { name: string; code: string; districtId: string }
 export interface Account {
   id: string; email: string; role: AccountRole; personId: string | null; personName: string | null; enabled: boolean
   mustChangePassword: boolean; tempPasswordExpiresAt: string | null; lastLoginAt: string | null
@@ -291,8 +300,10 @@ export const api = {
   notifications: () => get<Notifications>('/api/notifications'),
   readNotification: (id: number) => post<void>(`/api/notifications/${id}/read`),
   readAllNotifications: () => post<void>('/api/notifications/read-all'),
-  sendFeedback: (category: FeedbackCategory, message: string, page: string | null) =>
-    post<{ id: number }>('/api/feedback', { category, message, page }),
+  /** toFacility: to the sender's hospital admins; otherwise about the app, to the masters. */
+  sendFeedback: (category: FeedbackCategory, message: string, page: string | null, toFacility: boolean) =>
+    post<{ id: number }>('/api/feedback', { category, message, page, toFacility }),
+  facilities: () => get<Facility[]>('/api/facilities'),
 
   /** Private document storage (Cloudflare R2). Use uploadDocument / openDocument below rather than these directly. */
   documents: {
@@ -316,6 +327,8 @@ export const api = {
       post<Me>('/api/auth/change-password', { currentPassword, newPassword }),
     forgot: (email: string) => post<void>('/api/auth/forgot', { email }),
     reset: (token: string, newPassword: string) => post<void>('/api/auth/reset', { token, newPassword }),
+    /** Master only: the hospital to work in (null = none). */
+    setFacility: (facilityId: string | null) => post<Me>('/api/auth/facility', { facilityId }),
   },
 
   admin: {
@@ -343,6 +356,10 @@ export const api = {
     createDistrict: (name: string, stateId: string) => post<string>('/api/admin/districts', { name, stateId }),
     updateDistrict: (id: string, name: string, stateId: string) => put<void>(`/api/admin/districts/${id}`, { name, stateId }),
     deleteDistrict: (id: string) => del<void>(`/api/admin/districts/${id}`),
+
+    createFacility: (f: UpsertFacility) => post<string>('/api/admin/facilities', f),
+    updateFacility: (id: string, f: UpsertFacility) => put<void>(`/api/admin/facilities/${id}`, f),
+    deleteFacility: (id: string) => del<void>(`/api/admin/facilities/${id}`),
 
     clinics: () => get<Clinic[]>('/api/admin/clinics'),
     createClinic: (c: UpsertClinic) => post<string>('/api/admin/clinics', c),

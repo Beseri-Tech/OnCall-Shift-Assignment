@@ -25,7 +25,7 @@ public sealed class ReportArchive(RotaDbContext db, IDocumentStorage storage, Le
     public bool Enabled => storage.IsEnabled;
 
     public async Task<string> NameOfAsync(Guid? accountId, CancellationToken ct) =>
-        await db.Accounts.Where(a => a.Id == accountId).Select(a => a.Person != null ? a.Person.Name : a.Email).FirstOrDefaultAsync(ct)
+        await db.Accounts.IgnoreQueryFilters().Where(a => a.Id == accountId).Select(a => a.Person != null ? a.Person.Name : a.Email).FirstOrDefaultAsync(ct)
         ?? "Admin";
 
     /// <summary>Builds the report and stores it. Returns null when the rota is gone or not published.</summary>
@@ -79,7 +79,7 @@ public sealed class ReportArchive(RotaDbContext db, IDocumentStorage storage, Le
         var runIds = docs.Select(d => Guid.TryParse(d.ParentId, out var g) ? g : Guid.Empty).Distinct().ToList();
         var runs = await db.Runs.AsNoTracking().Include(r => r.Period).Where(r => runIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, ct);
         var accountIds = docs.Where(d => d.UploadedByAccountId != null).Select(d => d.UploadedByAccountId!.Value).Distinct().ToList();
-        var names = await db.Accounts.AsNoTracking().Where(a => accountIds.Contains(a.Id))
+        var names = await db.Accounts.IgnoreQueryFilters().AsNoTracking().Where(a => accountIds.Contains(a.Id))
             .Select(a => new { a.Id, Name = a.Person != null ? a.Person.Name : a.Email }).ToDictionaryAsync(a => a.Id, a => a.Name, ct);
 
         var reports = docs.Select(d =>

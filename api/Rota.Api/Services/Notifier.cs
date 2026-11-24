@@ -41,7 +41,14 @@ public sealed class Notifier
 
     public async Task ToAdminsAsync(string kind, string title, string? body, string? link, CancellationToken ct)
     {
+        // The query filter keeps this to the current hospital's admins (masters belong to none).
         var accounts = await _db.Accounts.Where(a => a.Enabled && a.Role != AccountRole.Officer).ToListAsync(ct);
+        Add(accounts, kind, title, body, link, email: false);
+    }
+
+    public async Task ToMastersAsync(string kind, string title, string? body, string? link, CancellationToken ct)
+    {
+        var accounts = await _db.Accounts.IgnoreQueryFilters().Where(a => a.Enabled && a.Role == AccountRole.Master).ToListAsync(ct);
         Add(accounts, kind, title, body, link, email: false);
     }
 

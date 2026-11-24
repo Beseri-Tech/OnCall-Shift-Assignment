@@ -214,7 +214,7 @@ public static class LeaveRequestEndpoints
         var personIds = requests.Values.Select(r => r.PersonId).Distinct().ToList();
         var people = await db.People.AsNoTracking().Where(p => personIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var deciderIds = ranges.Select(r => r.DecidedByAccountId).OfType<Guid>().Distinct().ToList();
-        var deciders = await db.Accounts.Where(a => deciderIds.Contains(a.Id)).Select(a => new { a.Id, a.Email, a.PersonId }).ToListAsync(ct);
+        var deciders = await db.Accounts.IgnoreQueryFilters().Where(a => deciderIds.Contains(a.Id)).Select(a => new { a.Id, a.Email, a.PersonId }).ToListAsync(ct);
         var allPeople = await db.People.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
         var deciderName = deciders.ToDictionary(d => d.Id, d => d.PersonId is { } pid && allPeople.TryGetValue(pid, out var n) ? n : d.Email);
 

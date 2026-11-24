@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using Rota.Api.Auth;
 using Rota.Api.Data;
 using static Rota.Api.Endpoints.AdminEndpoints;
 
 namespace Rota.Api.Endpoints;
 
-/// <summary>Where officers work: state -> district -> clinic. Officers belong to a clinic.</summary>
+/// <summary>
+/// Locations: state -> district -> clinic (where officers work, shared by all hospitals) and state -> district -> hospital
+/// (facility: runs a rota). States, districts and hospitals are the masters' to change.
+/// </summary>
 public static class AdminLocationEndpoints
 {
     public static void MapLocationEndpoints(this RouteGroupBuilder admin)
@@ -12,6 +16,82 @@ public static class AdminLocationEndpoints
         MapStates(admin.MapGroup("/states").WithTags("Admin locations"));
         MapDistricts(admin.MapGroup("/districts").WithTags("Admin locations"));
         MapClinics(admin.MapGroup("/clinics").WithTags("Admin locations"));
+        MapFacilities(admin.MapGroup("/facilities").WithTags("Admin locations").RequireAuthorization(Session.MasterPolicy));
+    }
+
+    /// <summary>The hospitals a user can work in: all of them for a master (the switcher), else their own.</summary>
+    public static void MapFacilityList(this IEndpointRouteBuilder app) =>
+        app.MapGet("/api/facilities", async (RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            var mine = http.User.FacilityId();
+            bool master = http.User.IsMaster();
+            return await db.Facilities.Where(f => master || f.Id == mine)
+                .OrderBy(f => f.District!.State!.Name).ThenBy(f => f.Name)
+                .Select(f => new FacilityDto(f.Id, f.Name, f.Code, f.DistrictId, f.District!.Name, f.District.StateId, f.District.State!.Name,
+                    db.People.IgnoreQueryFilters().Count(p => p.FacilityId == f.Id && p.Status != OfficerStatus.Left),
+                    db.Accounts.IgnoreQueryFilters().Count(a => a.FacilityId == f.Id),
+                    db.Periods.IgnoreQueryFilters().Where(p => p.FacilityId == f.Id).OrderByDescending(p => p.StartDate)
+                        .Select(p => p.Name).FirstOrDefault(),
+                    db.Periods.IgnoreQueryFilters().Where(p => p.FacilityId == f.Id).OrderByDescending(p => p.StartDate)
+                        .Select(p => (PeriodStatus?)p.Status).FirstOrDefault()))
+                .ToListAsync(ct);
+        }).WithTags("Facilities");
+
+    // ---------------- facilities (hospitals) ----------------
+
+    private static void MapFacilities(RouteGroupBuilder g)
+    {
+        g.MapPost("/", async (UpsertFacilityRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            if (await ValidateFacilityAsync(db, req, null, ct) is { } problem) return problem;
+            var f = new Facility { Name = Clean(req.Name)!, Code = Clean(req.Code)!.ToUpperInvariant(), DistrictId = req.DistrictId };
+            db.Facilities.Add(f);
+            Mapping.Log(db, http, "facility.create", null, null, f.Id, after: new { f.Name, f.Code });
+            await db.SaveChangesAsync(ct);
+            return Results.Created($"/api/admin/facilities/{f.Id}", f.Id);
+        });
+
+        g.MapPut("/{id:guid}", async (Guid id, UpsertFacilityRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            var f = await db.Facilities.FindAsync([id], ct);
+            if (f is null) return Results.NotFound();
+            if (await ValidateFacilityAsync(db, req, id, ct) is { } problem) return problem;
+            var before = new { f.Name, f.Code, f.DistrictId };
+            f.Name = Clean(req.Name)!;
+            f.Code = Clean(req.Code)!.ToUpperInvariant();
+            f.DistrictId = req.DistrictId;
+            Mapping.Log(db, http, "facility.update", null, null, id, before, new { f.Name, f.Code, f.DistrictId });
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+
+        g.MapDelete("/{id:guid}", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            var f = await db.Facilities.FindAsync([id], ct);
+            if (f is null) return Results.NotFound();
+            if (await db.People.IgnoreQueryFilters().AnyAsync(p => p.FacilityId == id, ct) ||
+                await db.Periods.IgnoreQueryFilters().AnyAsync(p => p.FacilityId == id, ct) ||
+                await db.Accounts.IgnoreQueryFilters().AnyAsync(a => a.FacilityId == id, ct))
+                return Results.Problem($"{f.Name} still has officers, rota periods or accounts.", statusCode: StatusCodes.Status409Conflict);
+            db.Facilities.Remove(f);
+            Mapping.Log(db, http, "facility.delete", null, null, id, before: new { f.Name, f.Code });
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+    }
+
+    private static async Task<IResult?> ValidateFacilityAsync(RotaDbContext db, UpsertFacilityRequest req, Guid? id, CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string[]>();
+        string? name = Clean(req.Name), code = Clean(req.Code)?.ToUpperInvariant();
+        if (name is null) errors["name"] = ["Name is required."];
+        else if (name.Length > 100) errors["name"] = ["Name is too long (max 100)."];
+        else if (await db.Facilities.AnyAsync(f => f.Id != id && f.Name.ToLower() == name.ToLower(), ct)) errors["name"] = [$"{name} already exists."];
+        if (code is null) errors["code"] = ["Code is required (e.g. HTF)."];
+        else if (code.Length > 16) errors["code"] = ["Code is too long (max 16)."];
+        else if (await db.Facilities.AnyAsync(f => f.Id != id && f.Code == code, ct)) errors["code"] = [$"{code} is already used."];
+        if (!await db.Districts.AnyAsync(d => d.Id == req.DistrictId, ct)) errors["districtId"] = ["Pick a district."];
+        return errors.Count > 0 ? Results.ValidationProblem(errors) : null;
     }
 
     // ---------------- states ----------------
@@ -34,7 +114,7 @@ public static class AdminLocationEndpoints
             Mapping.Log(db, http, "state.create", null, null, state.Id, after: new { state.Name });
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/states/{state.Id}", state.Id);
-        });
+        }).RequireAuthorization(Session.MasterPolicy);
 
         g.MapPut("/{id:guid}", async (Guid id, UpsertStateRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
@@ -46,7 +126,7 @@ public static class AdminLocationEndpoints
             Mapping.Log(db, http, "state.update", null, null, id, before, new { state.Name });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        }).RequireAuthorization(Session.MasterPolicy);
 
         g.MapDelete("/{id:guid}", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
@@ -58,7 +138,7 @@ public static class AdminLocationEndpoints
             Mapping.Log(db, http, "state.delete", null, null, id, before: new { state.Name });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        }).RequireAuthorization(Session.MasterPolicy);
     }
 
     private static async Task<IResult?> ValidateStateAsync(RotaDbContext db, UpsertStateRequest req, Guid? id, CancellationToken ct)
@@ -83,7 +163,7 @@ public static class AdminLocationEndpoints
             Mapping.Log(db, http, "district.create", null, null, district.Id, after: await Audit.DistrictAsync(db, district, ct));
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/districts/{district.Id}", district.Id);
-        });
+        }).RequireAuthorization(Session.MasterPolicy);
 
         g.MapPut("/{id:guid}", async (Guid id, UpsertDistrictRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
@@ -96,7 +176,7 @@ public static class AdminLocationEndpoints
             Mapping.Log(db, http, "district.update", null, null, id, before, await Audit.DistrictAsync(db, district, ct));
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        }).RequireAuthorization(Session.MasterPolicy);
 
         g.MapDelete("/{id:guid}", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
@@ -108,7 +188,7 @@ public static class AdminLocationEndpoints
             Mapping.Log(db, http, "district.delete", null, null, id, before: await Audit.DistrictAsync(db, district, ct));
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        }).RequireAuthorization(Session.MasterPolicy);
     }
 
     private static async Task<IResult?> ValidateDistrictAsync(RotaDbContext db, UpsertDistrictRequest req, Guid? id, CancellationToken ct)

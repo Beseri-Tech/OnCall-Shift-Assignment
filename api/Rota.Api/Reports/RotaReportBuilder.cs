@@ -37,7 +37,7 @@ public static class RotaReportBuilder
             .Where(c => (c.Entity == "run" && c.EntityId == runKey) || (c.Entity == "swap" && c.EntityId != null && swapIds.Contains(c.EntityId)))
             .OrderBy(c => c.At).ToListAsync(ct);
         var accountIds = logs.Where(l => l.AccountId != null).Select(l => l.AccountId!.Value).Distinct().ToList();
-        var accounts = await db.Accounts.AsNoTracking().Include(a => a.Person).Where(a => accountIds.Contains(a.Id))
+        var accounts = await db.Accounts.IgnoreQueryFilters().AsNoTracking().Include(a => a.Person).Where(a => accountIds.Contains(a.Id))
             .ToDictionaryAsync(a => a.Id, ct);
         string Who(Guid? accountId) => accountId is { } a && accounts.TryGetValue(a, out var acc) ? acc.Person?.Name ?? acc.Email : "System";
 

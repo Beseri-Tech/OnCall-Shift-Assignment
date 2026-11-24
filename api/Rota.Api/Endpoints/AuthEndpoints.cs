@@ -33,7 +33,7 @@ public static class AuthEndpoints
             account.LastLoginAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
             await Session.SignInAsync(http, account);
-            return Results.Ok(ToMe(account));
+            return Results.Ok(await ToMeAsync(db, account, account.FacilityId, ct));
         }).AllowAnonymous().RequireRateLimiting(RateLimit);
 
         g.MapPost("/logout", async (HttpContext http) =>
@@ -45,8 +45,18 @@ public static class AuthEndpoints
         g.MapGet("/me", async (RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
             var account = await CurrentAsync(db, http, ct);
-            return account is null ? Results.Unauthorized() : Results.Ok(ToMe(account));
+            return account is null ? Results.Unauthorized() : Results.Ok(await ToMeAsync(db, account, http.User.FacilityId(), ct));
         }).RequireAuthorization(Session.SignedInPolicy);
+
+        // A master picks the hospital they work in (null = none, to manage hospitals and masters).
+        g.MapPost("/facility", async (SetFacilityRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            var account = await CurrentAsync(db, http, ct);
+            if (account is null) return Results.Unauthorized();
+            if (req.FacilityId is { } fid && !await db.Facilities.AnyAsync(f => f.Id == fid, ct)) return Results.NotFound();
+            await Session.SignInAsync(http, account, req.FacilityId);
+            return Results.Ok(await ToMeAsync(db, account, req.FacilityId, ct));
+        }).RequireAuthorization(Session.MasterPolicy);
 
         g.MapPost("/change-password", async (ChangePasswordRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
@@ -60,8 +70,8 @@ public static class AuthEndpoints
             SetPassword(account, req.NewPassword);
             Mapping.Log(db, http, "account.change-password", account.PersonId, null, account.Id);
             await db.SaveChangesAsync(ct);
-            await Session.SignInAsync(http, account);   // new stamp, no temporary-password flag
-            return Results.Ok(ToMe(account));
+            await Session.SignInAsync(http, account, http.User.FacilityId());   // new stamp, no temporary-password flag
+            return Results.Ok(await ToMeAsync(db, account, http.User.FacilityId(), ct));
         }).RequireAuthorization(Session.SignedInPolicy);
 
         // Always 204 so the form can't be used to find out which emails have accounts.
@@ -109,11 +119,14 @@ public static class AuthEndpoints
     private static Task<Account?> CurrentAsync(RotaDbContext db, HttpContext http, CancellationToken ct)
     {
         var id = http.User.AccountId();
-        return db.Accounts.Include(a => a.Person).FirstOrDefaultAsync(a => a.Id == id, ct);
+        // A master's own account belongs to no hospital, so it is outside the filter of the hospital they picked.
+        return db.Accounts.IgnoreQueryFilters().Include(a => a.Person).FirstOrDefaultAsync(a => a.Id == id, ct);
     }
 
-    private static MeDto ToMe(Account a) =>
-        new(a.Id, a.Email, a.Role, a.PersonId, a.Person?.Name, a.MustChangePassword);
+    private static async Task<MeDto> ToMeAsync(RotaDbContext db, Account a, Guid? facilityId, CancellationToken ct) =>
+        new(a.Id, a.Email, a.Role, a.PersonId, a.Person?.Name, a.MustChangePassword,
+            facilityId is null ? null : await db.Facilities.Where(f => f.Id == facilityId)
+                .Select(f => new FacilityRef(f.Id, f.Name, f.Code)).FirstOrDefaultAsync(ct));
 
     private static string? NewPasswordError(string? password, string? current) =>
         (password?.Length ?? 0) < Passwords.MinLength ? $"Use at least {Passwords.MinLength} characters."

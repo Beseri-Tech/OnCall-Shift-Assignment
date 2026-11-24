@@ -9,6 +9,10 @@ public sealed class Person
     public string Code { get; set; } = "";
 
     public string Name { get; set; } = "";
+
+    /// <summary>The hospital whose rota this officer is on.</summary>
+    public Guid FacilityId { get; set; }
+
     public OfficerStatus Status { get; set; } = OfficerStatus.OnCall;
 
     /// <summary>Why they are excluded / left (e.g. CUTI BERSALIN, PINDAH).</summary>
@@ -76,6 +80,23 @@ public sealed class District
     public string Name { get; set; } = "";
 
     public List<Clinic> Clinics { get; set; } = [];
+    public List<Facility> Facilities { get; set; } = [];
+}
+
+/// <summary>A hospital that runs its own on-call rota. Officers, periods and (non-master) accounts belong to one.</summary>
+public sealed class Facility
+{
+    /// <summary>Hospital Tuanku Fauziah, Perlis: where all data before multi-facility support belongs.</summary>
+    public static readonly Guid HtfId = Guid.Parse("01999a00-0000-7000-8000-0000000000f1");
+
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public string Name { get; set; } = "";
+
+    /// <summary>Short code shown in the app, e.g. HTF.</summary>
+    public string Code { get; set; } = "";
+
+    public Guid DistrictId { get; set; }
+    public District? District { get; set; }
 }
 
 public sealed class Clinic
@@ -106,6 +127,8 @@ public enum AccountRole
     Admin,
     /// <summary>Runs the admin pages but is not on the rota (no officer record).</summary>
     Supervisor,
+    /// <summary>Sees and runs every facility; not bound to one and not on any rota.</summary>
+    Master,
 }
 
 /// <summary>A login. Officers and admins are linked to their officer record; supervisors are not.</summary>
@@ -118,6 +141,9 @@ public sealed class Account
 
     public string PasswordHash { get; set; } = "";
     public AccountRole Role { get; set; }
+
+    /// <summary>The hospital this account belongs to; null only for masters.</summary>
+    public Guid? FacilityId { get; set; }
 
     public Guid? PersonId { get; set; }
     public Person? Person { get; set; }
@@ -138,7 +164,7 @@ public sealed class Account
     public DateTimeOffset? LastLoginAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
-    public bool IsAdmin => Role is AccountRole.Admin or AccountRole.Supervisor;
+    public bool IsAdmin => Role is AccountRole.Admin or AccountRole.Supervisor or AccountRole.Master;
 }
 
 public enum PeriodStatus
@@ -164,6 +190,7 @@ public sealed class RotaPeriod
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public string Name { get; set; } = "";
+    public Guid FacilityId { get; set; }
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
 
@@ -182,9 +209,13 @@ public sealed class RotaPeriod
     public List<RotaRun> Runs { get; set; } = [];
 }
 
-/// <summary>Master list: copied into new periods as <see cref="PeriodDay"/>s; the rota itself uses the period's days.</summary>
+/// <summary>
+/// Master list for one state (state holidays differ): copied into new periods of that state's hospitals as
+/// <see cref="PeriodDay"/>s; the rota itself uses the period's days.
+/// </summary>
 public sealed class PublicHoliday
 {
+    public Guid StateId { get; set; }
     public DateOnly Date { get; set; }
     public string Name { get; set; } = "";
 }
@@ -195,6 +226,7 @@ public sealed class PublicHoliday
 /// </summary>
 public sealed class PeakDay
 {
+    public Guid StateId { get; set; }
     public DateOnly Date { get; set; }
     public string Name { get; set; } = "";
 }
@@ -405,6 +437,9 @@ public sealed class ChangeLog
     public long Id { get; set; }
     public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
 
+    /// <summary>The hospital the change happened in; null for changes outside any (e.g. a master adding a hospital).</summary>
+    public Guid? FacilityId { get; set; }
+
     /// <summary>Who made the change (null for anonymous actions such as a failed password reset).</summary>
     public Guid? AccountId { get; set; }
 
@@ -438,6 +473,9 @@ public sealed class Feedback
 
     /// <summary>Who sent it; null once their account is gone.</summary>
     public Guid? AccountId { get; set; }
+
+    /// <summary>Set when sent to the sender's hospital admins; null = about the app (read by masters).</summary>
+    public Guid? FacilityId { get; set; }
 
     public FeedbackCategory Category { get; set; }
     public string Message { get; set; } = "";
@@ -477,6 +515,10 @@ public sealed class DocumentRecord
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public DocumentKind Kind { get; set; }
+
+    /// <summary>The hospital the document belongs to; null for the user manual (shared by all).</summary>
+    public Guid? FacilityId { get; set; }
+
     public DocumentStatus Status { get; set; } = DocumentStatus.Pending;
 
     /// <summary>Server-generated R2 key. Quarantine key while Pending, then a new permanent key once checked.</summary>
