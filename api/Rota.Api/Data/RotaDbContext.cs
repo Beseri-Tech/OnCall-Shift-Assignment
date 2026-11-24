@@ -19,7 +19,9 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
     public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<AppSetting> Settings => Set<AppSetting>();
     public DbSet<Person> People => Set<Person>();
-    public DbSet<Account> Accounts => Set<Account>();
+
+    /// <summary>The people on the rota (officers and on-call admins): every rota, leave and tally list starts here.</summary>
+    public IQueryable<Person> Officers => People.Where(p => p.Role == AccountRole.Officer || p.Role == AccountRole.Admin);
     public DbSet<State> States => Set<State>();
     public DbSet<District> Districts => Set<District>();
     public DbSet<Clinic> Clinics => Set<Clinic>();
@@ -55,6 +57,14 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.HasIndex(p => new { p.FacilityId, p.Code }).IsUnique();
             e.HasIndex(p => new { p.FacilityId, p.Name }).IsUnique();
             e.HasOne<Facility>().WithMany().HasForeignKey(p => p.FacilityId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(p => p.Email).IsUnique();
+            e.Property(p => p.Email).HasMaxLength(254);
+            e.Property(p => p.Role).HasConversion<string>().HasMaxLength(16);
+            e.Property(p => p.SecurityStamp).HasMaxLength(64);
+            e.Property(p => p.ResetTokenHash).HasMaxLength(64);
+            e.Ignore(p => p.OnRota);
+            e.Ignore(p => p.IsAdmin);
+            e.ToTable(t => t.HasCheckConstraint("ck_people_facility", "\"Role\" = 'Master' OR \"FacilityId\" IS NOT NULL"));
             e.Property(p => p.Code).HasMaxLength(32);
             e.Property(p => p.Name).HasMaxLength(200);
             e.Property(p => p.Status).HasConversion<string>().HasMaxLength(16);
@@ -64,21 +74,6 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.HasOne(p => p.Clinic).WithMany().HasForeignKey(p => p.ClinicId).OnDelete(DeleteBehavior.SetNull);
             e.HasMany(p => p.Leave).WithOne().HasForeignKey(l => l.PersonId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(p => p.PreferredDates).WithOne().HasForeignKey(p => p.PersonId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        b.Entity<Account>(e =>
-        {
-            e.ToTable("accounts");
-            e.HasIndex(a => a.Email).IsUnique();
-            e.HasIndex(a => a.PersonId).IsUnique();
-            e.Property(a => a.Email).HasMaxLength(254);
-            e.Property(a => a.Role).HasConversion<string>().HasMaxLength(16);
-            e.Property(a => a.SecurityStamp).HasMaxLength(64);
-            e.Property(a => a.ResetTokenHash).HasMaxLength(64);
-            e.HasOne(a => a.Person).WithMany().HasForeignKey(a => a.PersonId).OnDelete(DeleteBehavior.Cascade);
-            e.Ignore(a => a.IsAdmin);
-            e.HasOne<Facility>().WithMany().HasForeignKey(a => a.FacilityId).OnDelete(DeleteBehavior.Restrict);
-            e.ToTable(t => t.HasCheckConstraint("ck_accounts_facility", "\"Role\" = 'Master' OR \"FacilityId\" IS NOT NULL"));
         });
 
         b.Entity<State>(e =>
@@ -256,7 +251,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.Property(n => n.Body).HasMaxLength(1000);
             e.Property(n => n.Link).HasMaxLength(200);
             e.HasIndex(n => new { n.AccountId, n.CreatedAt });
-            e.HasOne<Account>().WithMany().HasForeignKey(n => n.AccountId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Person>().WithMany().HasForeignKey(n => n.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<Feedback>(e =>
@@ -268,8 +263,8 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.HasIndex(f => f.CreatedAt);
             e.HasIndex(f => f.FacilityId);
             e.HasOne<Facility>().WithMany().HasForeignKey(f => f.FacilityId).OnDelete(DeleteBehavior.Cascade);
-            e.HasOne<Account>().WithMany().HasForeignKey(f => f.AccountId).OnDelete(DeleteBehavior.SetNull);
-            e.HasOne<Account>().WithMany().HasForeignKey(f => f.ResolvedByAccountId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<Person>().WithMany().HasForeignKey(f => f.AccountId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<Person>().WithMany().HasForeignKey(f => f.ResolvedByAccountId).OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<DocumentRecord>(e =>
@@ -286,7 +281,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.HasIndex(d => new { d.ParentType, d.ParentId });
             e.HasIndex(d => new { d.Kind, d.Status });
             e.HasIndex(d => d.FacilityId);
-            e.HasOne<Account>().WithMany().HasForeignKey(d => d.UploadedByAccountId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne<Person>().WithMany().HasForeignKey(d => d.UploadedByAccountId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne<Person>().WithMany().HasForeignKey(d => d.OwnerPersonId).OnDelete(DeleteBehavior.SetNull);
         });
 
@@ -335,7 +330,6 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
         // their own id (a run, a leave approval, a swap...) can't reach another hospital either.
         b.Entity<Person>().HasQueryFilter(p => FacilityId == null || p.FacilityId == FacilityId);
         b.Entity<RotaPeriod>().HasQueryFilter(p => FacilityId == null || p.FacilityId == FacilityId);
-        b.Entity<Account>().HasQueryFilter(a => FacilityId == null || a.FacilityId == FacilityId);
         b.Entity<ChangeLog>().HasQueryFilter(c => FacilityId == null || c.FacilityId == FacilityId);
         b.Entity<Feedback>().HasQueryFilter(f => FacilityId == null || f.FacilityId == FacilityId);
         b.Entity<DocumentRecord>().HasQueryFilter(d => FacilityId == null || d.FacilityId == null || d.FacilityId == FacilityId);
@@ -382,7 +376,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             {
                 switch (e.Entity)
                 {
-                    case Person p when p.FacilityId == Guid.Empty: p.FacilityId = fid; break;
+                    case Person p when p.FacilityId is null && p.Role != AccountRole.Master: p.FacilityId = fid; break;
                     case RotaPeriod p when p.FacilityId == Guid.Empty: p.FacilityId = fid; break;
                     case ChangeLog c when c.FacilityId is null && !AppLevelEntities.Contains(c.Entity ?? ""): c.FacilityId = fid; break;
                     case DocumentRecord d when d.FacilityId is null && d.Kind != DocumentKind.Manual: d.FacilityId = fid; break;

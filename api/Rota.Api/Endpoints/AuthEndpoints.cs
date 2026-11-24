@@ -21,10 +21,10 @@ public static class AuthEndpoints
         g.MapPost("/login", async (LoginRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
             string email = NormalizeEmail(req.Email);
-            var account = await db.Accounts.Include(a => a.Person).FirstOrDefaultAsync(a => a.Email == email, ct);
-            if (account is null || !Passwords.Verify(req.Password, account.PasswordHash))
+            var account = await db.People.FirstOrDefaultAsync(a => a.Email == email, ct);
+            if (account?.PasswordHash is null || !Passwords.Verify(req.Password, account.PasswordHash))
                 return Results.Problem("Wrong email or password.", statusCode: StatusCodes.Status401Unauthorized);
-            if (!account.Enabled || account.Person?.Status == OfficerStatus.Left)
+            if (!account.Enabled || account.Status == OfficerStatus.Left)
                 return Results.Problem("This account is disabled. Contact the admin.", statusCode: StatusCodes.Status403Forbidden);
             if (account.MustChangePassword && account.TempPasswordExpiresAt < DateTimeOffset.UtcNow)
                 return Results.Problem("Your temporary password has expired. Ask the admin to send a new invite.",
@@ -68,7 +68,7 @@ public static class AuthEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = [error] });
 
             SetPassword(account, req.NewPassword);
-            Mapping.Log(db, http, "account.change-password", account.PersonId, null, account.Id);
+            Mapping.Log(db, http, "account.change-password", account.OnRota ? account.Id : null, null, account.Id);
             await db.SaveChangesAsync(ct);
             await Session.SignInAsync(http, account, http.User.FacilityId());   // new stamp, no temporary-password flag
             return Results.Ok(await ToMeAsync(db, account, http.User.FacilityId(), ct));
@@ -78,7 +78,7 @@ public static class AuthEndpoints
         g.MapPost("/forgot", async (ForgotPasswordRequest req, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>
         {
             string email = NormalizeEmail(req.Email);
-            var account = await db.Accounts.FirstOrDefaultAsync(a => a.Email == email && a.Enabled, ct);
+            var account = await db.People.FirstOrDefaultAsync(a => a.Email == email && a.Enabled, ct);
             if (account is null) return Results.NoContent();
 
             var (token, hash) = Passwords.NewResetToken();
@@ -86,7 +86,7 @@ public static class AuthEndpoints
             account.ResetTokenExpiresAt = DateTimeOffset.UtcNow + ResetTokenLifetime;
 
             string link = $"{mailer.BaseUrl(http)}/reset-password?token={token}";
-            mailer.Enqueue(db, account.Email, new EmailContent(
+            mailer.Enqueue(db, account.Email!, new EmailContent(
                 Subject: "Reset your On-Call Rota password",
                 Heading: "Reset your password",
                 Paragraphs: [$"We received a request to reset the password for {account.Email}."],
@@ -101,14 +101,14 @@ public static class AuthEndpoints
         g.MapPost("/reset", async (ResetPasswordRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
             string hash = Passwords.HashToken(req.Token ?? "");
-            var account = await db.Accounts.FirstOrDefaultAsync(a => a.ResetTokenHash == hash && a.Enabled, ct);
+            var account = await db.People.FirstOrDefaultAsync(a => a.ResetTokenHash == hash && a.Enabled, ct);
             if (account is null || account.ResetTokenExpiresAt < DateTimeOffset.UtcNow)
                 return Results.Problem("This reset link is invalid or has expired. Ask for a new one.", statusCode: StatusCodes.Status400BadRequest);
             if (NewPasswordError(req.NewPassword, null) is { } error)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = [error] });
 
             SetPassword(account, req.NewPassword);
-            Mapping.Log(db, http, "account.reset-password", account.PersonId, new { account.Email }, account.Id);
+            Mapping.Log(db, http, "account.reset-password", account.OnRota ? account.Id : null, new { account.Email }, account.Id);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         }).AllowAnonymous().RequireRateLimiting(RateLimit);
@@ -116,15 +116,15 @@ public static class AuthEndpoints
 
     public static string NormalizeEmail(string? email) => (email ?? "").Trim().ToLowerInvariant();
 
-    private static Task<Account?> CurrentAsync(RotaDbContext db, HttpContext http, CancellationToken ct)
+    private static Task<Person?> CurrentAsync(RotaDbContext db, HttpContext http, CancellationToken ct)
     {
         var id = http.User.AccountId();
         // A master's own account belongs to no hospital, so it is outside the filter of the hospital they picked.
-        return db.Accounts.IgnoreQueryFilters().Include(a => a.Person).FirstOrDefaultAsync(a => a.Id == id, ct);
+        return db.People.IgnoreQueryFilters().FirstOrDefaultAsync(a => a.Id == id, ct);
     }
 
-    private static async Task<MeDto> ToMeAsync(RotaDbContext db, Account a, Guid? facilityId, CancellationToken ct) =>
-        new(a.Id, a.Email, a.Role, a.PersonId, a.Person?.Name, a.MustChangePassword,
+    private static async Task<MeDto> ToMeAsync(RotaDbContext db, Person a, Guid? facilityId, CancellationToken ct) =>
+        new(a.Id, a.Email ?? "", a.Role, a.OnRota ? a.Id : null, a.Name, a.MustChangePassword,
             facilityId is null ? null : await db.Facilities.Where(f => f.Id == facilityId)
                 .Select(f => new FacilityRef(f.Id, f.Name, f.Code)).FirstOrDefaultAsync(ct));
 
@@ -134,7 +134,7 @@ public static class AuthEndpoints
         : null;
 
     /// <summary>Sets a password chosen by the user: clears temporary-password and reset state, ends other sessions.</summary>
-    private static void SetPassword(Account a, string password)
+    private static void SetPassword(Person a, string password)
     {
         a.PasswordHash = Passwords.Hash(password);
         a.MustChangePassword = false;

@@ -16,7 +16,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     private static async Task<(List<AdminPersonDto> People, PeriodDto Period)> SeedAsync(HttpClient admin, int people = 6)
     {
         var names = string.Join("\n", Enumerable.Range(1, people).Select(i => $"Dr Test {i}"));
-        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names })).EnsureSuccessStatusCode();
+        await ApiFixture.AddPeopleAsync(admin, names);
 
         var period = await Read<PeriodDto>(await admin.PostAsJsonAsync("/api/admin/periods",
             new UpsertPeriodRequest("Oct 2026", new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), null), ApiFixture.Json));
@@ -48,7 +48,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal(["D001", "D002", "D003"], people.Select(p => p.Code));
         Assert.All(people, p => Assert.NotEqual(Guid.Empty, p.Id));
 
-        var dup = await admin.PostAsJsonAsync("/api/admin/people", new UpsertPersonRequest("dr test 1", null), ApiFixture.Json);
+        var dup = await admin.PostAsJsonAsync("/api/admin/people", new UpsertPersonRequest("dr test 1", null, Email: ApiFixture.EmailFor("dr test 1")), ApiFixture.Json);
         Assert.Equal(HttpStatusCode.BadRequest, dup.StatusCode);
     }
 
@@ -68,8 +68,8 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var url = $"/api/admin/people/{target.Id}";
         // A reason is required when someone isn't on call.
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync(url,
-            new UpsertPersonRequest(target.Name, target.Code, OfficerStatus.Excluded), ApiFixture.Json)).StatusCode);
-        (await admin.PutAsJsonAsync(url, new UpsertPersonRequest(target.Name, target.Code, OfficerStatus.Excluded,
+            new UpsertPersonRequest(target.Name, target.Code, OfficerStatus.Excluded, Email: target.Email), ApiFixture.Json)).StatusCode);
+        (await admin.PutAsJsonAsync(url, new UpsertPersonRequest(target.Name, target.Code, OfficerStatus.Excluded, Email: target.Email,
             StatusReason: "CUTI BERSALIN", ExcludedUntil: new DateOnly(2027, 1, 1), ClinicId: clinicId, Phone: "012-3456789"),
             ApiFixture.Json)).EnsureSuccessStatusCode();
 
@@ -84,7 +84,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.DoesNotContain(run.Days, d => d.PersonId == target.Id);
 
         // Back on call clears the reason; deleting the clinic unsets it.
-        (await admin.PutAsJsonAsync(url, new UpsertPersonRequest(target.Name, target.Code, ClinicId: clinicId), ApiFixture.Json))
+        (await admin.PutAsJsonAsync(url, new UpsertPersonRequest(target.Name, target.Code, Email: target.Email, ClinicId: clinicId), ApiFixture.Json))
             .EnsureSuccessStatusCode();
         (await admin.DeleteAsync($"/api/admin/clinics/{clinicId}")).EnsureSuccessStatusCode();
         saved = (await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"))).Single(p => p.Id == target.Id);
@@ -175,7 +175,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal([D(11, 3)], (await Days(nov.Id)).Select(d => d.Date));
 
         // The rota uses the period's own holidays.
-        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names = "Dr A\nDr B\nDr C" })).EnsureSuccessStatusCode();
+        await ApiFixture.AddPeopleAsync(admin, "Dr A\nDr B\nDr C");
         (await admin.PostAsync($"/api/admin/periods/{oct.Id}/lock", null)).EnsureSuccessStatusCode();
         var run = await Read<RunDetailDto>(await admin.PostAsJsonAsync($"/api/admin/periods/{oct.Id}/generate", new GenerateRequest(1)));
         Assert.False(run.Days.Single(d => d.Date == D(10, 20)).IsWeekendHoliday);
@@ -226,7 +226,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var (people, period) = await SeedAsync(admin);
         var officer = people[0];
         (await admin.PutAsJsonAsync($"/api/admin/people/{officer.Id}",
-            new UpsertPersonRequest(officer.Name, officer.Code, BlockedWeekdays: [(int)DayOfWeek.Sunday], BlockedReason: "Works in Kedah"),
+            new UpsertPersonRequest(officer.Name, officer.Code, Email: officer.Email, BlockedWeekdays: [(int)DayOfWeek.Sunday], BlockedReason: "Works in Kedah"),
             ApiFixture.Json)).EnsureSuccessStatusCode();
         var listed = (await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"))).Single(p => p.Id == officer.Id);
         Assert.Equal([0], listed.BlockedWeekdays.ToArray());
@@ -265,7 +265,7 @@ public class ApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var clinicId = await Read<Guid>(await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("KP Beseri", kangar.Id)));
         var members = people.Take(3).ToList();
         foreach (var m in members)
-            (await admin.PutAsJsonAsync($"/api/admin/people/{m.Id}", new UpsertPersonRequest(m.Name, m.Code, ClinicId: clinicId), ApiFixture.Json))
+            (await admin.PutAsJsonAsync($"/api/admin/people/{m.Id}", new UpsertPersonRequest(m.Name, m.Code, Email: m.Email, ClinicId: clinicId), ApiFixture.Json))
                 .EnsureSuccessStatusCode();
 
         DateOnly event1 = new(2026, 10, 10), event2 = new(2026, 10, 17);

@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Hosting;
@@ -60,11 +61,25 @@ public sealed class ApiFixture : IAsyncLifetime
         return client;
     }
 
-    /// <summary>Invites the officer (no SMTP in tests, so the temporary password comes back), logs in and sets a password.</summary>
+    /// <summary>A sign-in email for a test person's name, e.g. "Dr Aminah" -> dr-aminah@test.local.</summary>
+    public static string EmailFor(string name) => Regex.Replace(name.Trim().ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-') + "@test.local";
+
+    /// <summary>Adds officers by name (one per line), each with an email made from their name.</summary>
+    public static async Task AddPeopleAsync(HttpClient admin, string names)
+    {
+        foreach (var name in names.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            (await admin.PostAsJsonAsync("/api/admin/people", new UpsertPersonRequest(name, null, Email: EmailFor(name)), Json))
+                .EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Gives the person a new temporary password (no SMTP in tests, so it comes back), logs in as them and sets a password.
+    /// </summary>
     public static async Task<HttpClient> OfficerClientAsync(WebApplicationFactory<Program> app, HttpClient admin, Guid personId)
     {
-        string email = $"officer-{personId:N}@test.local";
-        var invite = await admin.PostAsJsonAsync("/api/admin/accounts", new InviteRequest(email, AccountRole.Officer, personId), Json);
+        var people = await admin.GetFromJsonAsync<List<AdminPersonDto>>("/api/admin/people", Json);
+        string email = people!.Single(p => p.Id == personId).Email!;
+        var invite = await admin.PostAsync($"/api/admin/people/{personId}/resend", null);
         invite.EnsureSuccessStatusCode();
         string temp = (await invite.Content.ReadFromJsonAsync<InviteResult>(Json))!.TempPassword!;
 

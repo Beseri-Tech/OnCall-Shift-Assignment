@@ -187,7 +187,7 @@ static async Task BootstrapAdminAsync(WebApplication app)
 
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<RotaDbContext>();
-    if (!await db.Database.CanConnectAsync() || await db.Accounts.AnyAsync(a => a.Role == AccountRole.Master)) return;
+    if (!await db.Database.CanConnectAsync() || await db.People.AnyAsync(a => a.Role == AccountRole.Master)) return;
 
     if (email.Length == 0 || string.IsNullOrEmpty(hash))
     {
@@ -195,13 +195,13 @@ static async Task BootstrapAdminAsync(WebApplication app)
         return;
     }
 
-    if (await db.Accounts.AnyAsync(a => a.Email == email))
+    if (await db.People.IgnoreQueryFilters().AnyAsync(a => a.Email == email))
     {
         app.Logger.LogWarning("Admin:Email {Email} already has an account; no master was created.", email);
         return;
     }
 
-    db.Accounts.Add(new Account { Email = email, PasswordHash = hash, Role = AccountRole.Master });
+    db.People.Add(new Person { Name = "Master", Code = "M0001", Email = email, PasswordHash = hash, Role = AccountRole.Master });
     await db.SaveChangesAsync();
     app.Logger.LogInformation("Created the first master account {Email}.", email);
 }

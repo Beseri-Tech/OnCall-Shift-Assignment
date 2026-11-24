@@ -1,8 +1,11 @@
 namespace Rota.Api.Data;
 
+/// <summary>
+/// Everyone in the app, with their login: officers and on-call admins (on the rota), supervisors (run a hospital's admin
+/// pages, never on the rota) and masters (every hospital, no hospital of their own).
+/// </summary>
 public sealed class Person
 {
-    /// <summary>Permanent ID; later linked to a personal login.</summary>
     public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Short unique code shown to people (e.g. D001); admin may change it to a staff number.</summary>
@@ -10,8 +13,38 @@ public sealed class Person
 
     public string Name { get; set; } = "";
 
-    /// <summary>The hospital whose rota this officer is on.</summary>
-    public Guid FacilityId { get; set; }
+    /// <summary>The hospital this person belongs to; null only for masters.</summary>
+    public Guid? FacilityId { get; set; }
+
+    public AccountRole Role { get; set; } = AccountRole.Officer;
+
+    /// <summary>Sign-in email, stored lowercase. Required for anyone added or edited; null only for officers from before
+    /// logins and officers were one record, who can't sign in until an admin adds it.</summary>
+    public string? Email { get; set; }
+
+    /// <summary>Null until they have been invited.</summary>
+    public string? PasswordHash { get; set; }
+
+    /// <summary>Can sign in (also needs a password and not being Left).</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Set for invites and admin resets: the temporary password must be replaced at the next login.</summary>
+    public bool MustChangePassword { get; set; }
+    public DateTimeOffset? TempPasswordExpiresAt { get; set; }
+
+    /// <summary>SHA-256 of the emailed reset token; the token itself is never stored.</summary>
+    public string? ResetTokenHash { get; set; }
+    public DateTimeOffset? ResetTokenExpiresAt { get; set; }
+
+    /// <summary>Changes on password change, disable or role change; cookies with an old stamp are rejected.</summary>
+    public string SecurityStamp { get; set; } = Guid.NewGuid().ToString("N");
+
+    public DateTimeOffset? LastLoginAt { get; set; }
+
+    /// <summary>Officers and on-call admins are on the rota; supervisors and masters never are.</summary>
+    public bool OnRota => Role is AccountRole.Officer or AccountRole.Admin;
+
+    public bool IsAdmin => Role is AccountRole.Admin or AccountRole.Supervisor or AccountRole.Master;
 
     public OfficerStatus Status { get; set; } = OfficerStatus.OnCall;
 
@@ -125,46 +158,10 @@ public enum AccountRole
     Officer,
     /// <summary>On-call officer who also runs the admin pages.</summary>
     Admin,
-    /// <summary>Runs the admin pages but is not on the rota (no officer record).</summary>
+    /// <summary>Runs the hospital's admin pages but is never on the rota.</summary>
     Supervisor,
     /// <summary>Sees and runs every facility; not bound to one and not on any rota.</summary>
     Master,
-}
-
-/// <summary>A login. Officers and admins are linked to their officer record; supervisors are not.</summary>
-public sealed class Account
-{
-    public Guid Id { get; set; } = Guid.CreateVersion7();
-
-    /// <summary>Stored lowercase.</summary>
-    public string Email { get; set; } = "";
-
-    public string PasswordHash { get; set; } = "";
-    public AccountRole Role { get; set; }
-
-    /// <summary>The hospital this account belongs to; null only for masters.</summary>
-    public Guid? FacilityId { get; set; }
-
-    public Guid? PersonId { get; set; }
-    public Person? Person { get; set; }
-
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>Set for invites and admin resets: the temporary password must be replaced at the next login.</summary>
-    public bool MustChangePassword { get; set; }
-    public DateTimeOffset? TempPasswordExpiresAt { get; set; }
-
-    /// <summary>SHA-256 of the emailed reset token; the token itself is never stored.</summary>
-    public string? ResetTokenHash { get; set; }
-    public DateTimeOffset? ResetTokenExpiresAt { get; set; }
-
-    /// <summary>Changes on password change, disable or role change; cookies with an old stamp are rejected.</summary>
-    public string SecurityStamp { get; set; } = Guid.NewGuid().ToString("N");
-
-    public DateTimeOffset? LastLoginAt { get; set; }
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-
-    public bool IsAdmin => Role is AccountRole.Admin or AccountRole.Supervisor or AccountRole.Master;
 }
 
 public enum PeriodStatus

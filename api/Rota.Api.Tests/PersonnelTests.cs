@@ -56,11 +56,13 @@ public class PersonnelTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var kangar = (await DistrictsAsync(admin))["Kangar"];
         var clinicId = await Read<Guid>(await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("KP Kangar", kangar)));
 
-        // Bad email or a supervisor role: nothing is saved.
+        // No email, a bad email or a master role: nothing is saved.
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/people",
+            new UpsertPersonRequest("Dr Ali", null, ClinicId: clinicId), ApiFixture.Json)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/people",
             new UpsertPersonRequest("Dr Ali", null, ClinicId: clinicId, Email: "not-an-email"), ApiFixture.Json)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/people",
-            new UpsertPersonRequest("Dr Ali", null, ClinicId: clinicId, Email: "ali@test.local", Role: AccountRole.Supervisor),
+            new UpsertPersonRequest("Dr Ali", null, ClinicId: clinicId, Email: "ali@test.local", Role: AccountRole.Master),
             ApiFixture.Json)).StatusCode);
         Assert.Empty(await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people")));
 
@@ -76,16 +78,16 @@ public class PersonnelTests(ApiFixture fixture) : IClassFixture<ApiFixture>
             new { email = "ali@test.local", password = saved.Invite!.TempPassword }));
         Assert.Equal(person.Id, me.PersonId);
 
-        // Without an email it's just the officer; an email added later on the edit form invites them then.
+        // Editing changes the email and role in the same record; someone already invited isn't invited again.
         var later = await Read<SavePersonResult>(await admin.PostAsJsonAsync("/api/admin/people",
-            new UpsertPersonRequest("Dr Bala", null, ClinicId: clinicId), ApiFixture.Json));
-        Assert.Null(later.Invite);
+            new UpsertPersonRequest("Dr Bala", null, ClinicId: clinicId, Email: ApiFixture.EmailFor("Dr Bala")), ApiFixture.Json));
+        Assert.NotNull(later.Invite);
         var edited = await Read<SavePersonResult>(await admin.PutAsJsonAsync($"/api/admin/people/{later.Id}",
             new UpsertPersonRequest("Dr Bala", null, ClinicId: clinicId, Email: "bala@test.local", Role: AccountRole.Admin),
             ApiFixture.Json));
-        Assert.NotNull(edited.Invite);
-        var accounts = await Read<List<AccountDto>>(await admin.GetAsync("/api/admin/accounts"));
-        Assert.Equal(AccountRole.Admin, accounts.Single(a => a.PersonId == later.Id).Role);
+        Assert.Null(edited.Invite);
+        var bala = (await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"))).Single(p => p.Id == later.Id);
+        Assert.Equal(("bala@test.local", AccountRole.Admin), (bala.Email, bala.Role));
     }
 
     [Fact]
@@ -96,13 +98,13 @@ public class PersonnelTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var districts = await DistrictsAsync(admin);
         await Read<Guid>(await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("KP Kangar", districts["Kangar"])));
         await Read<Guid>(await admin.PostAsJsonAsync("/api/admin/clinics", new UpsertClinicRequest("KP Arau", districts["Arau"])));
-        await Read<SavePersonResult>(await admin.PostAsJsonAsync("/api/admin/people", new UpsertPersonRequest("Dr Existing", "D007"),
+        await Read<SavePersonResult>(await admin.PostAsJsonAsync("/api/admin/people", new UpsertPersonRequest("Dr Existing", "D007", Email: ApiFixture.EmailFor("Dr Existing")),
             ApiFixture.Json));
 
         const string bad = """
             Name,Code,Email,Role,Phone,State,District,Clinic
             Dr Ali,,ali@test.local,,012-1,Perlis,Kangar,KP Kangar
-            Dr Existing,,,,,Perlis,Kangar,KP Kangar
+            Dr Existing,,other@test.local,,,Perlis,Kangar,KP Kangar
             Dr Chong,D007,chong-at-test,Boss,,Perlis,Kangar,KP Arau
             Dr Devi,,ALI@test.local,,,Kedah,Kangar,KP Kangar
             """;
@@ -125,7 +127,7 @@ public class PersonnelTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         // Semicolons (Excel in some locales), quoted fields, Malay headers and any letter case are fine.
         const string good = "Nama;Emel;Peranan;Negeri;Daerah;Klinik\r\n" +
                             "\"Dr Ali; bin Abu\";ali@test.local;admin;perlis;KANGAR;kp kangar\r\n" +
-                            "Dr Chong;;;Perlis;Arau;KP Arau\r\n";
+                            "Dr Chong;chong@test.local;;Perlis;Arau;KP Arau\r\n";
         var preview = await Read<ImportResultDto>(await admin.PostAsJsonAsync("/api/admin/people/import",
             new ImportPeopleRequest(good, Commit: false), ApiFixture.Json));
         Assert.All(preview.Rows, r => Assert.Empty(r.Errors));
@@ -133,13 +135,13 @@ public class PersonnelTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         var done = await Read<ImportResultDto>(await admin.PostAsJsonAsync("/api/admin/people/import",
             new ImportPeopleRequest(good, Commit: true), ApiFixture.Json));
-        Assert.Equal((true, 2, 1), (done.Committed, done.Added, done.Invited));
-        Assert.Equal("ali@test.local", Assert.Single(done.Passwords).Email);
+        Assert.Equal((true, 2, 2), (done.Committed, done.Added, done.Invited));
+        Assert.Equal(["ali@test.local", "chong@test.local"], done.Passwords.Select(p => p.Email).Order());
 
         var people = await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"));
         var ali = people.Single(p => p.Name == "Dr Ali; bin Abu");
         Assert.Equal(("KP Kangar", "Kangar", "Perlis", AccountRole.Admin, "D008"), (ali.ClinicName, ali.District, ali.State, ali.Role, ali.Code));
-        Assert.Equal(("KP Arau", null), (people.Single(p => p.Name == "Dr Chong").ClinicName, people.Single(p => p.Name == "Dr Chong").Email));
+        Assert.Equal(("KP Arau", "chong@test.local"), (people.Single(p => p.Name == "Dr Chong").ClinicName, people.Single(p => p.Name == "Dr Chong").Email));
 
         Assert.Contains("Missing column(s): clinic", Assert.Single((await Read<ImportResultDto>(await admin.PostAsJsonAsync(
             "/api/admin/people/import", new ImportPeopleRequest("Name,State,District\nDr X,Perlis,Kangar", true), ApiFixture.Json))).FileErrors));

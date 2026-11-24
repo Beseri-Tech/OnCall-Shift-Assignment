@@ -17,7 +17,7 @@ function downloadTemplate(clinics: Clinic[]) {
   const rows = [
     HEADER,
     ['Dr Ahmad bin Ali', '', 'ahmad@example.com', 'Officer', '012-3456789', ...place],
-    ['Dr Siti binti Abu', 'D050', '', '', '', ...place],
+    ['Dr Siti binti Abu', 'D050', 'siti@example.com', 'Supervisor', '', ...place],
   ]
   const blob = new Blob(['﻿' + rows.map(r => r.map(csvField).join(',')).join('\r\n') + '\r\n'], { type: 'text/csv' })
   const a = document.createElement('a')
@@ -68,9 +68,9 @@ export function ImportModal({ clinics, onClose, onSaved, onIssued }: {
     <Modal opened onClose={onClose} title="Import officers" size="xl">
       <Stack>
         <Text size="sm">
-          One officer per row with the columns <b>{HEADER.join(', ')}</b>. Name, State, District and Clinic are required, and the
-          state, district and clinic must already exist under <i>Clinics &amp; districts</i>. Officers with an Email are invited
-          (Role: Officer or Admin, default Officer). A blank Code gets the next D-number. Nothing is added unless every row is valid. Blank rows are skipped.
+          One person per row with the columns <b>{HEADER.join(', ')}</b>. Name, Email, State, District and Clinic are required, and the
+          state, district and clinic must already exist under <i>Clinics &amp; districts</i>. Everyone is invited by email
+          (Role: Officer, Admin or Supervisor, default Officer). A blank Code gets the next D-number. Nothing is added unless every row is valid. Blank rows are skipped.
         </Text>
         <Group>
           <Button variant="default" leftSection={<IconDownload size={16} />} onClick={() => downloadTemplate(clinics)}>

@@ -6,128 +6,110 @@ using Rota.Api.Services;
 
 namespace Rota.Api.Endpoints;
 
-/// <summary>Invites (temporary password by email), resends (also the admin's password reset) and role changes.</summary>
+/// <summary>
+/// Sign-in for people: invites and new temporary passwords (also the admin's password reset). A hospital's people are
+/// added and edited on the Officers tab (people endpoints); this group manages the masters, who belong to no hospital.
+/// </summary>
 public static class AdminAccountEndpoints
 {
     private static readonly TimeSpan TempPasswordLifetime = TimeSpan.FromDays(7);
 
     public static void MapAccountEndpoints(this RouteGroupBuilder admin)
     {
-        var g = admin.MapGroup("/accounts").WithTags("Admin accounts");
+        var g = admin.MapGroup("/accounts").WithTags("Admin accounts").RequireAuthorization(Session.MasterPolicy);
 
         g.MapGet("/", async (RotaDbContext db, CancellationToken ct) =>
-            await db.Accounts.OrderBy(a => a.Email)
-                .Select(a => new AccountDto(a.Id, a.Email, a.Role, a.PersonId, a.Person != null ? a.Person.Name : null, a.Enabled,
-                    a.MustChangePassword, a.TempPasswordExpiresAt, a.LastLoginAt,
-                    a.FacilityId, db.Facilities.Where(f => f.Id == a.FacilityId).Select(f => f.Code).FirstOrDefault()))
+            await db.People.IgnoreQueryFilters().Where(p => p.Role == AccountRole.Master).OrderBy(p => p.Name)
+                .Select(p => new AccountDto(p.Id, p.Email ?? "", p.Role, null, p.Name, p.Enabled,
+                    p.MustChangePassword, p.TempPasswordExpiresAt, p.LastLoginAt, null, null))
                 .ToListAsync(ct));
 
-        g.MapPost("/", async (InviteRequest req, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>
+        g.MapPost("/", async (MasterRequest req, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>
         {
             string email = AuthEndpoints.NormalizeEmail(req.Email);
-            if (await ValidateAsync(db, http, email, req.Role, req.PersonId, null, ct) is { } problem) return problem;
-
-            var result = Invite(db, mailer, http, email, req.Role, HasOfficer(req.Role) ? req.PersonId : null);
+            if (await ValidateMasterAsync(db, req, email, null, ct) is { } problem) return problem;
+            var master = new Person
+            {
+                Name = AdminEndpoints.Clean(req.Name)!, Email = email, Role = AccountRole.Master,
+                Code = "M" + Guid.NewGuid().ToString("N")[..7].ToUpperInvariant(),
+            };
+            db.People.Add(master);
+            Mapping.Log(db, http, "account.invite", null, null, master.Id, after: new { master.Name, master.Email, master.Role });
+            var result = Invite(db, mailer, http, master);
             await db.SaveChangesAsync(ct);
             return Results.Ok(result);
         });
 
-        // New temporary password: re-sends a lost invite, and is how the admin resets someone's password.
-        g.MapPost("/{id:guid}/resend", async (Guid id, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>
+        g.MapPut("/{id:guid}", async (Guid id, MasterRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
-            var account = await FindAsync(db, http, id, ct);
-            if (account is null) return Results.NotFound();
-
-            string temp = SetTemporaryPassword(account);
-            bool sent = QueueInvite(db, mailer, http, account, temp);
-            Mapping.Log(db, http, "account.resend", account.PersonId, new { account.Email }, account.Id);
-            await db.SaveChangesAsync(ct);
-
-            return Results.Ok(new InviteResult(account.Id, sent, sent ? null : temp));
-        });
-
-        g.MapPut("/{id:guid}", async (Guid id, UpdateAccountRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
-        {
-            var account = await FindAsync(db, http, id, ct);
-            if (account is null) return Results.NotFound();
-
-            // Blocking self-demotion/disable also guarantees at least one enabled admin (and master) remains.
-            if (id == http.User.AccountId() && (!req.Enabled || req.Role != account.Role))
-                return Results.Problem("You can't disable your own account or change your own role.",
-                    statusCode: StatusCodes.Status409Conflict);
-
+            var master = await db.People.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == id && p.Role == AccountRole.Master, ct);
+            if (master is null) return Results.NotFound();
+            if (id == http.User.AccountId() && !req.Enabled)
+                return Results.Problem("You can't disable your own account.", statusCode: StatusCodes.Status409Conflict);
             string email = AuthEndpoints.NormalizeEmail(req.Email);
-            if (await ValidateAsync(db, http, email, req.Role, req.PersonId, id, ct) is { } problem) return problem;
-            if (req.Role != AccountRole.Master && account.FacilityId is null && db.FacilityId is null)
-                return Results.Problem("Pick the hospital this account will belong to first.", statusCode: StatusCodes.Status400BadRequest);
+            if (await ValidateMasterAsync(db, req, email, id, ct) is { } problem) return problem;
 
-            var before = await Audit.AccountAsync(db, account, ct);
-            account.Email = email;
-            account.Role = req.Role;
-            account.PersonId = HasOfficer(req.Role) ? req.PersonId : null;
-            account.FacilityId = req.Role == AccountRole.Master ? null : account.FacilityId ?? db.FacilityId;
-            account.Enabled = req.Enabled;
-            account.SecurityStamp = Guid.NewGuid().ToString("N");   // new rights apply at their next request
-            Mapping.Log(db, http, "account.update", account.PersonId, null, id, before, await Audit.AccountAsync(db, account, ct));
+            var before = new { master.Name, master.Email, master.Enabled };
+            master.Name = AdminEndpoints.Clean(req.Name)!;
+            master.Email = email;
+            if (master.Enabled != req.Enabled) master.SecurityStamp = Guid.NewGuid().ToString("N");
+            master.Enabled = req.Enabled;
+            Mapping.Log(db, http, "account.update", null, null, id, before, new { master.Name, master.Email, master.Enabled });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });
+
+        g.MapPost("/{id:guid}/resend", (Guid id, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>
+            ResendAsync(id, db, mailer, http, ct));
     }
 
-    /// <summary>Adds the account with a temporary password and queues the invite email; the caller saves.</summary>
-    internal static InviteResult Invite(RotaDbContext db, Mailer mailer, HttpContext http, string email, AccountRole role, Guid? personId)
+    /// <summary>
+    /// New temporary password, emailed (or returned when email is off): re-sends a lost invite, invites someone who never
+    /// was, and is how an admin resets a password. A master reaches anyone; others only their hospital's people.
+    /// </summary>
+    internal static async Task<IResult> ResendAsync(Guid id, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct)
     {
-        var account = new Account
-        {
-            Email = email, Role = role, PersonId = personId, FacilityId = role == AccountRole.Master ? null : db.FacilityId,
-        };
-        db.Accounts.Add(account);
-        string temp = SetTemporaryPassword(account);
-        bool sent = QueueInvite(db, mailer, http, account, temp);
-        Mapping.Log(db, http, "account.invite", personId, null, account.Id, after: new { account.Email, account.Role });
-        return new InviteResult(account.Id, sent, sent ? null : temp);
+        var person = await (http.User.IsMaster() ? db.People.IgnoreQueryFilters() : db.People).FirstOrDefaultAsync(p => p.Id == id, ct);
+        if (person is null) return Results.NotFound();
+        if (person.Email is null)
+            return Results.Problem($"Add {person.Name}'s email first.", statusCode: StatusCodes.Status400BadRequest);
+        if (person.Status == OfficerStatus.Left)
+            return Results.Problem($"{person.Name} has left and can't sign in.", statusCode: StatusCodes.Status400BadRequest);
+        var result = Invite(db, mailer, http, person);
+        Mapping.Log(db, http, "account.resend", person.OnRota ? person.Id : null, new { person.Email }, person.Id);
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(result);
     }
 
-    /// <summary>Problem with a normalized email (invalid, or another account has it), else null.</summary>
-    internal static async Task<string?> EmailErrorAsync(RotaDbContext db, string email, Guid? accountId, CancellationToken ct) =>
-        !IsValidEmail(email) ? "Enter a valid email address."
-        : await db.Accounts.IgnoreQueryFilters().AnyAsync(a => a.Id != accountId && a.Email == email, ct) ? $"{email} already has an account."
+    /// <summary>Gives the person (who has an email) a temporary password and queues the invite email; the caller saves.</summary>
+    internal static InviteResult Invite(RotaDbContext db, Mailer mailer, HttpContext http, Person person)
+    {
+        string temp = SetTemporaryPassword(person);
+        bool sent = QueueInvite(db, mailer, http, person, temp);
+        return new InviteResult(person.Id, sent, sent ? null : temp);
+    }
+
+    private static async Task<IResult?> ValidateMasterAsync(RotaDbContext db, MasterRequest req, string email, Guid? id, CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string[]>();
+        string? name = AdminEndpoints.Clean(req.Name);
+        if (name is null) errors["name"] = ["Name is required."];
+        else if (name.Length > 200) errors["name"] = ["Name is too long."];
+        if (await EmailErrorAsync(db, email, id, ct) is { } emailError) errors["email"] = [emailError];
+        return errors.Count > 0 ? Results.ValidationProblem(errors) : null;
+    }
+
+    /// <summary>Problem with a normalized email (missing, invalid, or someone else has it), else null. Emails are unique app-wide.</summary>
+    internal static async Task<string?> EmailErrorAsync(RotaDbContext db, string email, Guid? personId, CancellationToken ct) =>
+        email.Length == 0 ? "Email is required: it's how they sign in."
+        : !IsValidEmail(email) ? "Enter a valid email address."
+        : await db.People.IgnoreQueryFilters().AnyAsync(p => p.Id != personId && p.Email == email, ct) ? $"{email} is already used by someone else."
         : null;
 
     internal static bool IsValidEmail(string email) =>
         MailAddress.TryCreate(email, out var parsed) && parsed.Address == email && email.Length <= 254;
 
-    /// <summary>A master reaches every account (masters belong to no hospital); others only their hospital's.</summary>
-    private static Task<Account?> FindAsync(RotaDbContext db, HttpContext http, Guid id, CancellationToken ct) =>
-        (http.User.IsMaster() ? db.Accounts.IgnoreQueryFilters() : db.Accounts).FirstOrDefaultAsync(a => a.Id == id, ct);
-
-    /// <summary>Officers and admins (on call) are linked to their officer record; supervisors and masters are not.</summary>
-    private static bool HasOfficer(AccountRole role) => role is AccountRole.Officer or AccountRole.Admin;
-
-    private static async Task<IResult?> ValidateAsync(RotaDbContext db, HttpContext http, string email, AccountRole role, Guid? personId,
-        Guid? id, CancellationToken ct)
-    {
-        var errors = new Dictionary<string, string[]>();
-
-        if (await EmailErrorAsync(db, email, id, ct) is { } emailError) errors["email"] = [emailError];
-
-        if (!Enum.IsDefined(role)) errors["role"] = ["Unknown role."];
-        else if (role == AccountRole.Master && !http.User.IsMaster()) errors["role"] = ["Only a master can make master accounts."];
-        else if (role != AccountRole.Master && db.FacilityId is null) errors["role"] = ["Pick the hospital this account belongs to first."];
-        else if (HasOfficer(role))
-        {
-            if (personId is null)
-                errors["personId"] = ["Pick the officer this account belongs to (supervisors and masters have none)."];
-            else if (!await db.People.AnyAsync(p => p.Id == personId && p.Status != OfficerStatus.Left, ct))
-                errors["personId"] = ["Unknown officer, or the officer has left."];
-            else if (await db.Accounts.AnyAsync(a => a.Id != id && a.PersonId == personId, ct))
-                errors["personId"] = ["This officer already has an account."];
-        }
-
-        return errors.Count > 0 ? Results.ValidationProblem(errors) : null;
-    }
-
-    private static string SetTemporaryPassword(Account a)
+    private static string SetTemporaryPassword(Person a)
     {
         string temp = Passwords.NewTemporary();
         a.PasswordHash = Passwords.Hash(temp);
@@ -139,8 +121,8 @@ public static class AdminAccountEndpoints
         return temp;
     }
 
-    private static bool QueueInvite(RotaDbContext db, Mailer mailer, HttpContext http, Account a, string temp) =>
-        mailer.Enqueue(db, a.Email, new EmailContent(
+    private static bool QueueInvite(RotaDbContext db, Mailer mailer, HttpContext http, Person a, string temp) =>
+        mailer.Enqueue(db, a.Email!, new EmailContent(
             Subject: "You've been invited to On-Call Rota",
             Heading: "You've been invited to On-Call Rota",
             Paragraphs:
@@ -153,7 +135,7 @@ public static class AdminAccountEndpoints
             ],
             ButtonText: "Sign in to On-Call Rota",
             ButtonUrl: $"{mailer.BaseUrl(http)}/login",
-            Details: [("Email", a.Email), ("Temporary password", temp)],
+            Details: [("Email", a.Email!), ("Temporary password", temp)],
             Note: $"You'll be asked to choose your own password when you first sign in. " +
                   $"The temporary password expires in {TempPasswordLifetime.TotalDays:0} days."), http);
 }

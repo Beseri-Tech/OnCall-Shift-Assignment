@@ -28,8 +28,8 @@ public static class AdminLocationEndpoints
             return await db.Facilities.Where(f => master || f.Id == mine)
                 .OrderBy(f => f.District!.State!.Name).ThenBy(f => f.Name)
                 .Select(f => new FacilityDto(f.Id, f.Name, f.Code, f.DistrictId, f.District!.Name, f.District.StateId, f.District.State!.Name,
-                    db.People.IgnoreQueryFilters().Count(p => p.FacilityId == f.Id && p.Status != OfficerStatus.Left),
-                    db.Accounts.IgnoreQueryFilters().Count(a => a.FacilityId == f.Id),
+                    db.People.IgnoreQueryFilters().Count(p => p.FacilityId == f.Id && p.Status != OfficerStatus.Left && (p.Role == AccountRole.Officer || p.Role == AccountRole.Admin)),
+                    db.People.IgnoreQueryFilters().Count(a => a.FacilityId == f.Id && a.PasswordHash != null),
                     db.Periods.IgnoreQueryFilters().Where(p => p.FacilityId == f.Id).OrderByDescending(p => p.StartDate)
                         .Select(p => p.Name).FirstOrDefault(),
                     db.Periods.IgnoreQueryFilters().Where(p => p.FacilityId == f.Id).OrderByDescending(p => p.StartDate)
@@ -71,7 +71,7 @@ public static class AdminLocationEndpoints
             if (f is null) return Results.NotFound();
             if (await db.People.IgnoreQueryFilters().AnyAsync(p => p.FacilityId == id, ct) ||
                 await db.Periods.IgnoreQueryFilters().AnyAsync(p => p.FacilityId == id, ct) ||
-                await db.Accounts.IgnoreQueryFilters().AnyAsync(a => a.FacilityId == id, ct))
+                await db.People.IgnoreQueryFilters().AnyAsync(a => a.FacilityId == id, ct))
                 return Results.Problem($"{f.Name} still has officers, rota periods or accounts.", statusCode: StatusCodes.Status409Conflict);
             db.Facilities.Remove(f);
             Mapping.Log(db, http, "facility.delete", null, null, id, before: new { f.Name, f.Code });

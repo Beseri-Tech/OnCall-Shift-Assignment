@@ -290,7 +290,7 @@ public static class AdminRotaEndpoints
             var period = await db.Periods.FindAsync([id], ct);
             if (period is null) return Results.NotFound();
 
-            var rows = await db.People.Where(p => p.Status == OfficerStatus.OnCall).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
+            var rows = await db.Officers.Where(p => p.Status == OfficerStatus.OnCall).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
                 .Select(p => new LeaveExportRow(p.Name,
                     p.Leave.Where(l => l.Date >= period.StartDate && l.Date <= period.EndDate).Select(l => l.Date).ToList()))
                 .ToListAsync(ct);
@@ -304,7 +304,7 @@ public static class AdminRotaEndpoints
         var holidays = (await Mapping.HolidaysAsync(db, period.Id, ct)).Keys;
 
         var left = await db.PeriodExclusions.Where(x => x.PeriodId == period.Id).Select(x => x.PersonId).ToListAsync(ct);
-        var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id)).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
+        var people = await db.Officers.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id)).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
             .Select(p => new
             {
                 p.Id, p.Name, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight, p.BlockedWeekdays,

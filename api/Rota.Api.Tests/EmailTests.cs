@@ -47,10 +47,9 @@ public class EmailTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal(new EmailSettingsDto(true, false), await master.GetFromJsonAsync<EmailSettingsDto>("/api/admin/settings/email"));
         (await ForgotAsync(app)).EnsureSuccessStatusCode();
         Assert.Empty(await OutboxAsync(app));
-        var person = await (await master.PostAsJsonAsync("/api/admin/people", new UpsertPersonRequest("Dr Mail", null), ApiFixture.Json))
-            .Content.ReadFromJsonAsync<SavePersonResult>(ApiFixture.Json);
-        var invite = await (await master.PostAsJsonAsync("/api/admin/accounts",
-            new InviteRequest("mail@test.local", AccountRole.Officer, person!.Id), ApiFixture.Json)).Content.ReadFromJsonAsync<InviteResult>(ApiFixture.Json);
+        var person = await (await master.PostAsJsonAsync("/api/admin/people",
+            new UpsertPersonRequest("Dr Mail", null, Email: "mail@test.local"), ApiFixture.Json)).Content.ReadFromJsonAsync<SavePersonResult>(ApiFixture.Json);
+        var invite = person!.Invite;
         Assert.False(invite!.EmailSent);
         Assert.NotNull(invite.TempPassword);
 

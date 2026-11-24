@@ -72,7 +72,7 @@ public class DocumentTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
     private static async Task<HttpClient> OfficerAsync(WebApplicationFactory<Program> app, HttpClient admin, string name)
     {
-        var p = await Read<SavePersonResult>(await admin.PostAsJsonAsync("/api/admin/people", new UpsertPersonRequest(name, null), ApiFixture.Json));
+        var p = await Read<SavePersonResult>(await admin.PostAsJsonAsync("/api/admin/people", new UpsertPersonRequest(name, null, Email: ApiFixture.EmailFor(name)), ApiFixture.Json));
         return await ApiFixture.OfficerClientAsync(app, admin, p.Id);
     }
 
