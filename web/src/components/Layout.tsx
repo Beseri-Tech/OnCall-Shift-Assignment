@@ -19,6 +19,13 @@ const HospitalsPage = lazy(() => import('../pages/HospitalsPage').then(m => ({ d
 /** Below this the header nav moves into a side drawer (Mantine's md: 62em, about 992px), so phones and tablets get the menu. */
 const DRAWER_BELOW = 'md'
 
+interface NavItem { to: string; label: string; icon: typeof IconBook; end: boolean }
+/** Related pages share one header button that opens a small menu, so the bar stays on one line. */
+interface NavGroup { label: string; icon: typeof IconBook; items: NavItem[] }
+type Nav = NavItem | NavGroup
+const isGroup = (n: Nav): n is NavGroup => 'items' in n
+const matches = (n: NavItem, pathname: string) => (n.end ? pathname === n.to : pathname.startsWith(n.to))
+
 export function Layout() {
   const me = useMe().data
   const qc = useQueryClient()
@@ -36,15 +43,22 @@ export function Layout() {
   const allHospitals = master && !me?.facility && !['/changelog', '/account'].some(p => pathname.startsWith(p))
   const subtitle = `Dental Officers · ${me?.facility?.name ?? 'All hospitals'}`
 
-  // Supervisors aren't on the rota: no leave of their own, but they can edit officers' leave.
-  const links = allHospitals ? [{ to: '/', label: 'Hospitals', icon: IconBuildingHospital, end: true }] : [
+  // Officers get two short menus (their leave; their on call). Supervisors aren't on the rota: no leave or on call of their
+  // own, so a plain Leave page (everyone's leave) and the case log.
+  const nav: Nav[] = allHospitals ? [{ to: '/', label: 'Hospitals', icon: IconBuildingHospital, end: true }] : [
     me?.personId
-      ? { to: '/', label: 'My leave', icon: IconCalendarUser, end: true }
+      ? { label: 'Leave', icon: IconCalendarUser, items: [
+          { to: '/', label: 'My leave', icon: IconCalendarUser, end: true },
+          { to: '/leave-requests', label: 'Request leave', icon: IconPlaneDeparture, end: false },
+        ] }
       : { to: '/leave', label: 'Leave', icon: IconCalendarUser, end: false },
-    ...(me?.personId ? [{ to: '/leave-requests', label: 'Request leave', icon: IconPlaneDeparture, end: false }] : []),
-    ...(me?.personId ? [{ to: '/my-oncall', label: 'My on-call', icon: IconCalendarCheck, end: false }] : []),
-    { to: '/cases', label: 'Cases', icon: IconStethoscope, end: false },
-    ...(me?.personId ? [{ to: '/etap', label: 'ETAP', icon: IconReceipt2, end: false }] : []),
+    me?.personId
+      ? { label: 'On call', icon: IconCalendarCheck, items: [
+          { to: '/my-oncall', label: 'My on-call', icon: IconCalendarCheck, end: false },
+          { to: '/cases', label: 'Cases', icon: IconStethoscope, end: false },
+          { to: '/etap', label: 'ETAP claim', icon: IconReceipt2, end: false },
+        ] }
+      : { to: '/cases', label: 'Cases', icon: IconStethoscope, end: false },
     { to: '/overview', label: 'Overview', icon: IconLayoutGrid, end: false },
     { to: '/rota', label: 'Rota', icon: IconCalendarEvent, end: false },
     { to: '/rules', label: 'Rules', icon: IconBook, end: false },
@@ -68,10 +82,26 @@ export function Layout() {
             </Group>
             <Group gap={4} wrap="nowrap">
               <Group gap={4} wrap="nowrap" visibleFrom={DRAWER_BELOW}>
-                {links.map(({ to, label, icon: Icon, end }) => (
-                  <UnstyledButton key={to} component={NavLink} to={to} end={end} className="nav-link">
-                    <Icon size={18} stroke={1.8} />
-                    <span>{label}</span>
+                {nav.map(n => isGroup(n) ? (
+                  <Menu key={n.label} trigger="click-hover" openDelay={60} closeDelay={150} position="bottom-start" withinPortal>
+                    <Menu.Target>
+                      <UnstyledButton className={`nav-link${n.items.some(i => matches(i, pathname)) ? ' active' : ''}`}>
+                        <n.icon size={18} stroke={1.8} />
+                        <span>{n.label}</span>
+                        <IconChevronDown size={14} />
+                      </UnstyledButton>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      {n.items.map(({ to, label, icon: Icon }) => (
+                        <Menu.Item key={to} component={Link} to={to} leftSection={<Icon size={16} />}
+                          fw={n.items.find(i => matches(i, pathname))?.to === to ? 700 : undefined}>{label}</Menu.Item>
+                      ))}
+                    </Menu.Dropdown>
+                  </Menu>
+                ) : (
+                  <UnstyledButton key={n.to} component={NavLink} to={n.to} end={n.end} className="nav-link">
+                    <n.icon size={18} stroke={1.8} />
+                    <span>{n.label}</span>
                   </UnstyledButton>
                 ))}
               </Group>
@@ -118,12 +148,14 @@ export function Layout() {
         <ScrollArea style={{ flex: 1 }}>
           {master && <Box px="sm" pt="sm"><FacilitySwitcher w="100%" /></Box>}
           <Stack gap={2} p="sm" component="nav">
-            {links.map(({ to, label, icon: Icon, end }) => (
+            {nav.flatMap(n => isGroup(n) ? [{ heading: n.label }, ...n.items] : [n]).map(n => 'heading' in n ? (
+              <Text key={n.heading} size="xs" fw={700} c="dimmed" tt="uppercase" px="sm" pt="sm">{n.heading}</Text>
+            ) : (({ to, label, icon: Icon, end }: NavItem) => (
               <UnstyledButton key={to} component={NavLink} to={to} end={end} className="drawer-link">
                 <Icon size={20} stroke={1.8} />
                 <span>{label === 'Rules' ? 'Rules and guidelines' : label}</span>
               </UnstyledButton>
-            ))}
+            ))(n))}
           </Stack>
           <Divider mx="sm" />
           <Box p="sm">

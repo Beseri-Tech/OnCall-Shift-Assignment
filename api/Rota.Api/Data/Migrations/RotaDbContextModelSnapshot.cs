@@ -1124,52 +1124,6 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("shift_assignments", (string)null);
                 });
 
-            modelBuilder.Entity("Rota.Api.Data.ShiftChangeReport", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ColleagueId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<DateTimeOffset?>("DecidedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("DecidedById")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("FacilityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ReporterId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateOnly?>("ReturnDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ColleagueId");
-
-                    b.HasIndex("ReporterId");
-
-                    b.HasIndex("FacilityId", "Status");
-
-                    b.ToTable("shift_change_reports", (string)null);
-                });
-
             modelBuilder.Entity("Rota.Api.Data.State", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1550,27 +1504,6 @@ namespace Rota.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Person");
-                });
-
-            modelBuilder.Entity("Rota.Api.Data.ShiftChangeReport", b =>
-                {
-                    b.HasOne("Rota.Api.Data.Person", null)
-                        .WithMany()
-                        .HasForeignKey("ColleagueId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Rota.Api.Data.Facility", null)
-                        .WithMany()
-                        .HasForeignKey("FacilityId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Rota.Api.Data.Person", null)
-                        .WithMany()
-                        .HasForeignKey("ReporterId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Rota.Api.Data.SuratArahan", b =>

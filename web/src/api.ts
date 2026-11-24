@@ -164,7 +164,7 @@ export type EtapDayType = 'Working' | 'Rest' | 'Holiday'
 export interface EtapRow extends EtapRowInput {
   minutes: number; dayType: EtapDayType; holidayName: string | null; caseMinutes: number; caseCount: number
   /** 2a / 2b: passive call 4 h or more (working day / rest day or holiday); 3a / 3b: under 4 h. */
-  category: string; inRota: boolean; rotaOfficer: { personId: string; name: string } | null; report: ShiftReport | null
+  category: string; inRota: boolean; rotaOfficer: { personId: string; name: string } | null
 }
 export interface EtapLine { category: string; label: string; days: number; rate: number; amount: number }
 export interface EtapPatient { date: IsoDate; name: string | null; regNo: string | null; minutes: number; diagnosisAndTreatment: string | null; notes: string | null; confidential: boolean }
@@ -173,11 +173,6 @@ export interface EtapClaim {
   month: string; profileVerified: boolean; specialist: boolean; rows: EtapRow[]; rotaDates: IsoDate[]; lines: EtapLine[]
   totalDays: number; totalAmount: number; patients: EtapPatient[]; suratArahan: SuratArahan | null; saved: boolean
   unclaimedRotaRows: EtapRowInput[]
-}
-export type ShiftReportStatus = 'Pending' | 'Confirmed' | 'Rejected' | 'Cancelled'
-export interface ShiftReport {
-  id: string; date: IsoDate; reporterId: string; reporter: string; colleagueId: string; colleague: string; returnDate: IsoDate | null
-  status: ShiftReportStatus; canDecide: boolean; createdAt: string
 }
 /** The officer's own ETAP details (section A). Only they can see it. */
 export interface ProfileInput {
@@ -374,12 +369,6 @@ export const api = {
     get: (month: string) => get<EtapClaim>(`/api/etap${q({ month })}`),
     save: (month: string, rows: EtapRowInput[]) => put<EtapClaim>(`/api/etap${q({ month })}`, { rows }),
     pdfUrl: (month: string) => `${API}/api/etap/pdf${q({ month })}`,
-    reports: () => get<ShiftReport[]>('/api/etap/shift-reports'),
-    report: (date: IsoDate, colleagueId: string, returnDate: IsoDate | null) =>
-      post<{ id: string }>('/api/etap/shift-reports', { date, colleagueId, returnDate }),
-    confirm: (id: string) => post<void>(`/api/etap/shift-reports/${id}/confirm`),
-    reject: (id: string) => post<void>(`/api/etap/shift-reports/${id}/reject`),
-    cancel: (id: string) => post<void>(`/api/etap/shift-reports/${id}/cancel`),
   },
 
   /** The on-call case log (patient data: never put any of it in a URL). month = yyyy-MM. */

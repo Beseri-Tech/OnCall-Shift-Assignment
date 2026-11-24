@@ -64,7 +64,7 @@ public static class Etap
 
     /// <summary>Everything the ETAP page and PDF need for one officer and month. Rows null = their saved draft.</summary>
     public static async Task<EtapDto> BuildAsync(RotaDbContext db, Person me, int year, int month, IReadOnlyList<EtapRowInput>? rows,
-        Guid? viewer, bool viewerIsAdmin, CancellationToken ct)
+        CancellationToken ct)
     {
         var first = new DateOnly(year, month, 1);
         var end = first.AddMonths(1);
@@ -85,7 +85,6 @@ public static class Etap
                                join r in db.Runs on a.RunId equals r.Id
                                where a.PersonId == me.Id && r.IsPublished && a.Date >= first && a.Date < end
                                select a.Date).Distinct().OrderBy(d => d).ToListAsync(ct);
-        var reports = await ReportsAsync(db, viewer, viewerIsAdmin, ct, reporter: me.Id);
         var profile = await db.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.PersonId == me.Id, ct);
         bool specialist = profile?.TarikhPewartaanPakar is not null;
 
@@ -99,8 +98,7 @@ public static class Etap
             bool inRota = rotaDates.Contains(r.Date);
             var rotaOfficer = inRota ? null : await CaseEndpoints.OnCallOfficerAsync(db, r.Date, ct);
             rowDtos.Add(new EtapRowDto(r.Date, r.FromDate, r.FromTime, r.ToDate, r.ToTime, Minutes(r), type, holidays.GetValueOrDefault(r.Date),
-                caseMinutes, mine.Count, category, inRota, rotaOfficer,
-                reports.Where(x => x.Date == r.Date && x.Status != ShiftReportStatus.Cancelled).OrderByDescending(x => x.CreatedAt).FirstOrDefault()));
+                caseMinutes, mine.Count, category, inRota, rotaOfficer));
         }
 
         var lines = Categories.Select(c =>
@@ -127,25 +125,5 @@ public static class Etap
         return new EtapDto($"{year:0000}-{month:00}", verified, specialist, rowDtos, rotaDates, lines, lines.Sum(l => l.Days),
             lines.Sum(l => l.Amount), patients, letter, claim is not null,
             rotaDates.Where(d => rows.All(r => r.Date != d)).Select(d => DefaultRow(d, TypeOf(d))).ToList());
-    }
-
-    /// <summary>
-    /// Shift-change reports the viewer should see: their own, ones naming them, and (for admins) all pending in the hospital.
-    /// reporter: only that officer's (for the ETAP rows).
-    /// </summary>
-    public static async Task<List<ShiftReportDto>> ReportsAsync(RotaDbContext db, Guid? viewer, bool admin, CancellationToken ct,
-        Guid? reporter = null)
-    {
-        var since = DateTimeOffset.UtcNow.AddDays(-60);
-        var q = db.ShiftReports.AsNoTracking().Where(r => r.CreatedAt >= since || r.Status == ShiftReportStatus.Pending);
-        q = reporter is { } rid ? q.Where(r => r.ReporterId == rid)
-            : admin ? q.Where(r => r.Status == ShiftReportStatus.Pending || r.ReporterId == viewer || r.ColleagueId == viewer)
-            : q.Where(r => r.ReporterId == viewer || r.ColleagueId == viewer);
-        var list = await q.OrderByDescending(r => r.CreatedAt).ToListAsync(ct);
-        var ids = list.SelectMany(r => new[] { r.ReporterId, r.ColleagueId }).Distinct().ToList();
-        var names = await db.People.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
-        return list.Select(r => new ShiftReportDto(r.Id, r.Date, r.ReporterId, names.GetValueOrDefault(r.ReporterId, "?"), r.ColleagueId,
-            names.GetValueOrDefault(r.ColleagueId, "?"), r.ReturnDate, r.Status,
-            r.Status == ShiftReportStatus.Pending && (admin || r.ColleagueId == viewer), r.CreatedAt)).ToList();
     }
 }

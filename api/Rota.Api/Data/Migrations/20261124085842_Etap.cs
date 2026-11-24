@@ -40,44 +40,6 @@ namespace Rota.Api.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "shift_change_reports",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    FacilityId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ReporterId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Date = table.Column<DateOnly>(type: "date", nullable: false),
-                    ColleagueId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ReturnDate = table.Column<DateOnly>(type: "date", nullable: true),
-                    Status = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    DecidedById = table.Column<Guid>(type: "uuid", nullable: true),
-                    DecidedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_shift_change_reports", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_shift_change_reports_facilities_FacilityId",
-                        column: x => x.FacilityId,
-                        principalTable: "facilities",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_shift_change_reports_people_ColleagueId",
-                        column: x => x.ColleagueId,
-                        principalTable: "people",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_shift_change_reports_people_ReporterId",
-                        column: x => x.ReporterId,
-                        principalTable: "people",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "surat_arahan",
                 columns: table => new
                 {
@@ -107,21 +69,6 @@ namespace Rota.Api.Data.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_shift_change_reports_ColleagueId",
-                table: "shift_change_reports",
-                column: "ColleagueId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_shift_change_reports_FacilityId_Status",
-                table: "shift_change_reports",
-                columns: new[] { "FacilityId", "Status" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_shift_change_reports_ReporterId",
-                table: "shift_change_reports",
-                column: "ReporterId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_surat_arahan_DocumentId",
                 table: "surat_arahan",
                 column: "DocumentId");
@@ -137,9 +84,6 @@ namespace Rota.Api.Data.Migrations
         {
             migrationBuilder.DropTable(
                 name: "etap_claims");
-
-            migrationBuilder.DropTable(
-                name: "shift_change_reports");
 
             migrationBuilder.DropTable(
                 name: "surat_arahan");

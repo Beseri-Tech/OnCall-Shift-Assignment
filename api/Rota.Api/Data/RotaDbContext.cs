@@ -22,7 +22,6 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
     public DbSet<OfficerProfile> Profiles => Set<OfficerProfile>();
     public DbSet<SuratArahan> SuratArahan => Set<SuratArahan>();
     public DbSet<EtapClaim> EtapClaims => Set<EtapClaim>();
-    public DbSet<ShiftChangeReport> ShiftReports => Set<ShiftChangeReport>();
     public DbSet<Person> People => Set<Person>();
 
     /// <summary>The people on the rota (officers and on-call admins): every rota, leave and tally list starts here.</summary>
@@ -371,16 +370,6 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.HasOne<Person>().WithMany().HasForeignKey(c => c.PersonId).OnDelete(DeleteBehavior.Cascade);
         });
 
-        b.Entity<ShiftChangeReport>(e =>
-        {
-            e.ToTable("shift_change_reports");
-            e.Property(r => r.Status).HasConversion<string>().HasMaxLength(16);
-            e.HasIndex(r => new { r.FacilityId, r.Status });
-            e.HasOne<Facility>().WithMany().HasForeignKey(r => r.FacilityId).OnDelete(DeleteBehavior.Cascade);
-            e.HasOne<Person>().WithMany().HasForeignKey(r => r.ReporterId).OnDelete(DeleteBehavior.Cascade);
-            e.HasOne<Person>().WithMany().HasForeignKey(r => r.ColleagueId).OnDelete(DeleteBehavior.Cascade);
-        });
-
         FacilityFilters(b);
 
         b.Entity<ChangeLog>(e =>
@@ -409,7 +398,6 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
         b.Entity<ChangeLog>().HasQueryFilter(c => FacilityId == null || c.FacilityId == FacilityId);
         b.Entity<Feedback>().HasQueryFilter(f => FacilityId == null || f.FacilityId == FacilityId);
         b.Entity<SuratArahan>().HasQueryFilter(s => FacilityId == null || s.FacilityId == FacilityId);
-        b.Entity<ShiftChangeReport>().HasQueryFilter(r => FacilityId == null || r.FacilityId == FacilityId);
         b.Entity<EtapClaim>().HasQueryFilter(x => FacilityId == null ||
             Set<Person>().Any(p => p.Id == x.PersonId && p.FacilityId == FacilityId));
         b.Entity<OfficerProfile>().HasQueryFilter(x => FacilityId == null ||
@@ -463,7 +451,6 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
                     case RotaPeriod p when p.FacilityId == Guid.Empty: p.FacilityId = fid; break;
                     case OnCallCase c when c.FacilityId == Guid.Empty: c.FacilityId = fid; break;
                     case SuratArahan s when s.FacilityId == Guid.Empty: s.FacilityId = fid; break;
-                    case ShiftChangeReport r when r.FacilityId == Guid.Empty: r.FacilityId = fid; break;
                     case ChangeLog c when c.FacilityId is null && !AppLevelEntities.Contains(c.Entity ?? ""): c.FacilityId = fid; break;
                     case DocumentRecord d when d.FacilityId is null && d.Kind != DocumentKind.Manual: d.FacilityId = fid; break;
                     case PublicHoliday h when h.StateId == Guid.Empty: h.StateId = stateId ??= await StateOfAsync(fid, ct); break;

@@ -601,31 +601,6 @@ public sealed class EtapClaim
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
-public enum ShiftReportStatus { Pending, Confirmed, Rejected, Cancelled }
-
-/// <summary>
-/// An officer reports doing an on-call date the published rota gives to a colleague (a swap made outside the app). Once the
-/// colleague or an admin confirms, the published rota is changed to match, so the tally follows.
-/// </summary>
-public sealed class ShiftChangeReport
-{
-    public Guid Id { get; set; } = Guid.CreateVersion7();
-    public Guid FacilityId { get; set; }
-    public Guid ReporterId { get; set; }
-    public DateOnly Date { get; set; }
-
-    /// <summary>Who the rota has on call that date.</summary>
-    public Guid ColleagueId { get; set; }
-
-    /// <summary>The reporter's own rota date the colleague did in return, if it was a swap.</summary>
-    public DateOnly? ReturnDate { get; set; }
-
-    public ShiftReportStatus Status { get; set; } = ShiftReportStatus.Pending;
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-    public Guid? DecidedById { get; set; }
-    public DateTimeOffset? DecidedAt { get; set; }
-}
-
 public enum FeedbackCategory { Bug, Suggestion, Other }
 
 /// <summary>Feedback about the app from a signed-in user; admins read it and mark it resolved.</summary>

@@ -344,11 +344,9 @@ public enum EtapDayType { Working, Rest, Holiday }
 /// <param name="Category">2a / 2b (passive call melebihi 4 jam) or 3a / 3b (kurang 4 jam); a = working day, b = rest day or holiday.</param>
 /// <param name="InRota">The published rota has this officer on call that date.</param>
 /// <param name="RotaOfficer">When not: who the rota has instead.</param>
-/// <param name="Report">The latest shift-change report for the date, if any.</param>
 public sealed record EtapRowDto(
     DateOnly Date, DateOnly FromDate, TimeOnly FromTime, DateOnly ToDate, TimeOnly ToTime, int Minutes, EtapDayType DayType,
-    string? HolidayName, int CaseMinutes, int CaseCount, string Category, bool InRota, OnCallOfficerDto? RotaOfficer,
-    ShiftReportDto? Report);
+    string? HolidayName, int CaseMinutes, int CaseCount, string Category, bool InRota, OnCallOfficerDto? RotaOfficer);
 
 public sealed record EtapLineDto(string Category, string Label, int Days, int Rate, int Amount);
 
@@ -367,15 +365,6 @@ public sealed record EtapDto(
     bool Saved, IReadOnlyList<EtapRowInput> UnclaimedRotaRows);
 
 public sealed record EtapSaveRequest(IReadOnlyList<EtapRowInput> Rows);
-
-/// <param name="ColleagueId">Who the rota has on call that date.</param>
-/// <param name="ReturnDate">The reporter's own rota date the colleague did in return, if it was a swap.</param>
-public sealed record ShiftReportRequest(DateOnly Date, Guid ColleagueId, DateOnly? ReturnDate);
-
-/// <param name="CanDecide">The viewer may confirm or reject it (the colleague, or an admin).</param>
-public sealed record ShiftReportDto(
-    Guid Id, DateOnly Date, Guid ReporterId, string Reporter, Guid ColleagueId, string Colleague, DateOnly? ReturnDate,
-    ShiftReportStatus Status, bool CanDecide, DateTimeOffset CreatedAt);
 
 public sealed record SuratArahanDto(Guid Id, Guid DocumentId, string FileName, DateOnly EffectiveFrom, string? Reference, DateTimeOffset CreatedAt);
 

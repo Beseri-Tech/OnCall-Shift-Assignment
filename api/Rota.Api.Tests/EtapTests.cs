@@ -8,7 +8,7 @@ using Rota.Api.Storage;
 
 namespace Rota.Api.Tests;
 
-/// <summary>ETAP: day types, the 4-hour rule on summed case time, rates, swap reports, surat arahan and the PDF.</summary>
+/// <summary>ETAP: day types, the 4-hour rule on summed case time, rates, surat arahan and the PDF.</summary>
 public class EtapTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
     private static async Task<T> Read<T>(HttpResponseMessage res)
@@ -110,30 +110,6 @@ public class EtapTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         // Supervisors and masters have no ETAP.
         Assert.Equal(HttpStatusCode.Forbidden, (await s.Admin.GetAsync("/api/etap?month=2026-10")).StatusCode);
-    }
-
-    [Fact]
-    public async Task A_swap_made_outside_the_app_is_confirmed_by_the_colleague_and_fixes_the_rota()
-    {
-        var s = await SetupAsync();
-        await using var _ = s.App;
-
-        // Dr One did 6 Oct (Dr Two's) and Dr Two did 7 Oct (Dr One's).
-        Assert.Equal(HttpStatusCode.BadRequest, (await s.One.PostAsJsonAsync("/api/etap/shift-reports",
-            new ShiftReportRequest(new DateOnly(2026, 10, 6), s.OneId, null), ApiFixture.Json)).StatusCode);
-        var report = await Read<IdDto>(await s.One.PostAsJsonAsync("/api/etap/shift-reports",
-            new ShiftReportRequest(new DateOnly(2026, 10, 6), s.TwoId, new DateOnly(2026, 10, 7)), ApiFixture.Json));
-
-        var forTwo = Assert.Single(await Read<List<ShiftReportDto>>(await s.Two.GetAsync("/api/etap/shift-reports")));
-        Assert.True(forTwo.CanDecide);
-        Assert.False(Assert.Single(await Read<List<ShiftReportDto>>(await s.One.GetAsync("/api/etap/shift-reports"))).CanDecide);
-        Assert.Equal(HttpStatusCode.Forbidden, (await s.One.PostAsync($"/api/etap/shift-reports/{report.Id}/confirm", null)).StatusCode);
-        (await s.Two.PostAsync($"/api/etap/shift-reports/{report.Id}/confirm", null)).EnsureSuccessStatusCode();
-
-        var claim = await Read<EtapDto>(await s.One.GetAsync("/api/etap?month=2026-10"));
-        Assert.Equal([5, 6, 8, 10], claim.RotaDates.Select(d => d.Day));
-        var tally = await Read<List<TallyRowDto>>(await s.Admin.GetAsync("/api/admin/tally"));
-        Assert.Equal(4, tally.Single(t => t.PersonId == s.OneId).PublishedWeekday + tally.Single(t => t.PersonId == s.OneId).PublishedWeekendHoliday);
     }
 
     [Fact]
