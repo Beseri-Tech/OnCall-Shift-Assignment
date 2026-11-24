@@ -87,6 +87,14 @@ builder.Services.AddCors();
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // Downloads of patient data (case log, ETAP): per account, so a stolen session can't bulk-scrape quickly.
+    o.AddPolicy(CaseEndpoints.DownloadLimit, http => RateLimitPartition.GetFixedWindowLimiter(
+        http.User.AccountId()?.ToString() ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = builder.Configuration.GetValue("Cases:DownloadsPerMinute", 10),
+            Window = TimeSpan.FromMinutes(1),
+        }));
     o.AddPolicy(AuthEndpoints.RateLimit, http => RateLimitPartition.GetFixedWindowLimiter(
         http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions
@@ -170,6 +178,9 @@ app.MapNotificationEndpoints();
 app.MapFeedbackEndpoints();
 app.MapLeaveRequestEndpoints();
 app.MapDocumentEndpoints();
+app.MapCaseEndpoints();
+app.MapProfileEndpoints();
+app.MapEtapEndpoints();
 app.MapAdminEndpoints();
 
 // Unknown /api routes are 404s; everything else is the React app (which shows the login page itself).

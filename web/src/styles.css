@@ -63,6 +63,7 @@ body {
 .nav-link {
   display: flex;
   align-items: center;
+  white-space: nowrap;
   gap: 6px;
   padding: 8px 12px;
   border-radius: 999px;

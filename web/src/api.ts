@@ -54,7 +54,7 @@ export interface OverviewPerson { id: string; code: string; name: string; leave:
 export interface Overview { period: Period; days: OverviewDay[]; people: OverviewPerson[] }
 export interface PublishedRota { period: Period; runId: string; days: RotaDay[]; inReview: boolean }
 
-export type DocumentKind = 'Manual' | 'LeaveDocument' | 'Other' | 'RotaReport'
+export type DocumentKind = 'Manual' | 'LeaveDocument' | 'Other' | 'RotaReport' | 'SuratArahan'
 export interface ArchivedReport {
   documentId: string; runId: string; periodName: string; fileName: string; sizeBytes: number
   createdAt: string; createdBy: string | null; runIsPublished: boolean
@@ -131,7 +131,8 @@ export interface Me {
   /** The hospital they work in; for a master the one they picked (null = none). */
   facility: FacilityRef | null
 }
-export interface FacilityRef { id: string; name: string; code: string }
+/** weekendDays: the state's weekly rest days (0 = Sunday ... 6 = Saturday). */
+export interface FacilityRef { id: string; name: string; code: string; weekendDays: number[] | null }
 /** A hospital that runs its own rota (state -> district -> hospital). */
 export interface Facility {
   id: string; name: string; code: string; districtId: string; district: string; stateId: string; state: string
@@ -144,6 +145,54 @@ export interface Account {
   /** The hospital it belongs to; null for masters. */
   facilityId: string | null; facilityCode: string | null
 }
+/** One patient seen on call. Times are "HH:mm:ss"; a finish at or before the start is the next day. */
+export interface CaseInput {
+  date: IsoDate; timeStart: string; timeFinish: string; onCallDate: IsoDate | null
+  patientName: string; patientIdNo: string; gender: string; age: string | null; race: string | null
+  referralSource: string | null; department: string | null; diagnosis: string | null; management: string | null; plan: string | null
+  /** The on-call officer in charge; null = whoever the rota has on call that date. */
+  officerId: string | null; taggers: string | null; dsaName: string | null; dsaStatus: string | null; confidential: boolean
+  /** S/T and S/B, as typed. */
+  spokenTo: string | null; seenBy: string | null
+  /** TRAUMA (P/W, "presented with") or NON-TRAUMA (C/O, "complaint of"); presentation is that text. */
+  caseType: 'TRAUMA' | 'NON-TRAUMA' | null; presentation: string | null
+  /** Ix done, comma-separated; Rx given. */
+  investigations: string | null; prescription: string | null
+  /** For an ED referral: the zone. */
+  edZone: 'GREEN' | 'YELLOW' | 'RED' | null
+}
+export interface OnCallCase extends Omit<CaseInput, 'onCallDate' | 'officerId'> {
+  id: string; personId: string; officer: string; recordedBy: string; onCallDate: IsoDate; minutes: number; canEdit: boolean
+  /** Recorded by, or the officer in charge is, the signed-in user: they can make its WhatsApp passover. */
+  canShare: boolean
+  updatedAt: string
+}
+export interface CaseImportRow { line: number; date: IsoDate | null; officer: string | null; duplicate: boolean; errors: ImportError[] }
+export interface CaseImportResult { rows: CaseImportRow[]; fileErrors: string[]; committed: boolean; added: number; duplicates: number }
+/** One on-call day of an ETAP claim as typed: times are "HH:mm:ss". */
+export interface EtapRowInput { date: IsoDate; fromDate: IsoDate; fromTime: string; toDate: IsoDate; toTime: string }
+export type EtapDayType = 'Working' | 'Rest' | 'Holiday'
+export interface EtapRow extends EtapRowInput {
+  minutes: number; dayType: EtapDayType; holidayName: string | null; caseMinutes: number; caseCount: number
+  /** 2a / 2b: passive call 4 h or more (working day / rest day or holiday); 3a / 3b: under 4 h. */
+  category: string; inRota: boolean; rotaOfficer: { personId: string; name: string } | null
+}
+export interface EtapLine { category: string; label: string; days: number; rate: number; amount: number }
+export interface EtapPatient { date: IsoDate; name: string | null; regNo: string | null; minutes: number; diagnosisAndTreatment: string | null; notes: string | null; confidential: boolean }
+export interface SuratArahan { id: string; documentId: string; fileName: string; effectiveFrom: IsoDate; reference: string | null; createdAt: string }
+export interface EtapClaim {
+  month: string; profileVerified: boolean; specialist: boolean; rows: EtapRow[]; rotaDates: IsoDate[]; lines: EtapLine[]
+  totalDays: number; totalAmount: number; patients: EtapPatient[]; suratArahan: SuratArahan | null; saved: boolean
+  unclaimedRotaRows: EtapRowInput[]
+}
+/** The officer's own ETAP details (section A). Only they can see it. */
+export interface ProfileInput {
+  fullName: string | null; icNo: string | null; jawatan: string | null; gred: string | null; tarikhPewartaanPakar: IsoDate | null
+  unitTempatBertugas: string | null; alamatRumah: string | null; jarakKm: number | null; noGaji: string | null
+  noTelefonPejabat: string | null; noTelefonBimbit: string | null; noAkaunBank: string | null; namaCawanganBank: string | null
+}
+/** verified: verified and unchanged since; missing: required fields still empty. */
+export interface EtapProfile extends ProfileInput { email: string | null; verified: boolean; verifiedAt: string | null; missing: string[] }
 /** configured: SMTP is set up on the server; enabled: the masters' on/off switch. */
 export interface EmailSettings { configured: boolean; enabled: boolean }
 /** tempPassword only comes back when the email could not be sent. */
@@ -155,7 +204,8 @@ export interface TallyRow {
 }
 // State -> district -> clinic -> officer.
 export interface District { id: string; name: string; clinics: number }
-export interface State { id: string; name: string; districts: District[] }
+/** weekendDays: weekly rest days (0 = Sunday ... 6 = Saturday), for the ETAP day type. */
+export interface State { id: string; name: string; districts: District[]; weekendDays: number[] }
 export interface Clinic { id: string; name: string; districtId: string; district: string; state: string; people: number }
 /** A date nobody from the clinic can be on call (e.g. a clinic event). */
 export interface ClinicBlockedDay { clinicId: string; clinicName: string; date: IsoDate; reason: string | null }
@@ -319,6 +369,34 @@ export const api = {
     post<{ id: number }>('/api/feedback', { category, message, page, toFacility }),
   facilities: () => get<Facility[]>('/api/facilities'),
 
+  profile: {
+    get: () => get<EtapProfile>('/api/profile'),
+    save: (p: ProfileInput) => put<EtapProfile>('/api/profile', p),
+    verify: (password: string, confirm: boolean) => post<EtapProfile>('/api/profile/verify', { password, confirm }),
+  },
+
+  /** ETAP claim for a month (yyyy-MM). The PDF is built on request and never stored. */
+  etap: {
+    get: (month: string) => get<EtapClaim>(`/api/etap${q({ month })}`),
+    save: (month: string, rows: EtapRowInput[]) => put<EtapClaim>(`/api/etap${q({ month })}`, { rows }),
+    pdfUrl: (month: string) => `${API}/api/etap/pdf${q({ month })}`,
+  },
+
+  /** The on-call case log (patient data: never put any of it in a URL). month = yyyy-MM. */
+  cases: {
+    list: (month: string, personId?: string) => get<OnCallCase[]>(`/api/cases${q({ month, personId })}`),
+    create: (c: CaseInput) => post<{ id: string }>('/api/cases', c),
+    update: (id: string, c: CaseInput) => put<void>(`/api/cases/${id}`, c),
+    remove: (id: string) => del<void>(`/api/cases/${id}`),
+    /** The WhatsApp passover message for the department group. */
+    whatsapp: (id: string) => get<{ text: string }>(`/api/cases/${id}/whatsapp`),
+    import: (csv: string, commit: boolean, defaultPersonId: string | null) =>
+      post<CaseImportResult>('/api/cases/import', { csv, commit, defaultPersonId }),
+    /** One month (yyyy-MM), or a whole year when `year` is given. */
+    exportUrl: (month: string, personId?: string, year?: number) =>
+      `${API}/api/cases/export.xlsx${q(year ? { year: String(year), personId } : { month, personId })}`,
+  },
+
   /** Private document storage (Cloudflare R2). Use uploadDocument / openDocument below rather than these directly. */
   documents: {
     uploadUrl: (kind: DocumentKind, fileName: string, contentType: string, fileSize: number) =>
@@ -366,8 +444,13 @@ export const api = {
     reorder: (ids: string[]) => post<void>('/api/admin/people/reorder', { ids }),
 
     states: () => get<State[]>('/api/admin/states'),
-    createState: (name: string) => post<string>('/api/admin/states', { name }),
-    updateState: (id: string, name: string) => put<void>(`/api/admin/states/${id}`, { name }),
+    createState: (name: string, weekendDays?: number[]) => post<string>('/api/admin/states', { name, weekendDays }),
+    updateState: (id: string, name: string, weekendDays?: number[]) => put<void>(`/api/admin/states/${id}`, { name, weekendDays }),
+
+    suratArahan: () => get<SuratArahan[]>('/api/admin/surat-arahan'),
+    addSuratArahan: (documentId: string, effectiveFrom: IsoDate, reference: string | null) =>
+      post<{ id: string }>('/api/admin/surat-arahan', { documentId, effectiveFrom, reference }),
+    deleteSuratArahan: (id: string) => del<void>(`/api/admin/surat-arahan/${id}`),
     deleteState: (id: string) => del<void>(`/api/admin/states/${id}`),
     createDistrict: (name: string, stateId: string) => post<string>('/api/admin/districts', { name, stateId }),
     updateDistrict: (id: string, name: string, stateId: string) => put<void>(`/api/admin/districts/${id}`, { name, stateId }),

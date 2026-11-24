@@ -18,6 +18,10 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
 
     public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<AppSetting> Settings => Set<AppSetting>();
+    public DbSet<OnCallCase> Cases => Set<OnCallCase>();
+    public DbSet<OfficerProfile> Profiles => Set<OfficerProfile>();
+    public DbSet<SuratArahan> SuratArahan => Set<SuratArahan>();
+    public DbSet<EtapClaim> EtapClaims => Set<EtapClaim>();
     public DbSet<Person> People => Set<Person>();
 
     /// <summary>The people on the rota (officers and on-call admins): every rota, leave and tally list starts here.</summary>
@@ -305,6 +309,74 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.Property(s => s.Value).HasMaxLength(200);
         });
 
+        b.Entity<OnCallCase>(e =>
+        {
+            e.ToTable("oncall_cases");
+            e.HasIndex(c => new { c.FacilityId, c.OnCallDate });
+            e.HasIndex(c => new { c.PersonId, c.OnCallDate });
+            e.Property(c => c.PatientName).HasMaxLength(200);
+            e.Property(c => c.PatientIdNo).HasMaxLength(40);
+            e.Property(c => c.Gender).HasMaxLength(10);
+            e.Property(c => c.Age).HasMaxLength(20);
+            e.Property(c => c.Race).HasMaxLength(60);
+            e.Property(c => c.ReferralSource).HasMaxLength(60);
+            e.Property(c => c.EdZone).HasMaxLength(10);
+            e.Property(c => c.Department).HasMaxLength(20);
+            e.Property(c => c.Diagnosis).HasMaxLength(500);
+            e.Property(c => c.Management).HasMaxLength(1000);
+            e.Property(c => c.Plan).HasMaxLength(1000);
+            e.Property(c => c.SpokenTo).HasMaxLength(200);
+            e.Property(c => c.SeenBy).HasMaxLength(200);
+            e.Property(c => c.CaseType).HasMaxLength(20);
+            e.Property(c => c.Presentation).HasMaxLength(500);
+            e.Property(c => c.Investigations).HasMaxLength(300);
+            e.Property(c => c.Prescription).HasMaxLength(500);
+            e.Property(c => c.Taggers).HasMaxLength(200);
+            e.Property(c => c.DsaName).HasMaxLength(200);
+            e.Property(c => c.DsaStatus).HasMaxLength(40);
+            e.Ignore(c => c.Minutes);
+            e.HasOne<Facility>().WithMany().HasForeignKey(c => c.FacilityId).OnDelete(DeleteBehavior.Restrict);
+            // Restrict: removing an officer must never take their patients' records with them.
+            e.HasOne<Person>().WithMany().HasForeignKey(c => c.PersonId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Person>().WithMany().HasForeignKey(c => c.RecordedById).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<OfficerProfile>(e =>
+        {
+            e.ToTable("officer_profiles");
+            e.HasKey(p => p.PersonId);
+            e.HasOne<Person>().WithOne().HasForeignKey<OfficerProfile>(p => p.PersonId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(p => p.FullName).HasMaxLength(200);
+            e.Property(p => p.IcNo).HasMaxLength(20);
+            e.Property(p => p.Jawatan).HasMaxLength(100);
+            e.Property(p => p.Gred).HasMaxLength(20);
+            e.Property(p => p.UnitTempatBertugas).HasMaxLength(300);
+            e.Property(p => p.AlamatRumah).HasMaxLength(400);
+            e.Property(p => p.JarakKm).HasPrecision(7, 1);
+            e.Property(p => p.NoGaji).HasMaxLength(30);
+            e.Property(p => p.NoTelefonPejabat).HasMaxLength(40);
+            e.Property(p => p.NoAkaunBank).HasMaxLength(30);
+            e.Property(p => p.NamaCawanganBank).HasMaxLength(150);
+            e.Property(p => p.VerifiedHash).HasMaxLength(64);
+        });
+
+        b.Entity<SuratArahan>(e =>
+        {
+            e.ToTable("surat_arahan");
+            e.HasIndex(s => new { s.FacilityId, s.EffectiveFrom });
+            e.Property(s => s.Reference).HasMaxLength(100);
+            e.HasOne<Facility>().WithMany().HasForeignKey(s => s.FacilityId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<DocumentRecord>().WithMany().HasForeignKey(s => s.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<EtapClaim>(e =>
+        {
+            e.ToTable("etap_claims");
+            e.HasKey(c => new { c.PersonId, c.Year, c.Month });
+            e.Property(c => c.Rows).HasColumnType("jsonb");
+            e.HasOne<Person>().WithMany().HasForeignKey(c => c.PersonId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         FacilityFilters(b);
 
         b.Entity<ChangeLog>(e =>
@@ -332,6 +404,12 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
         b.Entity<RotaPeriod>().HasQueryFilter(p => FacilityId == null || p.FacilityId == FacilityId);
         b.Entity<ChangeLog>().HasQueryFilter(c => FacilityId == null || c.FacilityId == FacilityId);
         b.Entity<Feedback>().HasQueryFilter(f => FacilityId == null || f.FacilityId == FacilityId);
+        b.Entity<SuratArahan>().HasQueryFilter(s => FacilityId == null || s.FacilityId == FacilityId);
+        b.Entity<EtapClaim>().HasQueryFilter(x => FacilityId == null ||
+            Set<Person>().Any(p => p.Id == x.PersonId && p.FacilityId == FacilityId));
+        b.Entity<OfficerProfile>().HasQueryFilter(x => FacilityId == null ||
+            Set<Person>().Any(p => p.Id == x.PersonId && p.FacilityId == FacilityId));
+        b.Entity<OnCallCase>().HasQueryFilter(c => c.DeletedAt == null && (FacilityId == null || c.FacilityId == FacilityId));
         b.Entity<DocumentRecord>().HasQueryFilter(d => FacilityId == null || d.FacilityId == null || d.FacilityId == FacilityId);
 
         b.Entity<PublicHoliday>().HasQueryFilter(h => FacilityId == null ||
@@ -378,6 +456,8 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
                 {
                     case Person p when p.FacilityId is null && p.Role != AccountRole.Master: p.FacilityId = fid; break;
                     case RotaPeriod p when p.FacilityId == Guid.Empty: p.FacilityId = fid; break;
+                    case OnCallCase c when c.FacilityId == Guid.Empty: c.FacilityId = fid; break;
+                    case SuratArahan s when s.FacilityId == Guid.Empty: s.FacilityId = fid; break;
                     case ChangeLog c when c.FacilityId is null && !AppLevelEntities.Contains(c.Entity ?? ""): c.FacilityId = fid; break;
                     case DocumentRecord d when d.FacilityId is null && d.Kind != DocumentKind.Manual: d.FacilityId = fid; break;
                     case PublicHoliday h when h.StateId == Guid.Empty: h.StateId = stateId ??= await StateOfAsync(fid, ct); break;
@@ -387,6 +467,16 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
         }
         return await base.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// The weekly rest days of a hospital's state (default: the current hospital). Read when a rota is generated, so changing a
+    /// state's weekend only affects rotas generated afterwards: each run keeps its own weekend flags, and tallies follow them.
+    /// </summary>
+    public async Task<int> WeekendDaysAsync(Guid? facilityId, CancellationToken ct) =>
+        (facilityId ?? FacilityId) is { } id
+            ? await Facilities.Where(f => f.Id == id).Select(f => (int?)f.District!.State!.WeekendDays).FirstOrDefaultAsync(ct)
+              ?? Rota.Core.Weekends.SaturdaySunday
+            : Rota.Core.Weekends.SaturdaySunday;
 
     public Task<Guid> StateOfAsync(Guid facilityId, CancellationToken ct) =>
         Facilities.Where(f => f.Id == facilityId).Select(f => f.District!.StateId).FirstAsync(ct);

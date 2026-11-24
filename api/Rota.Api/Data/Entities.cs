@@ -101,6 +101,12 @@ public sealed class State
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public string Name { get; set; } = "";
 
+    /// <summary>
+    /// The state's weekly rest days (bit n = <see cref="DayOfWeek"/> n): Sat + Sun in most states, Fri + Sat in Kedah, Kelantan and
+    /// Terengganu. Used for the ETAP day type (working day vs rest day).
+    /// </summary>
+    public int WeekendDays { get; set; } = (1 << (int)DayOfWeek.Saturday) | (1 << (int)DayOfWeek.Sunday);
+
     public List<District> Districts { get; set; } = [];
 }
 
@@ -468,6 +474,152 @@ public sealed class AppSetting
     public string Value { get; set; } = "";
 }
 
+/// <summary>
+/// One patient seen on call (the "Buku Oncall"): replaces the Google Form. Everyone in the hospital can read the log; the
+/// recorder and admins change it. Patient details never go into URLs, notifications, emails or the audit log.
+/// </summary>
+public sealed class OnCallCase
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid FacilityId { get; set; }
+
+    /// <summary>The on-call officer in charge (the case counts for them, e.g. on their ETAP): by default whoever the rota has on call.</summary>
+    public Guid PersonId { get; set; }
+
+    /// <summary>Who typed it in (usually the officer themself).</summary>
+    public Guid RecordedById { get; set; }
+
+    /// <summary>The on-call shift it belongs to: a case at 02:00 on the 6th is part of the 5th's shift.</summary>
+    public DateOnly OnCallDate { get; set; }
+
+    public DateOnly Date { get; set; }
+    public TimeOnly TimeStart { get; set; }
+
+    /// <summary>Earlier than (or equal to) TimeStart = the next day.</summary>
+    public TimeOnly TimeFinish { get; set; }
+
+    public string PatientName { get; set; } = "";
+
+    /// <summary>MyKad (no dashes), KID, passport or registration number.</summary>
+    public string PatientIdNo { get; set; } = "";
+
+    public string Gender { get; set; } = "";
+    public string? Age { get; set; }
+    public string? Race { get; set; }
+    public string? ReferralSource { get; set; }
+
+    /// <summary>For an ED referral: GREEN, YELLOW or RED zone.</summary>
+    public string? EdZone { get; set; }
+    public string? Department { get; set; }
+    public string? Diagnosis { get; set; }
+    public string? Management { get; set; }
+    public string? Plan { get; set; }
+
+    /// <summary>Who referred and was spoken to (S/T), and who saw the patient (S/B), as typed.</summary>
+    public string? SpokenTo { get; set; }
+    public string? SeenBy { get; set; }
+
+    /// <summary>TRAUMA (written "presented with", P/W) or NON-TRAUMA ("complaint of", C/O).</summary>
+    public string? CaseType { get; set; }
+
+    /// <summary>The P/W or C/O text: what happened / the complaint.</summary>
+    public string? Presentation { get; set; }
+
+    /// <summary>Investigations done (Ix), comma-separated, e.g. "OPG, FBC".</summary>
+    public string? Investigations { get; set; }
+
+    /// <summary>Medicines given (Rx), as typed.</summary>
+    public string? Prescription { get; set; }
+
+    /// <summary>The taggers (housemen / trainees) with the officer, as typed.</summary>
+    public string? Taggers { get; set; }
+
+    /// <summary>The dental surgery assistant on call.</summary>
+    public string? DsaName { get; set; }
+
+    /// <summary>CALLED AND ATTENDED, CALLED BUT FTA, CALLED BUT NO ANSWER or NOT BEEN CALLED.</summary>
+    public string? DsaStatus { get; set; }
+
+    /// <summary>Patient details are confidential: the ETAP form leaves out the name and registration number.</summary>
+    public bool Confidential { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>Removed (kept for the audit trail, never shown).</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>Length of the case; a finish at or before the start runs past midnight.</summary>
+    public int Minutes => Duration(TimeStart, TimeFinish);
+
+    public static int Duration(TimeOnly start, TimeOnly finish)
+    {
+        int m = (int)(finish - start).TotalMinutes;   // TimeOnly subtraction wraps around midnight
+        return m == 0 ? 24 * 60 : m;
+    }
+}
+
+/// <summary>
+/// The personal details an officer's ETAP claim form needs (section A). Only the officer reads or changes it. They verify
+/// it themselves in the app; any later change (including their phone or email) makes it unverified until they verify again,
+/// and the ETAP form can't be made from an unverified profile.
+/// </summary>
+public sealed class OfficerProfile
+{
+    public Guid PersonId { get; set; }
+
+    /// <summary>Full name as in the IC.</summary>
+    public string? FullName { get; set; }
+    public string? IcNo { get; set; }
+    public string? Jawatan { get; set; }
+    public string? Gred { get; set; }
+
+    /// <summary>Gazetted as a specialist on: specialist rates apply.</summary>
+    public DateOnly? TarikhPewartaanPakar { get; set; }
+
+    public string? UnitTempatBertugas { get; set; }
+    public string? AlamatRumah { get; set; }
+    public decimal? JarakKm { get; set; }
+    public string? NoGaji { get; set; }
+    public string? NoTelefonPejabat { get; set; }
+    public string? NoAkaunBank { get; set; }
+    public string? NamaCawanganBank { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? VerifiedAt { get; set; }
+
+    /// <summary>SHA-256 of exactly what was verified (these fields + phone + email): differs as soon as anything changes.</summary>
+    public string? VerifiedHash { get; set; }
+}
+
+/// <summary>A surat arahan uploaded by an admin. An ETAP claim for a month uses the latest one effective by the end of that month.</summary>
+public sealed class SuratArahan
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid FacilityId { get; set; }
+    public Guid DocumentId { get; set; }
+    public DateOnly EffectiveFrom { get; set; }
+
+    /// <summary>The letter's reference number, if any.</summary>
+    public string? Reference { get; set; }
+
+    public Guid? CreatedById { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>An officer's ETAP claim for one month, kept as a draft they come back to. Rows hold what they typed.</summary>
+public sealed class EtapClaim
+{
+    public Guid PersonId { get; set; }
+    public int Year { get; set; }
+    public int Month { get; set; }
+
+    /// <summary>JSON array of <c>EtapRowInput</c>.</summary>
+    public string Rows { get; set; } = "[]";
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public enum FeedbackCategory { Bug, Suggestion, Other }
 
 /// <summary>Feedback about the app from a signed-in user; admins read it and mark it resolved.</summary>
@@ -502,6 +654,8 @@ public enum DocumentKind
     Other,
     /// <summary>The PDF report of a published rota, saved when it is published. Admins only.</summary>
     RotaReport,
+    /// <summary>The hospital's surat arahan (on-call instruction letter): admins upload it, everyone in the hospital reads it.</summary>
+    SuratArahan,
 }
 
 public enum DocumentStatus

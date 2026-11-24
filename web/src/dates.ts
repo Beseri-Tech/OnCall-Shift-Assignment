@@ -11,7 +11,11 @@ export const toIso = (d: Date) => d.toISOString().slice(0, 10)
 export const addDays = (iso: IsoDate, n: number) => toIso(new Date(toDate(iso).getTime() + n * MS_PER_DAY))
 export const diffDays = (a: IsoDate, b: IsoDate) => Math.round((toDate(b).getTime() - toDate(a).getTime()) / MS_PER_DAY)
 export const dayOfWeek = (iso: IsoDate) => toDate(iso).getUTCDay() // 0 = Sunday
-export const isWeekend = (iso: IsoDate) => [0, 6].includes(dayOfWeek(iso))
+// The hospital's weekly rest days (0 = Sunday ... 6 = Saturday): set by the layout from the signed-in user's hospital.
+// ponytail: module-level, one hospital per tab; pass it down if a page ever shows two hospitals at once.
+let weekendDays: readonly number[] = [0, 6]
+export const setWeekendDays = (days: readonly number[] | null | undefined) => { weekendDays = days?.length ? days : [0, 6] }
+export const isWeekend = (iso: IsoDate) => weekendDays.includes(dayOfWeek(iso))
 export const dayOfMonth = (iso: IsoDate) => Number(iso.slice(8, 10))
 
 export function eachDay(from: IsoDate, to: IsoDate): IsoDate[] {

@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Button, Grid, Group, Modal, NavLink, Paper, ScrollArea, Select, Stack, Table, Text, TextInput } from '@mantine/core'
+import { ActionIcon, Badge, Button, Chip, Grid, Group, Modal, NavLink, Paper, ScrollArea, Select, Stack, Table, Text, TextInput } from '@mantine/core'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconBuildingHospital, IconEdit, IconMapPin, IconPlus, IconSearch, IconTrash } from '@tabler/icons-react'
@@ -207,10 +207,14 @@ function LocationModal({ form: initial, states, onClose, onSaved }: {
   form: Form; states: State[]; onClose: () => void; onSaved: () => void
 }) {
   const [form, setForm] = useState(initial)
+  // A state's weekly rest days decide working day vs rest day on ETAP claims (Fri + Sat in Kedah, Kelantan, Terengganu).
+  const [weekend, setWeekend] = useState<string[]>(() =>
+    (initial.id ? states.find(s => s.id === initial.id)?.weekendDays ?? [0, 6] : [0, 6]).map(String))
   const { level, id, name, parentId } = form
   const save = useMutation({
     mutationFn: async () => {
-      if (level === 'state') await (id ? api.admin.updateState(id, name) : api.admin.createState(name))
+      const days = weekend.map(Number)
+      if (level === 'state') await (id ? api.admin.updateState(id, name, days) : api.admin.createState(name, days))
       else if (level === 'district') await (id ? api.admin.updateDistrict(id, name, parentId!) : api.admin.createDistrict(name, parentId!))
       else await (id ? api.admin.updateClinic(id, { name, districtId: parentId! }) : api.admin.createClinic({ name, districtId: parentId! }))
     },
@@ -232,6 +236,20 @@ function LocationModal({ form: initial, states, onClose, onSaved }: {
           <TextInput label="Name" required data-autofocus value={name} onChange={e => setForm({ ...form, name: e.currentTarget.value })}
             placeholder={level === 'clinic' ? 'Klinik Pergigian Beseri' : level === 'district' ? 'Kangar' : 'Perlis'}
             maxLength={level === 'clinic' ? 100 : 50} />
+          {level === 'state' && (
+            <Stack gap={4}>
+              <Text size="sm" fw={500}>Weekly rest days</Text>
+              <Chip.Group multiple value={weekend} onChange={setWeekend}>
+                <Group gap={6}>
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => <Chip key={d} value={String(i)} size="xs">{d}</Chip>)}
+                </Group>
+              </Chip.Group>
+              <Text size="xs" c="dimmed">
+                Most states: Sat + Sun; Kedah, Kelantan, Terengganu: Fri + Sat. Decides weekend shifts in the rota, leave points and ETAP
+                day types for this state's hospitals.{form.id && ' A change applies to rotas generated from now on; published rotas and tallies stay as they are.'}
+              </Text>
+            </Stack>
+          )}
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancel</Button>

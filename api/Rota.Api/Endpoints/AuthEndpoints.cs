@@ -126,7 +126,8 @@ public static class AuthEndpoints
     private static async Task<MeDto> ToMeAsync(RotaDbContext db, Person a, Guid? facilityId, CancellationToken ct) =>
         new(a.Id, a.Email ?? "", a.Role, a.OnRota ? a.Id : null, a.Name, a.MustChangePassword,
             facilityId is null ? null : await db.Facilities.Where(f => f.Id == facilityId)
-                .Select(f => new FacilityRef(f.Id, f.Name, f.Code)).FirstOrDefaultAsync(ct));
+                .Select(f => new { f.Id, f.Name, f.Code, f.District!.State!.WeekendDays }).FirstOrDefaultAsync(ct) is { } f
+                ? new FacilityRef(f.Id, f.Name, f.Code, Rota.Core.Leave.BlockedDays.FromMask(f.WeekendDays)) : null);
 
     private static string? NewPasswordError(string? password, string? current) =>
         (password?.Length ?? 0) < Passwords.MinLength ? $"Use at least {Passwords.MinLength} characters."

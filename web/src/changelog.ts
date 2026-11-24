@@ -12,6 +12,52 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.7.0', date: '2026-11-24', title: 'WhatsApp passover',
+    changes: [
+      { kind: 'new', text: 'After recording a case you are asked whether to generate the WhatsApp passover in the seniors’ template (referral, S/T, S/B, patient, P/W or C/O, Ix ticked, Dx, Mx, plan, Rx), ready to copy into the department group. The WhatsApp button in the case log opens it again for your own cases.' },
+      { kind: 'new', text: 'An ED referral asks for the zone (green, yellow or red), shown in the passover as e.g. “N/C from ED GREEN ZONE”.' },
+      { kind: 'new', text: 'The case form has Spoken to (S/T), Seen by (S/B), case type (trauma: presented with; non-trauma: complaint of), investigations (Ix) and prescription (Rx). They are in the case log and Excel, not on the ETAP form.' },
+      { kind: 'improved', text: 'Department and case type are now required and come first: the patient and clinical details open once they are chosen. Department is what the ETAP form shows under Catatan. Diagnosis takes several lines, and each field shows an example.' },
+    ],
+  },
+  {
+    version: '3.6.0', date: '2026-11-24', title: 'Patient details for ETAP, state weekends',
+    changes: [
+      { kind: 'new', text: 'The ETAP download now ends with a patient-details attachment for every day over 4 hours: each patient’s time, details, diagnosis, treatment, plan and DSA, with a “Disahkan oleh” signature space. No more screenshots of the response sheet.' },
+      { kind: 'improved', text: 'On the ETAP form a patient can take up to three rows, so longer diagnoses fit; the table continues from page 3 onto page 5.' },
+      { kind: 'improved', text: 'The weekend follows your state’s rest days (e.g. Friday + Saturday) in the rota, leave points and ETAP. Changing a state’s weekend only affects rotas generated afterwards; published rotas and tallies stay as they are.' },
+      { kind: 'improved', text: 'The ETAP button now says which rota it adds from, e.g. “Add my 4 on-call dates from the October rota”.' },
+      { kind: 'new', text: 'The case log Excel download can cover a whole year as well as a month.' },
+    ],
+  },
+  {
+    version: '3.5.0', date: '2026-11-24', title: 'ETAP claim form',
+    changes: [
+      { kind: 'new', text: 'A new ETAP page builds your monthly on-call claim: add your rota dates (or type the days you did), adjust the times to match your punch card, and see each day priced as passive call under or over 4 hours, on a working day or a rest day / public holiday.' },
+      { kind: 'new', text: 'A day counts as over 4 hours when your recorded cases for that on-call date add up to 4 hours or more; those patients fill the form’s table (confidential ones without name and registration number).' },
+      { kind: 'new', text: 'Download the official ETAP form filled in with your verified profile, days, totals and patients, together with the latest surat arahan. Bring your own punch-card copy and bank statement.' },
+      { kind: 'improved', text: 'A day you claim that the published rota gives to someone else is marked, so you can check it before submitting.' },
+      { kind: 'new', text: 'Admins upload the surat arahan (Admin → Surat arahan); masters set each state’s weekly rest days (Fri + Sat in Kedah, Kelantan and Terengganu).' },
+      { kind: 'improved', text: 'The top bar is tidier: your leave pages sit under Leave, and My on-call, Cases and ETAP under On call, so nothing wraps.' },
+    ],
+  },
+  {
+    version: '3.4.0', date: '2026-11-24', title: 'ETAP profile',
+    changes: [
+      { kind: 'new', text: 'Officers have a “My ETAP profile” page (account menu) for the details on the ETAP claim form: IC, jawatan, gred, address, distance, salary number, phones and bank. Only you can see them.' },
+      { kind: 'new', text: 'Verify your profile with your password once it is right. Any later change, including your phone or email, needs a new verification; the ETAP claim form will need a verified profile.' },
+    ],
+  },
+  {
+    version: '3.3.0', date: '2026-11-24', title: 'On-call case log',
+    changes: [
+      { kind: 'new', text: 'Record every patient you see on call on the new Cases page, instead of the Google Form. Pick the on-call date, then whether the patient was seen that day or after midnight; you are the officer in charge, taggers are typed separately, and the DSA on call is always named with their status.' },
+      { kind: 'new', text: 'The case log shows the hospital’s cases by month, with search, an officer filter and an Excel download.' },
+      { kind: 'new', text: 'Admins can import the existing Google Sheet (downloaded as CSV); cases already in the log are skipped.' },
+      { kind: 'improved', text: 'Patient details stay inside the hospital, are never cached by the browser, and every view and download is recorded in the audit log (without the patient’s details).' },
+    ],
+  },
+  {
     version: '3.2.0', date: '2026-11-24', title: 'One record per person',
     changes: [
       { kind: 'improved', text: 'An officer and their sign-in are now one record, managed on Admin → Officers. Adding someone needs their email and invites them straight away; email, role and “can sign in” are changed on the same form. The separate Accounts tab is gone.' },

@@ -112,8 +112,8 @@ public static class AdminEndpoints
             if (person is null) return Results.NotFound();
             if (id == http.User.AccountId())
                 return Results.Problem("You can't remove yourself.", statusCode: StatusCodes.Status409Conflict);
-            if (await db.Assignments.AnyAsync(a => a.PersonId == id, ct))
-                return Results.Problem("This person has shifts in a rota. Mark them as Left instead so their history is kept.",
+            if (await db.Assignments.AnyAsync(a => a.PersonId == id, ct) || await db.Cases.AnyAsync(c => c.PersonId == id, ct))
+                return Results.Problem("This person has shifts in a rota or recorded cases. Mark them as Left instead so their history is kept.",
                     statusCode: StatusCodes.Status409Conflict);
 
             Mapping.Log(db, http, "person.delete", id, null, id, before: await Audit.PersonAsync(db, person, ct));

@@ -78,7 +78,8 @@ public sealed record LoginRequest(string Email, string Password);
 public sealed record MeDto(Guid AccountId, string Email, AccountRole Role, Guid? PersonId, string? PersonName, bool MustChangePassword,
     FacilityRef? Facility);
 
-public sealed record FacilityRef(Guid Id, string Name, string Code);
+/// <param name="WeekendDays">The state's weekly rest days (0 = Sunday ... 6 = Saturday).</param>
+public sealed record FacilityRef(Guid Id, string Name, string Code, IReadOnlyList<int>? WeekendDays = null);
 
 public sealed record SetFacilityRequest(Guid? FacilityId);
 
@@ -142,11 +143,13 @@ public sealed record TallyUpdate(Guid PersonId, int Weekday, int WeekendHoliday)
 
 // State -> district -> clinic -> officer.
 
-public sealed record StateDto(Guid Id, string Name, IReadOnlyList<DistrictDto> Districts);
+/// <param name="WeekendDays">The state's weekly rest days (0 = Sunday ... 6 = Saturday).</param>
+public sealed record StateDto(Guid Id, string Name, IReadOnlyList<DistrictDto> Districts, IReadOnlyList<int>? WeekendDays = null);
 
 public sealed record DistrictDto(Guid Id, string Name, int Clinics);
 
-public sealed record UpsertStateRequest(string Name);
+/// <param name="WeekendDays">Weekly rest days (0 = Sunday ... 6 = Saturday); null keeps the current ones (Sat + Sun for a new state).</param>
+public sealed record UpsertStateRequest(string Name, IReadOnlyList<int>? WeekendDays = null);
 
 public sealed record UpsertDistrictRequest(string Name, Guid StateId);
 
@@ -278,3 +281,105 @@ public sealed record LeaveRequestRangeDto(
 
 public sealed record DecideLeaveRequestRequest(string? Note);
 public sealed record DecideLeaveRequestResult(LeaveRequestRangeDto Range, IReadOnlyList<string> Warnings);
+
+// ---------------- on-call case log ----------------
+
+/// <param name="OnCallDate">The shift the case belongs to; default: the case date, or the day before when it starts before 08:00.</param>
+/// <param name="TimeFinish">At or before TimeStart = the next day.</param>
+/// <param name="OfficerId">The on-call officer in charge; default: the officer recording it.</param>
+/// <param name="Taggers">Free text: the taggers with the officer.</param>
+/// <param name="DsaName">The DSA on call (required).</param>
+/// <param name="DsaStatus">CALLED AND ATTENDED, CALLED BUT FTA, CALLED BUT NO ANSWER or NOT BEEN CALLED (required).</param>
+/// <param name="CaseType">TRAUMA (P/W) or NON-TRAUMA (C/O).</param>
+/// <param name="Presentation">The P/W or C/O text.</param>
+/// <param name="Investigations">Ix done, comma-separated.</param>
+/// <param name="Prescription">Rx given.</param>
+/// <param name="EdZone">GREEN, YELLOW or RED: required on the form when the referral is ED, dropped otherwise.</param>
+public sealed record CaseInput(
+    DateOnly Date, TimeOnly TimeStart, TimeOnly TimeFinish, DateOnly? OnCallDate, string PatientName, string PatientIdNo, string Gender,
+    string? Age, string? Race, string? ReferralSource, string? Department, string? Diagnosis, string? Management, string? Plan,
+    Guid? OfficerId, string? Taggers, string? DsaName, string? DsaStatus, bool Confidential,
+    string? SpokenTo = null, string? SeenBy = null, string? CaseType = null, string? Presentation = null, string? Investigations = null,
+    string? Prescription = null, string? EdZone = null);
+
+/// <summary>Whoever the rota (published, or in review) has on call on a date (shown on ETAP rows that aren't the officer's).</summary>
+public sealed record OnCallOfficerDto(Guid PersonId, string Name);
+
+/// <param name="Minutes">Length of the case (over midnight when the finish is at or before the start).</param>
+/// <param name="CanEdit">The signed-in user recorded it, or is an admin.</param>
+/// <param name="CanShare">The signed-in user recorded it or is its officer in charge: they can make its WhatsApp passover.</param>
+/// <param name="PersonId">The on-call officer in charge (Officer is their name).</param>
+public sealed record CaseDto(
+    Guid Id, Guid PersonId, string Officer, string RecordedBy, DateOnly OnCallDate, DateOnly Date, TimeOnly TimeStart, TimeOnly TimeFinish,
+    int Minutes, string PatientName, string PatientIdNo, string Gender, string? Age, string? Race, string? ReferralSource, string? Department,
+    string? Diagnosis, string? Management, string? Plan, string? Taggers, string? DsaName, string? DsaStatus, bool Confidential, bool CanEdit,
+    bool CanShare, DateTimeOffset UpdatedAt, string? SpokenTo, string? SeenBy, string? CaseType, string? Presentation, string? Investigations,
+    string? Prescription, string? EdZone);
+
+/// <summary>The case as a WhatsApp passover message for the department group.</summary>
+public sealed record CaseTextDto(string Text);
+
+/// <param name="Csv">The Google Form's response sheet, exported as CSV.</param>
+/// <param name="DefaultPersonId">Officer in charge for rows whose "officer & taggers" column names nobody on the rota.</param>
+public sealed record CaseImportRequest(string Csv, bool Commit, Guid? DefaultPersonId);
+
+/// <param name="Duplicate">Already in the log (same officer, date, start time and patient number): skipped.</param>
+public sealed record CaseImportRowDto(int Line, DateOnly? Date, string? Officer, bool Duplicate, IReadOnlyList<ImportErrorDto> Errors);
+
+public sealed record CaseImportResultDto(
+    IReadOnlyList<CaseImportRowDto> Rows, IReadOnlyList<string> FileErrors, bool Committed, int Added, int Duplicates);
+
+// ---------------- officer ETAP profile ----------------
+
+/// <param name="NoTelefonBimbit">Mobile phone (also the officer's phone on the Officers tab).</param>
+public sealed record ProfileInput(
+    string? FullName, string? IcNo, string? Jawatan, string? Gred, DateOnly? TarikhPewartaanPakar, string? UnitTempatBertugas,
+    string? AlamatRumah, decimal? JarakKm, string? NoGaji, string? NoTelefonPejabat, string? NoTelefonBimbit, string? NoAkaunBank,
+    string? NamaCawanganBank);
+
+/// <param name="Verified">Verified by the officer and unchanged since (phone and email included).</param>
+/// <param name="Missing">Required fields still empty.</param>
+public sealed record ProfileDto(
+    string? FullName, string? IcNo, string? Jawatan, string? Gred, DateOnly? TarikhPewartaanPakar, string? UnitTempatBertugas,
+    string? AlamatRumah, decimal? JarakKm, string? NoGaji, string? NoTelefonPejabat, string? NoTelefonBimbit, string? Email,
+    string? NoAkaunBank, string? NamaCawanganBank, bool Verified, DateTimeOffset? VerifiedAt, IReadOnlyList<string> Missing);
+
+public sealed record VerifyProfileRequest(string? Password, bool Confirm);
+
+// ---------------- ETAP claim ----------------
+
+/// <summary>One on-call day as the officer typed it: the on-call date and when the duty started and ended.</summary>
+public sealed record EtapRowInput(DateOnly Date, DateOnly FromDate, TimeOnly FromTime, DateOnly ToDate, TimeOnly ToTime);
+
+public enum EtapDayType { Working, Rest, Holiday }
+
+/// <param name="CaseMinutes">Total length of the officer's cases on this on-call date (4 h or more = category 2).</param>
+/// <param name="Category">2a / 2b (passive call melebihi 4 jam) or 3a / 3b (kurang 4 jam); a = working day, b = rest day or holiday.</param>
+/// <param name="InRota">The published rota has this officer on call that date.</param>
+/// <param name="RotaOfficer">When not: who the rota has instead.</param>
+public sealed record EtapRowDto(
+    DateOnly Date, DateOnly FromDate, TimeOnly FromTime, DateOnly ToDate, TimeOnly ToTime, int Minutes, EtapDayType DayType,
+    string? HolidayName, int CaseMinutes, int CaseCount, string Category, bool InRota, OnCallOfficerDto? RotaOfficer);
+
+public sealed record EtapLineDto(string Category, string Label, int Days, int Rate, int Amount);
+
+/// <param name="Name">Null for a confidential patient (the form leaves name and registration number out).</param>
+public sealed record EtapPatientDto(DateOnly Date, string? Name, string? RegNo, int Minutes, string? DiagnosisAndTreatment, string? Notes,
+    bool Confidential);
+
+/// <param name="ProfileVerified">The ETAP PDF needs a verified profile.</param>
+/// <param name="Specialist">Specialist rates (the profile has a tarikh pewartaan pakar).</param>
+/// <param name="RotaDates">The officer's on-call dates in the published rota this month.</param>
+/// <param name="Saved">A draft is saved for this month.</param>
+/// <param name="UnclaimedRotaRows">Rota dates not in the claim yet, with the usual times (for "use my rota dates").</param>
+public sealed record EtapDto(
+    string Month, bool ProfileVerified, bool Specialist, IReadOnlyList<EtapRowDto> Rows, IReadOnlyList<DateOnly> RotaDates,
+    IReadOnlyList<EtapLineDto> Lines, int TotalDays, int TotalAmount, IReadOnlyList<EtapPatientDto> Patients, SuratArahanDto? SuratArahan,
+    bool Saved, IReadOnlyList<EtapRowInput> UnclaimedRotaRows);
+
+public sealed record EtapSaveRequest(IReadOnlyList<EtapRowInput> Rows);
+
+public sealed record SuratArahanDto(Guid Id, Guid DocumentId, string FileName, DateOnly EffectiveFrom, string? Reference, DateTimeOffset CreatedAt);
+
+/// <param name="DocumentId">An uploaded document of kind SuratArahan.</param>
+public sealed record AddSuratArahanRequest(Guid DocumentId, DateOnly EffectiveFrom, string? Reference);
