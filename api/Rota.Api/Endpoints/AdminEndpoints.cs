@@ -141,6 +141,8 @@ public static class AdminEndpoints
         p.Email = AuthEndpoints.NormalizeEmail(req.Email);
         p.Role = req.Role;
         p.Enabled = req.Enabled;
+        // Rota status is for people on the rota; supervisors leave by being switched off.
+        if (!p.OnRota) req = req with { Status = OfficerStatus.OnCall, StatusReason = null, ExcludedUntil = null };
         p.Status = req.Status;
         p.StatusReason = req.Status == OfficerStatus.OnCall ? null : Clean(req.StatusReason);
         p.ExcludedUntil = req.Status == OfficerStatus.Excluded ? req.ExcludedUntil : null;
@@ -168,7 +170,7 @@ public static class AdminEndpoints
             errors["code"] = [$"Code {req.Code.Trim()} is already used."];
 
         if (!Enum.IsDefined(req.Status)) errors["status"] = ["Unknown status."];
-        else if (req.Status != OfficerStatus.OnCall && Clean(req.StatusReason) is null)
+        else if (req.Role is AccountRole.Officer or AccountRole.Admin && req.Status != OfficerStatus.OnCall && Clean(req.StatusReason) is null)
             errors["statusReason"] = ["Give a reason (e.g. CUTI BERSALIN, PINDAH)."];
         if (Clean(req.StatusReason)?.Length > 200) errors["statusReason"] = ["Reason is too long (max 200)."];
         if (Clean(req.Phone)?.Length > 32) errors["phone"] = ["Phone number is too long."];
@@ -181,7 +183,7 @@ public static class AdminEndpoints
             errors["email"] = [emailError];
         if (req.Role is not (AccountRole.Officer or AccountRole.Admin or AccountRole.Supervisor))
             errors["role"] = ["Role is Officer, Admin or Supervisor (masters are added on All hospitals)."];
-        if (id is null && req.Status == OfficerStatus.Left) errors["status"] = ["Someone new can't start as left."];
+        if (id is null && req.Role is AccountRole.Officer or AccountRole.Admin && req.Status == OfficerStatus.Left) errors["status"] = ["Someone new can't start as left."];
 
         return errors.Count > 0 ? Results.ValidationProblem(errors) : null;
     }

@@ -66,6 +66,12 @@ public class FacilityTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.DoesNotContain(await Read<List<JsonElement>>(await sup.GetAsync("/api/people")),
             p => p.GetProperty("id").GetGuid() == supervisor.Id);
         Assert.DoesNotContain(await Read<List<TallyRowDto>>(await sup.GetAsync("/api/admin/tally")), r => r.PersonId == supervisor.Id);
+
+        // On call / excluded / left is rota status, so it doesn't apply to a supervisor (they leave by being switched off).
+        (await master.PutAsJsonAsync($"/api/admin/people/{supervisor.Id}", new UpsertPersonRequest("HSB Supervisor", null,
+            OfficerStatus.Left, Email: "sup@hsb.test", Role: AccountRole.Supervisor), ApiFixture.Json)).EnsureSuccessStatusCode();
+        Assert.Equal(OfficerStatus.OnCall, (await Read<List<AdminPersonDto>>(await master.GetAsync("/api/admin/people")))
+            .Single(p => p.Id == supervisor.Id).Status);
         Assert.Equal("HSB Jan", Assert.Single(await Read<List<PeriodDto>>(await sup.GetAsync("/api/periods"))).Name);
         Assert.Empty(await Read<List<HolidayDto>>(await sup.GetAsync("/api/admin/holidays")));
         Assert.Equal(HttpStatusCode.Forbidden, (await sup.GetAsync("/api/admin/accounts")).StatusCode);   // masters only

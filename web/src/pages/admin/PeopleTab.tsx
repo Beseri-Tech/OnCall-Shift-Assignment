@@ -262,6 +262,7 @@ export function PeopleTab() {
                     {p.phone ? <Anchor href={`tel:${p.phone}`} size="sm">{p.phone}</Anchor> : <Text span c="dimmed">–</Text>}
                   </Table.Td>
                   <Table.Td>
+                    {!onRota(p.role) ? <Text span size="sm" c="dimmed">Not on rota</Text> : <>
                     <Badge color={STATUS_COLOR[p.status]} variant="light">{STATUS_LABEL[p.status]}</Badge>
                     {p.statusReason && <Text size="xs">{p.statusReason}</Text>}
                     {p.excludedUntil && (
@@ -269,6 +270,7 @@ export function PeopleTab() {
                         {p.excludedUntil <= today ? 'Due back ' : 'Until '}{formatLong(p.excludedUntil)}
                       </Text>
                     )}
+                    </>}
                   </Table.Td>
                   <Table.Td>
                     <Group gap={4}>
@@ -300,7 +302,7 @@ export function PeopleTab() {
                           </ActionIcon>
                         </Tooltip>
                       )}
-                      {p.status === 'OnCall' ? (
+                      {!onRota(p.role) ? null : p.status === 'OnCall' ? (
                         <>
                           <Tooltip label="Exclude for a while (e.g. maternity leave)">
                             <ActionIcon variant="subtle" color="orange" aria-label="Exclude"
@@ -433,11 +435,13 @@ function PersonModal({ editing, clinics, onClose, onSaved, onInvited }: {
   const [v, setV] = useState(editing.value)
   const set = <K extends keyof UpsertPerson>(k: K, value: UpsertPerson[K]) => setV(s => ({ ...s, [k]: value }))
   const rota = onRota(v.role)
-  const willInvite = !person?.invited && v.status !== 'Left'
+  const willInvite = !person?.invited && (!rota || v.status !== 'Left')
 
   const save = useMutation({
     mutationFn: () => {
-      const body = { ...v, email: v.email.trim() }
+      // Rota status (on call / excluded / left) is for officers; a supervisor who leaves is switched off with "Can sign in".
+      const body = rota ? { ...v, email: v.email.trim() }
+        : { ...v, email: v.email.trim(), status: 'OnCall' as const, statusReason: null, excludedUntil: null }
       return person ? api.admin.updatePerson(person.id, body) : api.admin.createPerson(body)
     },
     onSuccess: r => {
@@ -477,6 +481,7 @@ function PersonModal({ editing, clinics, onClose, onSaved, onInvited }: {
               placeholder={clinics.length ? 'Pick a clinic' : 'Add clinics first (Clinics & districts)'}
               data={clinicOptions(clinics)} value={v.clinicId} onChange={id => set('clinicId', id)} clearable={!!person} searchable />
           )}
+          {rota && <>
           <Stack gap={4}>
             <Text fw={500} size="sm">Status</Text>
             <SegmentedControl value={v.status} onChange={x => set('status', x as OfficerStatus)} data={[
@@ -487,7 +492,6 @@ function PersonModal({ editing, clinics, onClose, onSaved, onInvited }: {
           </Stack>
           <StatusFields status={v.status} reason={v.statusReason} until={v.excludedUntil}
             onReason={x => set('statusReason', x)} onUntil={x => set('excludedUntil', x)} />
-          {rota && <>
           <Group>
             <Checkbox label="Prefers weekends / public holidays" checked={v.preferWeekendHoliday}
               onChange={e => set('preferWeekendHoliday', e.currentTarget.checked)} />
@@ -518,7 +522,7 @@ function PersonModal({ editing, clinics, onClose, onSaved, onInvited }: {
             <Button variant="default" onClick={onClose}>Cancel</Button>
             <Button type="submit" loading={save.isPending}
               disabled={!v.name.trim() || !v.email.trim() || (!person && rota && !v.clinicId)
-                || (v.status !== 'OnCall' && !v.statusReason?.trim())}>
+                || (rota && v.status !== 'OnCall' && !v.statusReason?.trim())}>
               {willInvite ? (person ? 'Save and invite' : 'Add and invite') : 'Save'}
             </Button>
           </Group>

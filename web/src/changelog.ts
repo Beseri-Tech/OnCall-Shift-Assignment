@@ -15,7 +15,7 @@ export const CHANGELOG: Release[] = [
     version: '3.2.0', date: '2026-11-24', title: 'One record per person',
     changes: [
       { kind: 'improved', text: 'An officer and their sign-in are now one record, managed on Admin → Officers. Adding someone needs their email and invites them straight away; email, role and “can sign in” are changed on the same form. The separate Accounts tab is gone.' },
-      { kind: 'new', text: 'Supervisors are people too: add them on the Officers tab with the Supervisor role. They run the admin pages and are never put on the rota.' },
+      { kind: 'new', text: 'Supervisors are people too: add them on the Officers tab with the Supervisor role. They run the admin pages and are never put on the rota, so they have no on call, excluded or left status: when one leaves, switch off “Can sign in”.' },
       { kind: 'improved', text: 'Officers who had no sign-in before this update stay on the rota and are marked “Email needed”. Edit each one to add their email and invite them.' },
       { kind: 'improved', text: 'Each row on the Officers tab can send a new temporary password, and the list can be filtered by role and sign-in.' },
       { kind: 'improved', text: 'CSV import needs an Email for every row and accepts the Supervisor role. Adding officers by name only is gone.' },
