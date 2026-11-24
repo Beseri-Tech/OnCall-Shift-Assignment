@@ -15,7 +15,7 @@ import { isAdmin, isMaster, useMe } from '../auth'
 import { PageHeader } from '../components/common'
 import { notifyError } from '../lib'
 
-// Plain-language rules and guidelines. Keep in step with RotaGenerator, LeavePolicy, the Leave limits in appsettings.json,
+// Plain-language help: rules and guidelines. Keep in step with RotaGenerator, LeavePolicy, the Leave limits in appsettings.json,
 // SwapEndpoints, the case log, the ETAP claim and the admin pages when those change. The "Developed by Beseri-Tech" credit
 // is in the app footer (Layout), so this page does not repeat it.
 
@@ -71,7 +71,7 @@ function EntryCard({ e }: { e: Entry }) {
   )
 }
 
-export function RulesPage() {
+export function HelpPage() {
   const me = useMe().data
   const admin = isAdmin(me)
   const master = isMaster(me)
@@ -518,7 +518,7 @@ export function RulesPage() {
 
   return (
     <Stack gap="lg" maw={1180} mx="auto" w="100%">
-      <PageHeader icon={IconBook} title="Rules and guidelines" description="How the on-call rota is shared out, how to record cases and claim ETAP, and what you need to know.">
+      <PageHeader icon={IconBook} title="Help and guidelines" description="How the on-call rota is shared out, how to record cases and claim ETAP, and what you need to know.">
         <ManualButton />
       </PageHeader>
 
@@ -545,8 +545,8 @@ export function RulesPage() {
         <Stack gap="md">
           <Group justify="space-between" align="flex-end" wrap="wrap">
             <Title order={3} size="h4" c="brand.9">Directory</Title>
-            <TextInput placeholder="Search the rules, e.g. swap, ETAP, points" leftSection={<IconSearch size={16} />} w={{ base: '100%', sm: 340 }}
-              aria-label="Search the rules" value={query} onChange={e => setQuery(e.currentTarget.value)}
+            <TextInput placeholder="Search help, e.g. swap, ETAP, points" leftSection={<IconSearch size={16} />} w={{ base: '100%', sm: 340 }}
+              aria-label="Search the help" value={query} onChange={e => setQuery(e.currentTarget.value)}
               rightSection={query ? <UnstyledButton aria-label="Clear search" onClick={() => setQuery('')}><IconX size={16} /></UnstyledButton> : null} />
           </Group>
           {chapters.length === 0 ? (

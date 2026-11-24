@@ -12,11 +12,11 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
-    version: '3.8.0', date: '2026-11-24', title: 'Rules and guidelines, reorganised',
+    version: '3.8.0', date: '2026-11-24', title: 'Help page, reorganised',
     changes: [
-      { kind: 'improved', text: 'The Rules and guidelines page is now a directory: chapters for rota and leave, on-call work (cases, WhatsApp passover, ETAP), your account and, for admins, running the rota. Jump to any section from the directory, the side list or the search box.' },
-      { kind: 'new', text: 'The Rules page now explains the case log, the WhatsApp passover, the ETAP claim and your ETAP profile, and which days count as the weekend in your state.' },
-      { kind: 'fixed', text: '"Developed by Beseri-Tech" no longer shows twice on the Rules page.' },
+      { kind: 'improved', text: 'The Rules page is now called Help and is a directory: chapters for rota and leave, on-call work (cases, WhatsApp passover, ETAP), your account and, for admins, running the rota. Jump to any section from the directory, the side list or the search box.' },
+      { kind: 'new', text: 'The Help page now explains the case log, the WhatsApp passover, the ETAP claim and your ETAP profile, and which days count as the weekend in your state.' },
+      { kind: 'fixed', text: '"Developed by Beseri-Tech" no longer shows twice on the Help page.' },
     ],
   },
   {

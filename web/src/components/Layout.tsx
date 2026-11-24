@@ -63,7 +63,7 @@ export function Layout() {
       : { to: '/cases', label: 'Cases', icon: IconStethoscope, end: false },
     { to: '/overview', label: 'Overview', icon: IconLayoutGrid, end: false },
     { to: '/rota', label: 'Rota', icon: IconCalendarEvent, end: false },
-    { to: '/rules', label: 'Rules', icon: IconBook, end: false },
+    { to: '/help', label: 'Help', icon: IconBook, end: false },
     ...(isAdmin(me) ? [{ to: '/admin', label: 'Admin', icon: IconShieldLock, end: false }] : []),
   ]
 
@@ -155,7 +155,7 @@ export function Layout() {
             ) : (({ to, label, icon: Icon, end }: NavItem) => (
               <UnstyledButton key={to} component={NavLink} to={to} end={end} className="drawer-link">
                 <Icon size={20} stroke={1.8} />
-                <span>{label === 'Rules' ? 'Rules and guidelines' : label}</span>
+                <span>{label}</span>
               </UnstyledButton>
             ))(n))}
           </Stack>
