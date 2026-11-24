@@ -47,7 +47,7 @@ public class CaseTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var first = log.Single(c => c.Id == night.Id);
         Assert.Equal(("ALI BIN ABU", "900101091234", "MALE", 90, false), (first.PatientName, first.PatientIdNo, first.Gender, first.Minutes, first.CanEdit));
         // With no rota, the officer in charge defaults to whoever typed it in; taggers and the DSA are separate.
-        Assert.Equal(("Dr One", "Dr HO Tagger", "KAK ROS", "CALLED AND ATTENDED"), (first.Officer, first.Taggers, first.DsaName, first.DsaStatus));
+        Assert.Equal(("Dr One", "DR HO TAGGER", "KAK ROS", "CALLED AND ATTENDED"), (first.Officer, first.Taggers, first.DsaName, first.DsaStatus));
         Assert.Equal(120, log.Single(c => c.Id != night.Id).Minutes);
 
         // Someone else's case: read-only for another officer, editable by an admin.
