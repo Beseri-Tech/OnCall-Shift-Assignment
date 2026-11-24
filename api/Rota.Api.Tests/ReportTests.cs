@@ -26,7 +26,7 @@ public class ReportTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     {
         await using var app = fixture.CreateApp();
         var admin = await ApiFixture.AdminClientAsync(app);
-        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names = Names })).EnsureSuccessStatusCode();
+        await ApiFixture.AddPeopleAsync(admin, Names);
         var people = await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"));
         var period = await Read<PeriodDto>(await admin.PostAsJsonAsync("/api/admin/periods",
             new UpsertPeriodRequest("Dec 2026", new DateOnly(2026, 12, 15), new DateOnly(2026, 12, 28), null), ApiFixture.Json));
@@ -85,7 +85,7 @@ public class ReportTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var storage = new DocumentTests.FakeStorage();
         await using var app = fixture.CreateApp().WithWebHostBuilder(b => b.ConfigureServices(s => s.AddSingleton<IDocumentStorage>(storage)));
         var admin = await ApiFixture.AdminClientAsync(app);
-        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names = "Dr A\nDr B\nDr C" })).EnsureSuccessStatusCode();
+        await ApiFixture.AddPeopleAsync(admin, "Dr A\nDr B\nDr C");
         var people = await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"));
         var period = await Read<PeriodDto>(await admin.PostAsJsonAsync("/api/admin/periods",
             new UpsertPeriodRequest("Jan 2027", new DateOnly(2027, 1, 4), new DateOnly(2027, 1, 10), null), ApiFixture.Json));

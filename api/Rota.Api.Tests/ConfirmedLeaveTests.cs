@@ -19,7 +19,7 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     private static async Task<(List<AdminPersonDto> People, PeriodDto Period)> SeedAsync(HttpClient admin, int people)
     {
         var names = string.Join("\n", Enumerable.Range(1, people).Select(i => $"Dr Test {i}"));
-        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names })).EnsureSuccessStatusCode();
+        await ApiFixture.AddPeopleAsync(admin, names);
         var period = await Read<PeriodDto>(await admin.PostAsJsonAsync("/api/admin/periods",
             new UpsertPeriodRequest("Oct 2026", new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), null), ApiFixture.Json));
         return (await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people")), period);
@@ -111,7 +111,7 @@ public class ConfirmedLeaveTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var (people, period) = await SeedAsync(admin, 10);   // Oct 2026: 3 points
         var kedah = people[7];
         (await admin.PutAsJsonAsync($"/api/admin/people/{kedah.Id}",
-            new UpsertPersonRequest(kedah.Name, kedah.Code, BlockedWeekdays: [(int)DayOfWeek.Sunday]), ApiFixture.Json)).EnsureSuccessStatusCode();
+            new UpsertPersonRequest(kedah.Name, kedah.Code, Email: kedah.Email, BlockedWeekdays: [(int)DayOfWeek.Sunday]), ApiFixture.Json)).EnsureSuccessStatusCode();
 
         // Sat 3 to Sun 11 Oct: Sundays 4 and 11 are never on call for them, so only Sat 3 and Sat 10 cost points (2, not 4).
         // 33% of 2 rounds up to 1 point; the 5 weekdays still cost 2: points 3 - 1 = 2, weekdays 11 - 2 = 9.

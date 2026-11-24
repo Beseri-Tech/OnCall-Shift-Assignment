@@ -7,7 +7,7 @@ import { api, type Facility } from '../api'
 import { useSwitchFacility } from '../auth'
 import { ErrorBox, Loading, PageHeader, StatusBadge } from '../components/common'
 import { notifyError, notifyOk } from '../lib'
-import { AccountsTab } from './admin/AccountsTab'
+import { MastersTab } from './admin/MastersTab'
 import { FeedbackTab } from './admin/FeedbackTab'
 import { LocationsTab } from './admin/LocationsTab'
 import { ManualTab } from './admin/ManualTab'
@@ -27,7 +27,7 @@ export function HospitalsPage() {
             <Tabs.Tab value="hospitals" leftSection={<IconBuildingHospital size={16} />}>Hospitals</Tabs.Tab>
             <Tabs.Tab value="locations" leftSection={<IconMapPin size={16} />}>Clinics &amp; districts</Tabs.Tab>
             <Tabs.Tab value="feedback" leftSection={<IconMessage2 size={16} />}>Feedback</Tabs.Tab>
-            <Tabs.Tab value="masters" leftSection={<IconUserShield size={16} />}>Accounts</Tabs.Tab>
+            <Tabs.Tab value="masters" leftSection={<IconUserShield size={16} />}>Masters</Tabs.Tab>
             <Tabs.Tab value="reports" leftSection={<IconFileText size={16} />}>Reports</Tabs.Tab>
             <Tabs.Tab value="manual" leftSection={<IconBook size={16} />}>Manual</Tabs.Tab>
             <Tabs.Tab value="log" leftSection={<IconHistory size={16} />}>Audit log</Tabs.Tab>
@@ -37,7 +37,7 @@ export function HospitalsPage() {
         <Tabs.Panel value="hospitals"><HospitalsTab /></Tabs.Panel>
         <Tabs.Panel value="locations"><LocationsTab /></Tabs.Panel>
         <Tabs.Panel value="feedback"><FeedbackTab /></Tabs.Panel>
-        <Tabs.Panel value="masters"><AccountsTab /></Tabs.Panel>
+        <Tabs.Panel value="masters"><MastersTab /></Tabs.Panel>
         <Tabs.Panel value="reports"><ReportsTab allHospitals /></Tabs.Panel>
         <Tabs.Panel value="manual"><ManualTab /></Tabs.Panel>
         <Tabs.Panel value="log"><AuditTab /></Tabs.Panel>

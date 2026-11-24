@@ -145,7 +145,7 @@ public sealed class LeaveRules
             .OrderBy(d => d.Date).ToListAsync(ct);
 
         var left = await db.PeriodExclusions.Where(x => x.PeriodId == period.Id).Select(x => x.PersonId).ToListAsync(ct);
-        var onCallPeople = await db.People.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id)).Select(p => new { p.Id, p.BlockedWeekdays }).ToListAsync(ct);
+        var onCallPeople = await db.Officers.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id)).Select(p => new { p.Id, p.BlockedWeekdays }).ToListAsync(ct);
         var onCall = onCallPeople.Select(p => p.Id).ToList();
         var leave = await db.LeaveDays
             .Where(l => l.Date >= period.StartDate && l.Date <= period.EndDate)

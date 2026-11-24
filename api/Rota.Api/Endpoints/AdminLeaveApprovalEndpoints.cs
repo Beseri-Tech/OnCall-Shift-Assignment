@@ -84,6 +84,7 @@ public static class AdminLeaveApprovalEndpoints
             return Problem("dates", $"At most {MaxDays} days at a time. For a long absence, mark the officer as excluded.");
 
         var person = await db.People.FindAsync([req.PersonId], ct);
+        if (person is { OnRota: false }) person = null;   // supervisors are never on the rota
         if (person is null) return Results.NotFound();
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -181,6 +182,7 @@ public static class AdminLeaveApprovalEndpoints
                                         $"{Range(ranges[i].StartDate, ranges[i].EndDate)} overlap. Merge them into one range.");
 
         var person = await db.People.FindAsync([req.PersonId], ct);
+        if (person is { OnRota: false }) person = null;   // supervisors are never on the rota
         if (person is null) return Results.NotFound();
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -269,10 +271,8 @@ public static class AdminLeaveApprovalEndpoints
         var people = await db.People.AsNoTracking().ToListAsync(ct);
         var byId = people.ToDictionary(p => p.Id);
         var accountIds = approvals.Select(a => a.CreatedByAccountId).OfType<Guid>().Distinct().ToList();
-        var creators = await db.Accounts.IgnoreQueryFilters().Where(a => accountIds.Contains(a.Id))
-            .Select(a => new { a.Id, a.Email, a.PersonId }).ToListAsync(ct);
-        var creatorName = creators.ToDictionary(c => c.Id,
-            c => c.PersonId is { } pid && byId.TryGetValue(pid, out var p) ? p.Name : c.Email);
+        var creatorName = await db.People.IgnoreQueryFilters().Where(a => accountIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, a => a.Name, ct);
 
         // Shifts in published or in-review rotas on confirmed-leave days.
         var clashes = await (

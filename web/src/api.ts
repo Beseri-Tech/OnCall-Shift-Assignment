@@ -107,18 +107,23 @@ export interface AdminPerson {
   clinicId: string | null; clinicName: string | null; districtId: string | null; district: string | null
   stateId: string | null; state: string | null; phone: string | null
   sortOrder: number; extraShift: boolean; preferWeekendHoliday: boolean; weekendWeight: number
-  /** Sign-in email and role, once the officer has an account. invitePending: hasn't signed in and set a password yet. */
-  email: string | null; role: AccountRole | null; invitePending: boolean; accountEnabled: boolean
+  /**
+   * Sign-in: email is null only for officers from before sign-in and officers were one record ("email needed").
+   * invited: has a password (temporary or their own); invitePending: hasn't signed in and set their own yet.
+   * enabled: the admin's switch; accountEnabled: can actually sign in (email, invited and enabled).
+   */
+  email: string | null; role: AccountRole; invitePending: boolean; accountEnabled: boolean; enabled: boolean; invited: boolean
+  lastLoginAt: string | null
   blockedWeekdays: number[]; blockedReason: string | null
 }
-/** email invites the officer in the same step (only while they have no account). */
+/** One person: officer details and their sign-in. Email is required; someone not yet invited is invited by the save. */
 export interface UpsertPerson {
   name: string; code: string | null; status: OfficerStatus; extraShift: boolean; preferWeekendHoliday: boolean
   weekendWeight: number; statusReason: string | null; excludedUntil: IsoDate | null; clinicId: string | null; phone: string | null
-  email: string | null; role: AccountRole
+  email: string; role: AccountRole; enabled: boolean
   blockedWeekdays: number[]; blockedReason: string | null
 }
-/** invite is set when an email was given. */
+/** invite is set when the save invited them (tempPassword when email is off or not set up). */
 export interface SavePersonResult { id: string; invite: InviteResult | null }
 export interface Me {
   accountId: string; email: string; role: AccountRole; personId: string | null; personName: string | null
@@ -341,12 +346,14 @@ export const api = {
   },
 
   admin: {
-    accounts: () => get<Account[]>('/api/admin/accounts'),
-    invite: (email: string, role: AccountRole, personId: string | null) =>
-      post<InviteResult>('/api/admin/accounts', { email, role, personId }),
+    /** Masters only (they belong to no hospital); a hospital's people are managed with people/createPerson/updatePerson. */
+    masters: () => get<Account[]>('/api/admin/accounts'),
+    addMaster: (m: { name: string; email: string }) => post<InviteResult>('/api/admin/accounts', m),
+    updateMaster: (id: string, m: { name: string; email: string; enabled: boolean }) => put<void>(`/api/admin/accounts/${id}`, m),
+    /** New temporary password for anyone (master view). */
     resendInvite: (id: string) => post<InviteResult>(`/api/admin/accounts/${id}/resend`),
-    updateAccount: (id: string, a: { email: string; role: AccountRole; personId: string | null; enabled: boolean }) =>
-      put<void>(`/api/admin/accounts/${id}`, a),
+    /** New temporary password for someone in the current hospital. */
+    resendPersonInvite: (id: string) => post<InviteResult>(`/api/admin/people/${id}/resend`),
 
     tally: () => get<TallyRow[]>('/api/admin/tally'),
     saveTally: (rows: { personId: string; weekday: number; weekendHoliday: number }[]) => put<TallyRow[]>('/api/admin/tally', rows),

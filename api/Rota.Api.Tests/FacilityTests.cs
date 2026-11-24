@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -23,7 +24,7 @@ public class FacilityTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         // HTF (Perlis): an officer, a period and a Perlis holiday.
         var htfPerson = await Read<SavePersonResult>(await master.PostAsJsonAsync("/api/admin/people",
-            new UpsertPersonRequest("Dr Same Name", null), ApiFixture.Json));
+            new UpsertPersonRequest("Dr Same Name", null, Email: ApiFixture.EmailFor("Dr Same Name")), ApiFixture.Json));
         var htfPeriod = await Read<PeriodDto>(await master.PostAsJsonAsync("/api/admin/periods",
             new UpsertPeriodRequest("HTF Jan", new(2027, 1, 1), new(2027, 1, 31), null), ApiFixture.Json));
         (await master.PutAsJsonAsync("/api/admin/holidays", new UpsertHolidayRequest(new(2027, 1, 20), "Perlis only"), ApiFixture.Json))
@@ -43,33 +44,49 @@ public class FacilityTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         // Same officer name is fine in another hospital.
         var hsbPerson = await Read<SavePersonResult>(await master.PostAsJsonAsync("/api/admin/people",
-            new UpsertPersonRequest("Dr Same Name", null), ApiFixture.Json));
+            new UpsertPersonRequest("Dr Same Name", null, Email: "same-name@hsb.test"), ApiFixture.Json));
         await Read<PeriodDto>(await master.PostAsJsonAsync("/api/admin/periods",
             new UpsertPeriodRequest("HSB Jan", new(2027, 1, 1), new(2027, 1, 31), null), ApiFixture.Json));
 
         // HSB's supervisor.
-        var invite = await Read<InviteResult>(await master.PostAsJsonAsync("/api/admin/accounts",
-            new InviteRequest("sup@hsb.test", AccountRole.Supervisor, null), ApiFixture.Json));
+        var supervisor = await Read<SavePersonResult>(await master.PostAsJsonAsync("/api/admin/people",
+            new UpsertPersonRequest("HSB Supervisor", null, Email: "sup@hsb.test", Role: AccountRole.Supervisor), ApiFixture.Json));
+        var invite = supervisor.Invite!;
         var sup = app.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
         (await sup.PostAsJsonAsync("/api/auth/login", new { email = "sup@hsb.test", password = invite.TempPassword })).EnsureSuccessStatusCode();
         (await sup.PostAsJsonAsync("/api/auth/change-password", new ChangePasswordRequest(invite.TempPassword!, "supervisor-pass-1")))
             .EnsureSuccessStatusCode();
 
-        Assert.Equal(hsbPerson.Id, Assert.Single(await Read<List<AdminPersonDto>>(await sup.GetAsync("/api/admin/people"))).Id);
+        var hsbPeople = await Read<List<AdminPersonDto>>(await sup.GetAsync("/api/admin/people"));
+        Assert.Equal([hsbPerson.Id, supervisor.Id], hsbPeople.Select(p => p.Id).Order());
+
+        // A supervisor is a person too, but never on the rota.
+        var supMe = await Read<MeDto>(await sup.GetAsync("/api/auth/me"));
+        Assert.Equal((supervisor.Id, null, AccountRole.Supervisor), (supMe.AccountId, supMe.PersonId, supMe.Role));
+        Assert.DoesNotContain(await Read<List<JsonElement>>(await sup.GetAsync("/api/people")),
+            p => p.GetProperty("id").GetGuid() == supervisor.Id);
+        Assert.DoesNotContain(await Read<List<TallyRowDto>>(await sup.GetAsync("/api/admin/tally")), r => r.PersonId == supervisor.Id);
+
+        // On call / excluded / left is rota status, so it doesn't apply to a supervisor (they leave by being switched off).
+        (await master.PutAsJsonAsync($"/api/admin/people/{supervisor.Id}", new UpsertPersonRequest("HSB Supervisor", null,
+            OfficerStatus.Left, Email: "sup@hsb.test", Role: AccountRole.Supervisor), ApiFixture.Json)).EnsureSuccessStatusCode();
+        Assert.Equal(OfficerStatus.OnCall, (await Read<List<AdminPersonDto>>(await master.GetAsync("/api/admin/people")))
+            .Single(p => p.Id == supervisor.Id).Status);
         Assert.Equal("HSB Jan", Assert.Single(await Read<List<PeriodDto>>(await sup.GetAsync("/api/periods"))).Name);
         Assert.Empty(await Read<List<HolidayDto>>(await sup.GetAsync("/api/admin/holidays")));
-        var supAccounts = await Read<List<AccountDto>>(await sup.GetAsync("/api/admin/accounts"));
-        Assert.Equal("sup@hsb.test", Assert.Single(supAccounts).Email);
+        Assert.Equal(HttpStatusCode.Forbidden, (await sup.GetAsync("/api/admin/accounts")).StatusCode);   // masters only
 
         // HTF's things are out of reach, even by id.
         Assert.Equal(HttpStatusCode.NotFound, (await sup.PutAsJsonAsync($"/api/admin/people/{htfPerson.Id}",
-            new UpsertPersonRequest("Hijacked", null), ApiFixture.Json)).StatusCode);
+            new UpsertPersonRequest("Hijacked", null, Email: ApiFixture.EmailFor("Hijacked")), ApiFixture.Json)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await sup.DeleteAsync($"/api/admin/periods/{htfPeriod.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await sup.PostAsJsonAsync($"/api/admin/periods/{htfPeriod.Id}/generate", new { })).StatusCode);
 
         // Supervisors can't make masters or hospitals.
-        Assert.Equal(HttpStatusCode.BadRequest, (await sup.PostAsJsonAsync("/api/admin/accounts",
-            new InviteRequest("boss@hsb.test", AccountRole.Master, null), ApiFixture.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await sup.PostAsJsonAsync("/api/admin/people",
+            new UpsertPersonRequest("Boss", null, Email: "boss@hsb.test", Role: AccountRole.Master), ApiFixture.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await sup.PostAsJsonAsync("/api/admin/accounts",
+            new MasterRequest("Boss", "boss@hsb.test"), ApiFixture.Json)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await sup.PostAsJsonAsync("/api/admin/facilities",
             new UpsertFacilityRequest("Rogue", "RG", kotaSetar), ApiFixture.Json)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await sup.PostAsJsonAsync("/api/admin/states",

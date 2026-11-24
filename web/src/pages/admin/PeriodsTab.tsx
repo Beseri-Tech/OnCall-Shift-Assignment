@@ -235,7 +235,7 @@ function PeriodModal({ editing, onClose, onSaved }: {
     ? Math.round((Date.parse(`${range[1]}T00:00:00Z`) - Date.parse(`${range[0]}T00:00:00Z`)) / 86400000) + 1
     : null
   const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people })
-  const onCall = (people.data ?? []).filter(x => x.status === 'OnCall')
+  const onCall = (people.data ?? []).filter(x => x.status === 'OnCall' && x.role !== 'Supervisor')
   const left = new Set(v.excludedPersonIds ?? [])
   const toggle = (id: string, included: boolean) => {
     const next = new Set(left)

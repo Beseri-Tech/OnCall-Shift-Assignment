@@ -1,16 +1,17 @@
 import {
   ActionIcon, Anchor, Badge, Button, Checkbox, Chip, Group, Modal, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack,
-  Table, Text, TextInput, Tooltip,
+  Switch, Table, Text, TextInput, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconCalendarOff, IconDoorExit, IconEdit, IconFileImport, IconFilterOff, IconMapPin, IconPlayerPause, IconSearch, IconTrash, IconUserCheck, IconUserPlus,
+  IconCalendarOff, IconDoorExit, IconEdit, IconFileImport, IconFilterOff, IconMailForward, IconMapPin, IconPlayerPause, IconSearch, IconTrash, IconUserCheck, IconUserPlus,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { api, type AccountRole, type AdminPerson, type Clinic, type InviteResult, type OfficerStatus, type UpsertPerson } from '../../api'
+import { useMe } from '../../auth'
 import { ErrorBox, Loading } from '../../components/common'
 import { formatLong, todayIso } from '../../dates'
 import { notifyError, notifyOk } from '../../lib'
@@ -20,7 +21,7 @@ import { type IssuedLogin, TempPasswordsModal } from './TempPasswords'
 
 const blank: UpsertPerson = {
   name: '', code: null, status: 'OnCall', extraShift: false, preferWeekendHoliday: false, weekendWeight: 1,
-  statusReason: null, excludedUntil: null, clinicId: null, phone: null, email: null, role: 'Officer',
+  statusReason: null, excludedUntil: null, clinicId: null, phone: null, email: '', role: 'Officer', enabled: true,
   blockedWeekdays: [], blockedReason: null,
 }
 
@@ -31,21 +32,27 @@ const STATUS_COLOR: Record<OfficerStatus, string> = { OnCall: 'green', Excluded:
 
 type StatusFilter = OfficerStatus | 'All'
 
-/** Sign-in state of an officer, for the account filter. */
-type AccountFilter = 'none' | 'pending' | 'active' | 'disabled' | 'admin'
+/** Sign-in state, for the sign-in filter. */
+type AccountFilter = 'email' | 'pending' | 'active' | 'disabled'
 const ACCOUNT_FILTERS: { value: AccountFilter; label: string }[] = [
-  { value: 'none', label: 'No account (not invited)' },
+  { value: 'email', label: 'Email needed' },
   { value: 'pending', label: 'Invited, not signed in' },
   { value: 'active', label: 'Signed in' },
-  { value: 'disabled', label: 'Account disabled' },
-  { value: 'admin', label: 'Admins' },
+  { value: 'disabled', label: 'Sign-in disabled' },
 ]
 const accountMatches = (p: AdminPerson, f: AccountFilter) =>
-  f === 'none' ? !p.email
-  : f === 'pending' ? !!p.email && p.accountEnabled && p.invitePending
-  : f === 'active' ? !!p.email && p.accountEnabled && !p.invitePending
-  : f === 'disabled' ? !!p.email && !p.accountEnabled
-  : p.role === 'Admin'
+  f === 'email' ? !p.email
+  : f === 'pending' ? p.accountEnabled && p.invitePending
+  : f === 'active' ? p.accountEnabled && !p.invitePending
+  : !!p.email && !p.enabled
+
+/** Roles a hospital's people can have (masters are added on All hospitals). */
+const ROLES: { value: AccountRole; label: string; help: string }[] = [
+  { value: 'Officer', label: 'Officer', help: 'On the rota. Enters their own leave, sees the overview and rota.' },
+  { value: 'Admin', label: 'Admin (on call)', help: 'On the rota, and also runs the admin pages.' },
+  { value: 'Supervisor', label: 'Supervisor', help: 'Runs the admin pages; never on the rota.' },
+]
+const onRota = (r: AccountRole) => r === 'Officer' || r === 'Admin'
 
 type FlagFilter = 'weekends' | 'extra' | 'weight'
 const FLAG_FILTERS: { value: FlagFilter; label: string }[] = [
@@ -73,10 +80,11 @@ export function PeopleTab() {
   const [districtId, setDistrictId] = useState<string | null>(null)
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [account, setAccount] = useState<AccountFilter | null>(null)
+  const [role, setRole] = useState<string | null>(null)
   const [flag, setFlag] = useState<FlagFilter | null>(null)
-  const filtered = !!(search.trim() || stateId || districtId || clinicId || account || flag)
+  const filtered = !!(search.trim() || stateId || districtId || clinicId || account || role || flag)
   const clearFilters = () => {
-    setSearch(''); setStateId(null); setDistrictId(null); setClinicId(null); setAccount(null); setFlag(null)
+    setSearch(''); setStateId(null); setDistrictId(null); setClinicId(null); setAccount(null); setRole(null); setFlag(null)
   }
   const [editing, setEditing] = useState<{ person: AdminPerson | null; value: UpsertPerson } | null>(null)
   const [changing, setChanging] = useState<{ person: AdminPerson; to: 'Excluded' | 'Left' } | null>(null)
@@ -88,14 +96,24 @@ export function PeopleTab() {
     qc.invalidateQueries({ queryKey: ['admin', 'people'] })
     qc.invalidateQueries({ queryKey: ['admin', 'clinics'] })
     qc.invalidateQueries({ queryKey: ['admin', 'states'] })
-    qc.invalidateQueries({ queryKey: ['admin', 'accounts'] })
     qc.invalidateQueries({ queryKey: ['people'] })
+  }
+
+  const onInvited = (name: string, email: string, invite: InviteResult) => {
+    if (invite.tempPassword) setIssued([{ name, email, tempPassword: invite.tempPassword }])
+    else notifyOk(`Invite emailed to ${email}.`)
   }
 
   const remove = useMutation({
     mutationFn: (id: string) => api.admin.deletePerson(id),
     onSuccess: () => { refresh(); notifyOk('Officer removed.') },
     onError: e => notifyError(e, 'Could not remove'),
+  })
+
+  const resend = useMutation({
+    mutationFn: (p: AdminPerson) => api.admin.resendPersonInvite(p.id),
+    onSuccess: (r, p) => { refresh(); onInvited(p.name, p.email!, r) },
+    onError: e => notifyError(e),
   })
 
   const backOnCall = useMutation({
@@ -128,6 +146,7 @@ export function PeopleTab() {
         && (!districtId || p.districtId === districtId)
         && (!clinicId || (clinicId === NO_CLINIC ? !p.clinicId : p.clinicId === clinicId))
         && (!account || accountMatches(p, account))
+        && (!role || p.role === role)
         && (!flag || flagMatches(p, flag))
         && (!s || p.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s) || p.email?.includes(s)
           || p.phone?.replace(/\D/g, '').includes(s.replace(/\D/g, '') || '-')))
@@ -136,15 +155,13 @@ export function PeopleTab() {
         || last(a.district).localeCompare(last(b.district))
         || last(a.clinicName).localeCompare(last(b.clinicName))
         || a.sortOrder - b.sortOrder)
-  }, [people.data, search, status, stateId, districtId, clinicId, account, flag])
+  }, [people.data, search, status, stateId, districtId, clinicId, account, role, flag])
+
+  const needEmail = (people.data ?? []).filter(p => !p.email && p.status !== 'Left').length
 
   if (people.isLoading || clinics.isLoading || states.isLoading) return <Loading />
   if (people.error || clinics.error || states.error) return <ErrorBox error={people.error ?? clinics.error ?? states.error} />
 
-  const onInvited = (name: string, email: string, invite: InviteResult) => {
-    if (invite.tempPassword) setIssued([{ name, email, tempPassword: invite.tempPassword }])
-    else notifyOk(`Invite emailed to ${email}.`)
-  }
 
   const today = todayIso()
 
@@ -161,9 +178,21 @@ export function PeopleTab() {
           <Button variant="default" leftSection={<IconMapPin size={16} />} component={Link} to="/admin/locations">Clinics &amp; districts</Button>
           <Button variant="default" leftSection={<IconCalendarOff size={16} />} onClick={() => setEventsOpen(true)}>Clinic event days</Button>
           <Button variant="default" leftSection={<IconFileImport size={16} />} onClick={() => setImportOpen(true)}>Import CSV</Button>
-          <Button leftSection={<IconUserPlus size={16} />} onClick={() => setEditing({ person: null, value: blank })}>Add officer</Button>
+          <Button leftSection={<IconUserPlus size={16} />} onClick={() => setEditing({ person: null, value: blank })}>Add person</Button>
         </Group>
       </Group>
+
+      {needEmail > 0 && (
+        <Paper withBorder p="sm" bg="var(--mantine-color-orange-0)">
+          <Group justify="space-between" wrap="wrap">
+            <Text size="sm">
+              <b>{needEmail} {needEmail === 1 ? 'officer has' : 'officers have'} no email yet</b>, so they can’t sign in.
+              They stay on the rota; edit each one to add their email and invite them.
+            </Text>
+            <Button size="compact-sm" variant="light" color="orange" onClick={() => { setAccount('email'); setStatus('All') }}>Show them</Button>
+          </Group>
+        </Paper>
+      )}
 
       <Group wrap="wrap">
         <TextInput placeholder="Name, code, email, phone" leftSection={<IconSearch size={16} />} value={search}
@@ -174,6 +203,8 @@ export function PeopleTab() {
         <Select placeholder="All districts" clearable searchable w={170} value={districtId} data={districtOptions}
           onChange={v => { setDistrictId(v); setClinicId(null) }} />
         <Select placeholder="All clinics" clearable searchable w={200} value={clinicId} data={clinicChoices} onChange={setClinicId} />
+        <Select placeholder="Any role" clearable w={170} value={role} onChange={setRole}
+          data={ROLES.map(r => ({ value: r.value, label: r.label }))} />
         <Select placeholder="Any sign-in" clearable w={220} value={account} data={ACCOUNT_FILTERS}
           onChange={v => setAccount(v as AccountFilter | null)} />
         <Select placeholder="Any preference" clearable w={200} value={flag} data={FLAG_FILTERS}
@@ -199,12 +230,19 @@ export function PeopleTab() {
             </Table.Thead>
             <Table.Tbody>
               {rows.length === 0 && (
-                <Table.Tr><Table.Td colSpan={8}><Text c="dimmed" ta="center" py="md">No officers match.</Text></Table.Td></Table.Tr>
+                <Table.Tr><Table.Td colSpan={8}><Text c="dimmed" ta="center" py="md">Nobody matches.</Text></Table.Td></Table.Tr>
               )}
               {rows.map(p => (
                 <Table.Tr key={p.id} opacity={p.status === 'Left' ? 0.55 : 1}>
                   <Table.Td><Badge variant="outline" color="gray">{p.code}</Badge></Table.Td>
-                  <Table.Td fw={600}>{p.name}</Table.Td>
+                  <Table.Td>
+                    <Text fw={600} size="sm">{p.name}</Text>
+                    {p.role !== 'Officer' && (
+                      <Badge size="xs" variant="light" color={p.role === 'Supervisor' ? 'grape' : 'violet'}>
+                        {p.role === 'Supervisor' ? 'Supervisor · not on rota' : 'Admin'}
+                      </Badge>
+                    )}
+                  </Table.Td>
                   <Table.Td>
                     {p.clinicName
                       ? <>{p.clinicName}<Text size="xs" c="dimmed">{p.district}, {p.state}</Text></>
@@ -214,18 +252,17 @@ export function PeopleTab() {
                     {p.email
                       ? <>
                           <Text size="sm">{p.email}</Text>
-                          <Group gap={4}>
-                            {!p.accountEnabled ? <Badge size="xs" color="gray" variant="light">Disabled</Badge>
-                              : p.invitePending && <Badge size="xs" color="orange" variant="light">Invited</Badge>}
-                            {p.role === 'Admin' && <Badge size="xs" color="violet" variant="light">Admin</Badge>}
-                          </Group>
+                          {!p.enabled ? <Badge size="xs" color="gray" variant="light">Disabled</Badge>
+                            : !p.invited ? <Badge size="xs" color="gray" variant="light">Not invited</Badge>
+                            : p.invitePending && <Badge size="xs" color="orange" variant="light">Invited</Badge>}
                         </>
-                      : <Text span size="sm" c="dimmed">No account</Text>}
+                      : <Badge size="sm" color="orange" variant="light">Email needed</Badge>}
                   </Table.Td>
                   <Table.Td>
                     {p.phone ? <Anchor href={`tel:${p.phone}`} size="sm">{p.phone}</Anchor> : <Text span c="dimmed">–</Text>}
                   </Table.Td>
                   <Table.Td>
+                    {!onRota(p.role) ? <Text span size="sm" c="dimmed">Not on rota</Text> : <>
                     <Badge color={STATUS_COLOR[p.status]} variant="light">{STATUS_LABEL[p.status]}</Badge>
                     {p.statusReason && <Text size="xs">{p.statusReason}</Text>}
                     {p.excludedUntil && (
@@ -233,6 +270,7 @@ export function PeopleTab() {
                         {p.excludedUntil <= today ? 'Due back ' : 'Until '}{formatLong(p.excludedUntil)}
                       </Text>
                     )}
+                    </>}
                   </Table.Td>
                   <Table.Td>
                     <Group gap={4}>
@@ -248,7 +286,23 @@ export function PeopleTab() {
                   </Table.Td>
                   <Table.Td>
                     <Group gap={4} justify="flex-end" wrap="nowrap">
-                      {p.status === 'OnCall' ? (
+                      {p.email && p.enabled && p.status !== 'Left' && (
+                        <Tooltip label={p.invited ? 'Send a new temporary password' : 'Send the invite'}>
+                          <ActionIcon variant="subtle" aria-label="Send new temporary password"
+                            loading={resend.isPending && resend.variables?.id === p.id}
+                            onClick={() => modals.openConfirmModal({
+                              title: `${p.invited ? 'New temporary password' : 'Invite'} for ${p.name}?`,
+                              children: <Text size="sm">{p.invited
+                                ? 'Their current password stops working. They’ll choose a new one when they sign in.'
+                                : `They get a temporary password at ${p.email}.`}</Text>,
+                              labels: { confirm: 'Send', cancel: 'Cancel' },
+                              onConfirm: () => resend.mutate(p),
+                            })}>
+                            <IconMailForward size={18} />
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
+                      {!onRota(p.role) ? null : p.status === 'OnCall' ? (
                         <>
                           <Tooltip label="Exclude for a while (e.g. maternity leave)">
                             <ActionIcon variant="subtle" color="orange" aria-label="Exclude"
@@ -277,7 +331,7 @@ export function PeopleTab() {
                       </ActionIcon>
                       <ActionIcon variant="subtle" color="red" aria-label="Delete" onClick={() => modals.openConfirmModal({
                         title: `Delete ${p.name}?`,
-                        children: <Text size="sm">Only for mistakes – this also removes their leave. If they moved out, use "Mark as left" so their history is kept.</Text>,
+                        children: <Text size="sm">Only for mistakes – this also removes their sign-in and leave. If they moved out, use "Mark as left" so their history is kept.</Text>,
                         labels: { confirm: 'Delete', cancel: 'Cancel' },
                         confirmProps: { color: 'red' },
                         onConfirm: () => remove.mutate(p.id),
@@ -310,7 +364,7 @@ export function PeopleTab() {
 const toUpsert = (p: AdminPerson): UpsertPerson => ({
   name: p.name, code: p.code, status: p.status, extraShift: p.extraShift, preferWeekendHoliday: p.preferWeekendHoliday,
   weekendWeight: p.weekendWeight, statusReason: p.statusReason, excludedUntil: p.excludedUntil,
-  clinicId: p.clinicId, phone: p.phone, email: null, role: p.role ?? 'Officer',
+  clinicId: p.clinicId, phone: p.phone, email: p.email ?? '', role: p.role, enabled: p.enabled,
   blockedWeekdays: p.blockedWeekdays, blockedReason: p.blockedReason,
 })
 
@@ -376,26 +430,30 @@ function PersonModal({ editing, clinics, onClose, onSaved, onInvited }: {
   onInvited: (name: string, email: string, invite: InviteResult) => void
 }) {
   const { person } = editing
+  const meId = useMe().data?.accountId
+  const isSelf = !!person && person.id === meId
   const [v, setV] = useState(editing.value)
   const set = <K extends keyof UpsertPerson>(k: K, value: UpsertPerson[K]) => setV(s => ({ ...s, [k]: value }))
-  const canInvite = !person?.email && v.status !== 'Left'
-  const email = canInvite ? v.email?.trim() || null : null
+  const rota = onRota(v.role)
+  const willInvite = !person?.invited && (!rota || v.status !== 'Left')
 
   const save = useMutation({
     mutationFn: () => {
-      const body = { ...v, email }
+      // Rota status (on call / excluded / left) is for officers; a supervisor who leaves is switched off with "Can sign in".
+      const body = rota ? { ...v, email: v.email.trim() }
+        : { ...v, email: v.email.trim(), status: 'OnCall' as const, statusReason: null, excludedUntil: null }
       return person ? api.admin.updatePerson(person.id, body) : api.admin.createPerson(body)
     },
     onSuccess: r => {
       onSaved()
       onClose()
-      if (r.invite && email) onInvited(v.name, email.toLowerCase(), r.invite)
+      if (r.invite) onInvited(v.name, v.email.trim().toLowerCase(), r.invite)
       else notifyOk(`${v.name} saved.`)
     },
   })
 
   return (
-    <Modal opened onClose={onClose} title={person ? 'Edit officer' : 'Add officer'} size="lg">
+    <Modal opened onClose={onClose} title={person ? `Edit ${person.name}` : 'Add person'} size="lg">
       <form onSubmit={e => { e.preventDefault(); save.mutate() }}>
         <Stack>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -404,27 +462,26 @@ function PersonModal({ editing, clinics, onClose, onSaved, onInvited }: {
               onChange={e => set('code', e.currentTarget.value || null)} maxLength={32} />
           </SimpleGrid>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <TextInput label="Email" type="email" required value={v.email} onChange={e => set('email', e.currentTarget.value)}
+              maxLength={254} description={willInvite ? 'Their sign-in. Saving sends them a temporary password.' : 'Their sign-in.'} />
+            <TextInput label="Phone" value={v.phone ?? ''} onChange={e => set('phone', e.currentTarget.value || null)} maxLength={32} />
+          </SimpleGrid>
+          <Stack gap={4}>
+            <Text fw={500} size="sm">Role</Text>
+            <SegmentedControl value={v.role} onChange={x => set('role', x as AccountRole)} disabled={isSelf}
+              data={ROLES.map(r => ({ value: r.value, label: r.label }))} />
+            <Text size="xs" c="dimmed">{isSelf ? "You can't change your own role." : ROLES.find(r => r.value === v.role)?.help}</Text>
+          </Stack>
+          {person && (
+            <Switch label="Can sign in" checked={v.enabled} disabled={isSelf} onChange={e => set('enabled', e.currentTarget.checked)}
+              description={isSelf ? "You can't disable yourself." : 'Switching it off signs them out straight away.'} />
+          )}
+          {rota && (
             <Select label="Clinic" required={!person}
               placeholder={clinics.length ? 'Pick a clinic' : 'Add clinics first (Clinics & districts)'}
               data={clinicOptions(clinics)} value={v.clinicId} onChange={id => set('clinicId', id)} clearable={!!person} searchable />
-            <TextInput label="Phone" value={v.phone ?? ''} onChange={e => set('phone', e.currentTarget.value || null)} maxLength={32} />
-          </SimpleGrid>
-          {person?.email ? (
-            <TextInput label="Sign-in email" value={person.email} disabled
-              description="Already invited. Change the email or role on the Accounts tab." />
-          ) : canInvite && (
-            <SimpleGrid cols={{ base: 1, sm: 2 }}>
-              <TextInput label="Email" type="email" value={v.email ?? ''} onChange={e => set('email', e.currentTarget.value || null)}
-                description="Optional. Sends them an invite with a temporary password." maxLength={254} />
-              <Stack gap={4}>
-                <Text fw={500} size="sm">Account</Text>
-                <SegmentedControl value={v.role} onChange={x => set('role', x as AccountRole)} disabled={!email} data={[
-                  { value: 'Officer', label: 'Officer' },
-                  { value: 'Admin', label: 'Admin (on call)' },
-                ]} />
-              </Stack>
-            </SimpleGrid>
           )}
+          {rota && <>
           <Stack gap={4}>
             <Text fw={500} size="sm">Status</Text>
             <SegmentedControl value={v.status} onChange={x => set('status', x as OfficerStatus)} data={[
@@ -459,12 +516,14 @@ function PersonModal({ editing, clinics, onClose, onSaved, onInvited }: {
                 onChange={e => set('blockedReason', e.currentTarget.value || null)} />
             )}
           </Stack>
+          </>}
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancel</Button>
             <Button type="submit" loading={save.isPending}
-              disabled={!v.name.trim() || (!person && !v.clinicId) || (v.status !== 'OnCall' && !v.statusReason?.trim())}>
-              {email ? (person ? 'Save and invite' : 'Add and invite') : 'Save'}
+              disabled={!v.name.trim() || !v.email.trim() || (!person && rota && !v.clinicId)
+                || (rota && v.status !== 'OnCall' && !v.statusReason?.trim())}>
+              {willInvite ? (person ? 'Save and invite' : 'Add and invite') : 'Save'}
             </Button>
           </Group>
         </Stack>

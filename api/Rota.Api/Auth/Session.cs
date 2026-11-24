@@ -35,16 +35,17 @@ public static class Session
         Guid.TryParse(user.FindFirstValue(type), out var id) ? id : null;
 
     /// <summary>Signs in; <paramref name="facilityId"/> is the hospital a master works in (ignored for everyone else).</summary>
-    public static Task SignInAsync(HttpContext http, Account a, Guid? facilityId = null)
+    public static Task SignInAsync(HttpContext http, Person a, Guid? facilityId = null)
     {
         var claims = new List<Claim>
         {
             new(AccountIdClaim, a.Id.ToString()),
-            new(ClaimTypes.Name, a.Email),
+            new(ClaimTypes.Name, a.Email ?? ""),
             new(ClaimTypes.Role, a.Role.ToString()),
             new(StampClaim, a.SecurityStamp),
         };
-        if (a.PersonId is { } pid) claims.Add(new(PersonIdClaim, pid.ToString()));
+        // pid: the officer whose leave, shifts and swaps are "mine". Same id as the account; only for people on the rota.
+        if (a.OnRota) claims.Add(new(PersonIdClaim, a.Id.ToString()));
         if (a.MustChangePassword) claims.Add(new(MustChangeClaim, "1"));
         if ((a.Role == AccountRole.Master ? facilityId : a.FacilityId) is { } fid) claims.Add(new(FacilityIdClaim, fid.ToString()));
 
@@ -63,9 +64,8 @@ public static class Session
         string? stamp = user?.FindFirstValue(StampClaim);
         var db = ctx.HttpContext.RequestServices.GetRequiredService<RotaDbContext>();
 
-        bool ok = id is not null && await db.Accounts.IgnoreQueryFilters().AnyAsync(a =>
-            a.Id == id && a.Enabled && a.SecurityStamp == stamp &&
-            (a.PersonId == null || a.Person!.Status != OfficerStatus.Left));
+        bool ok = id is not null && await db.People.IgnoreQueryFilters().AnyAsync(a =>
+            a.Id == id && a.Enabled && a.SecurityStamp == stamp && a.Status != OfficerStatus.Left);
         if (!ok)
         {
             ctx.RejectPrincipal();

@@ -103,30 +103,34 @@ public sealed record AccountDto(
     Guid Id, string Email, AccountRole Role, Guid? PersonId, string? PersonName, bool Enabled, bool MustChangePassword,
     DateTimeOffset? TempPasswordExpiresAt, DateTimeOffset? LastLoginAt, Guid? FacilityId = null, string? FacilityCode = null);
 
-public sealed record InviteRequest(string Email, AccountRole Role, Guid? PersonId);
+/// <summary>A master account: masters belong to no hospital and are added on All hospitals → Accounts.</summary>
+public sealed record MasterRequest(string Name, string Email, bool Enabled = true);
 
 /// <summary>EmailSent = queued for sending. TempPassword is only returned when email isn't set up, so the admin can pass it on.</summary>
 public sealed record InviteResult(Guid AccountId, bool EmailSent, string? TempPassword);
 
-public sealed record UpdateAccountRequest(string Email, AccountRole Role, Guid? PersonId, bool Enabled);
 
-/// <param name="Email">The officer's sign-in email, if they have an account.</param>
+/// <param name="Email">Sign-in email; null only for officers from before sign-in and officers were one record ("email needed").</param>
 /// <param name="BlockedWeekdays">Weekdays (0 = Sunday ... 6 = Saturday) the officer can never be on call.</param>
 /// <param name="InvitePending">Invited but hasn't signed in and set their own password yet.</param>
+/// <param name="AccountEnabled">Can sign in: has an email, has been invited and is enabled.</param>
 public sealed record AdminPersonDto(
     Guid Id, string Code, string Name, OfficerStatus Status, string? StatusReason, DateOnly? ExcludedUntil,
     Guid? ClinicId, string? ClinicName, Guid? DistrictId, string? District, Guid? StateId, string? State, string? Phone, int SortOrder,
-    bool ExtraShift, bool PreferWeekendHoliday, int WeekendWeight, string? Email, AccountRole? Role, bool InvitePending,
-    bool AccountEnabled, IReadOnlyList<int> BlockedWeekdays, string? BlockedReason);
+    bool ExtraShift, bool PreferWeekendHoliday, int WeekendWeight, string? Email, AccountRole Role, bool InvitePending,
+    bool AccountEnabled, IReadOnlyList<int> BlockedWeekdays, string? BlockedReason, bool Enabled = true, bool Invited = false,
+    DateTimeOffset? LastLoginAt = null);
 
-/// <param name="Email">Invites the officer in the same step (Role: Officer or Admin). Only used while the officer has no
-/// account; change an existing account's email on the Accounts tab.</param>
+/// <param name="Email">Required. Someone added, or given an email for the first time, is invited in the same step.</param>
+/// <param name="Role">Officer or Admin (on the rota) or Supervisor (runs the admin pages, never on the rota).</param>
+/// <param name="Enabled">Can sign in; switching it off signs them out straight away.</param>
 public sealed record UpsertPersonRequest(
     string Name, string? Code, OfficerStatus Status = OfficerStatus.OnCall, bool ExtraShift = false, bool PreferWeekendHoliday = false,
     int WeekendWeight = 1, string? StatusReason = null, DateOnly? ExcludedUntil = null, Guid? ClinicId = null, string? Phone = null,
-    string? Email = null, AccountRole Role = AccountRole.Officer, IReadOnlyList<int>? BlockedWeekdays = null, string? BlockedReason = null);
+    string? Email = null, AccountRole Role = AccountRole.Officer, IReadOnlyList<int>? BlockedWeekdays = null, string? BlockedReason = null,
+    bool Enabled = true);
 
-/// <summary>Invite is set when an email was given.</summary>
+/// <summary>Invite is set when the person was invited by this save.</summary>
 public sealed record SavePersonResult(Guid Id, InviteResult? Invite);
 
 /// <summary>Shifts done so far. Published* = from published rotas; the rest is the admin's adjustment.</summary>
@@ -150,7 +154,6 @@ public sealed record ClinicDto(Guid Id, string Name, Guid DistrictId, string Dis
 
 public sealed record UpsertClinicRequest(string Name, Guid DistrictId);
 
-public sealed record BulkAddRequest(string Names);
 
 /// <summary>CSV import of officers. Commit = false only checks the file; nothing is saved unless every row is valid.</summary>
 public sealed record ImportPeopleRequest(string Csv, bool Commit);

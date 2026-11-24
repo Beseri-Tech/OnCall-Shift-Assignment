@@ -50,11 +50,11 @@ public static class AdminEndpoints
     {
         g.MapGet("/", async (RotaDbContext db, CancellationToken ct) => await AdminPeopleAsync(db, ct));
 
-        // Adds the officer and, when an email is given, invites them in the same step.
+        // Adds the person and invites them in the same step (email is required).
         g.MapPost("/", async (UpsertPersonRequest req, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>
         {
             var person = new Person { SortOrder = await NextSortOrderAsync(db, ct) };
-            if (await ValidateAsync(db, req, null, ct) is { } problem) return problem;
+            if (await ValidateAsync(db, http, req, null, ct) is { } problem) return problem;
 
             Apply(person, req);
             person.Code = string.IsNullOrWhiteSpace(req.Code)
@@ -62,48 +62,32 @@ public static class AdminEndpoints
                 : req.Code.Trim();
             db.People.Add(person);
             Mapping.Log(db, http, "person.create", person.Id, null, person.Id, after: await Audit.PersonAsync(db, person, ct));
-            var invite = InviteIfEmail(db, mailer, http, req, person.Id);
+            var invite = person.Status == OfficerStatus.Left ? null : AdminAccountEndpoints.Invite(db, mailer, http, person);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/people/{person.Id}", new SavePersonResult(person.Id, invite));
         });
 
-        g.MapPost("/bulk", async (BulkAddRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
-        {
-            var existing = (await db.People.Select(p => p.Name).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var names = req.Names.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(n => Regex.Replace(n, @"\s+", " "))
-                .Where(n => n.Length > 0)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            var toAdd = names.Where(n => !existing.Contains(n)).ToList();
-            var codes = await NextCodeAsync(db, toAdd.Count, ct);
-            int order = await NextSortOrderAsync(db, ct);
-
-            for (int i = 0; i < toAdd.Count; i++)
-                db.People.Add(new Person { Name = toAdd[i], Code = codes[i], SortOrder = order + i });
-
-            Mapping.Log(db, http, "person.bulk-add", null, new { added = toAdd });
-            await db.SaveChangesAsync(ct);
-            return Results.Ok(new { added = toAdd, skipped = names.Except(toAdd).ToList() });
-        });
-
-        // An email invites an officer who has no account yet; it is ignored once they have one.
+        // Someone who has never been invited (e.g. given their first email) is invited by the save.
         g.MapPut("/{id:guid}", async (Guid id, UpsertPersonRequest req, RotaDbContext db, Mailer mailer, HttpContext http,
             CancellationToken ct) =>
         {
             var person = await db.People.FindAsync([id], ct);
             if (person is null) return Results.NotFound();
-            bool hasAccount = await db.Accounts.AnyAsync(a => a.PersonId == id, ct);
-            if (hasAccount) req = req with { Email = null };
-            if (await ValidateAsync(db, req, id, ct) is { } problem) return problem;
+            // Blocking self-demotion/disable also guarantees at least one enabled admin remains.
+            if (id == http.User.AccountId() && (!req.Enabled || req.Role != person.Role || req.Status == OfficerStatus.Left))
+                return Results.Problem("You can't disable yourself, change your own role or mark yourself as left.",
+                    statusCode: StatusCodes.Status409Conflict);
+            if (await ValidateAsync(db, http, req, id, ct) is { } problem) return problem;
 
             var before = await Audit.PersonAsync(db, person, ct);
+            bool rightsChanged = person.Role != req.Role || person.Enabled != req.Enabled;
             Apply(person, req);
+            if (rightsChanged) person.SecurityStamp = Guid.NewGuid().ToString("N");   // new rights apply at their next request
             if (!string.IsNullOrWhiteSpace(req.Code)) person.Code = req.Code.Trim();
             person.UpdatedAt = DateTimeOffset.UtcNow;
             Mapping.Log(db, http, "person.update", id, null, id, before, await Audit.PersonAsync(db, person, ct));
-            var invite = InviteIfEmail(db, mailer, http, req, id);
+            var invite = person.PasswordHash is null && person.Status != OfficerStatus.Left
+                ? AdminAccountEndpoints.Invite(db, mailer, http, person) : null;
             await db.SaveChangesAsync(ct);
             return Results.Ok(new SavePersonResult(id, invite));
         });
@@ -118,10 +102,16 @@ public static class AdminEndpoints
             return Results.NoContent();
         });
 
+        // New temporary password: re-sends a lost invite, and is how the admin resets someone's password.
+        g.MapPost("/{id:guid}/resend", (Guid id, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>
+            AdminAccountEndpoints.ResendAsync(id, db, mailer, http, ct));
+
         g.MapDelete("/{id:guid}", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
             var person = await db.People.FindAsync([id], ct);
             if (person is null) return Results.NotFound();
+            if (id == http.User.AccountId())
+                return Results.Problem("You can't remove yourself.", statusCode: StatusCodes.Status409Conflict);
             if (await db.Assignments.AnyAsync(a => a.PersonId == id, ct))
                 return Results.Problem("This person has shifts in a rota. Mark them as Left instead so their history is kept.",
                     statusCode: StatusCodes.Status409Conflict);
@@ -137,25 +127,22 @@ public static class AdminEndpoints
     {
         var people = await db.People.Include(p => p.Clinic).ThenInclude(c => c!.District).ThenInclude(d => d!.State)
             .OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
-        var accounts = await db.Accounts.Where(a => a.PersonId != null).ToDictionaryAsync(a => a.PersonId!.Value, ct);
-        return people.Select(p =>
-        {
-            var account = accounts.GetValueOrDefault(p.Id);
-            return new AdminPersonDto(p.Id, p.Code, p.Name, p.Status, p.StatusReason, p.ExcludedUntil,
+        return people.Select(p => new AdminPersonDto(p.Id, p.Code, p.Name, p.Status, p.StatusReason, p.ExcludedUntil,
                 p.ClinicId, p.Clinic?.Name, p.Clinic?.DistrictId, p.Clinic?.District?.Name, p.Clinic?.District?.StateId,
                 p.Clinic?.District?.State?.Name, p.Phone, p.SortOrder, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight,
-                account?.Email, account?.Role, account?.MustChangePassword ?? false, account?.Enabled ?? false,
-                BlockedDays.FromMask(p.BlockedWeekdays), p.BlockedReason);
-        }).ToList();
+                p.Email, p.Role, p.MustChangePassword, p.Enabled && p.Email != null && p.PasswordHash != null,
+                BlockedDays.FromMask(p.BlockedWeekdays), p.BlockedReason, p.Enabled, p.PasswordHash != null, p.LastLoginAt))
+            .ToList();
     }
-
-    private static InviteResult? InviteIfEmail(RotaDbContext db, Mailer mailer, HttpContext http, UpsertPersonRequest req, Guid personId) =>
-        Clean(req.Email) is null ? null
-            : AdminAccountEndpoints.Invite(db, mailer, http, AuthEndpoints.NormalizeEmail(req.Email!), req.Role, personId);
 
     private static void Apply(Person p, UpsertPersonRequest req)
     {
         p.Name = Regex.Replace(req.Name.Trim(), @"\s+", " ");
+        p.Email = AuthEndpoints.NormalizeEmail(req.Email);
+        p.Role = req.Role;
+        p.Enabled = req.Enabled;
+        // Rota status is for people on the rota; supervisors leave by being switched off.
+        if (!p.OnRota) req = req with { Status = OfficerStatus.OnCall, StatusReason = null, ExcludedUntil = null };
         p.Status = req.Status;
         p.StatusReason = req.Status == OfficerStatus.OnCall ? null : Clean(req.StatusReason);
         p.ExcludedUntil = req.Status == OfficerStatus.Excluded ? req.ExcludedUntil : null;
@@ -168,7 +155,8 @@ public static class AdminEndpoints
         p.BlockedReason = p.BlockedWeekdays == 0 ? null : Clean(req.BlockedReason);
     }
 
-    private static async Task<IResult?> ValidateAsync(RotaDbContext db, UpsertPersonRequest req, Guid? id, CancellationToken ct)
+    private static async Task<IResult?> ValidateAsync(RotaDbContext db, HttpContext http, UpsertPersonRequest req, Guid? id,
+        CancellationToken ct)
     {
         var errors = new Dictionary<string, string[]>();
         string name = Regex.Replace(req.Name?.Trim() ?? "", @"\s+", " ");
@@ -182,7 +170,7 @@ public static class AdminEndpoints
             errors["code"] = [$"Code {req.Code.Trim()} is already used."];
 
         if (!Enum.IsDefined(req.Status)) errors["status"] = ["Unknown status."];
-        else if (req.Status != OfficerStatus.OnCall && Clean(req.StatusReason) is null)
+        else if (req.Role is AccountRole.Officer or AccountRole.Admin && req.Status != OfficerStatus.OnCall && Clean(req.StatusReason) is null)
             errors["statusReason"] = ["Give a reason (e.g. CUTI BERSALIN, PINDAH)."];
         if (Clean(req.StatusReason)?.Length > 200) errors["statusReason"] = ["Reason is too long (max 200)."];
         if (Clean(req.Phone)?.Length > 32) errors["phone"] = ["Phone number is too long."];
@@ -191,14 +179,11 @@ public static class AdminEndpoints
 
         if (req.WeekendWeight is < 1 or > 5) errors["weekendWeight"] = ["Weekend weight must be 1-5."];
 
-        if (Clean(req.Email) is not null)
-        {
-            if (await AdminAccountEndpoints.EmailErrorAsync(db, AuthEndpoints.NormalizeEmail(req.Email!), null, ct) is { } emailError)
-                errors["email"] = [emailError];
-            if (req.Role is not (AccountRole.Officer or AccountRole.Admin))
-                errors["role"] = ["An officer's account is Officer or Admin (supervisors are invited on the Accounts tab)."];
-            if (req.Status == OfficerStatus.Left) errors["email"] = ["Officers who have left can't be invited."];
-        }
+        if (await AdminAccountEndpoints.EmailErrorAsync(db, AuthEndpoints.NormalizeEmail(req.Email), id, ct) is { } emailError)
+            errors["email"] = [emailError];
+        if (req.Role is not (AccountRole.Officer or AccountRole.Admin or AccountRole.Supervisor))
+            errors["role"] = ["Role is Officer, Admin or Supervisor (masters are added on All hospitals)."];
+        if (id is null && req.Role is AccountRole.Officer or AccountRole.Admin && req.Status == OfficerStatus.Left) errors["status"] = ["Someone new can't start as left."];
 
         return errors.Count > 0 ? Results.ValidationProblem(errors) : null;
     }
@@ -312,7 +297,7 @@ public static class AdminEndpoints
             if (period is null) return Results.NotFound();
 
             var rules = await LeaveRules.LoadAsync(db, limits, period, ct);
-            var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall)
+            var people = await db.Officers.Where(p => p.Status == OfficerStatus.OnCall)
                 .OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
             return Results.Ok(people.Select(p =>
             {

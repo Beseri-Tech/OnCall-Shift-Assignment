@@ -16,7 +16,7 @@ public static class PublicEndpoints
         var api = app.MapGroup("/api").WithTags("Public");
 
         api.MapGet("/people", async (RotaDbContext db, CancellationToken ct) =>
-            await db.People.Where(p => p.Status == OfficerStatus.OnCall)
+            await db.Officers.Where(p => p.Status == OfficerStatus.OnCall)
                 .OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
                 .Select(p => new PersonSummaryDto(p.Id, p.Code, p.Name))
                 .ToListAsync(ct));
@@ -227,7 +227,7 @@ public static class PublicEndpoints
 
             var holidays = await Mapping.HolidaysAsync(db, period.Id, ct);
             var left = await db.PeriodExclusions.Where(x => x.PeriodId == period.Id).Select(x => x.PersonId).ToListAsync(ct);
-            var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id))
+            var people = await db.Officers.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id))
                 .OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
                 .Select(p => new
                 {

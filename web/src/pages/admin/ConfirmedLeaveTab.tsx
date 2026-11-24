@@ -319,7 +319,7 @@ function ApprovalModal({ editing, onClose, onSaved }: {
     ? !!v.startDate && !!v.endDate
     : ranges.every(([s, e]) => s && e)
   const ready = !!v.personId && datesReady && !!v.reason?.trim()
-  const officers = (people.data ?? []).filter(p => p.status !== 'Left' || p.id === v.personId)
+  const officers = (people.data ?? []).filter(p => (p.role !== 'Supervisor' && p.status !== 'Left') || p.id === v.personId)
     .map(p => ({ value: p.id, label: `${p.name} (${p.code})${p.status === 'Excluded' ? ' – excluded' : ''}` }))
 
   return (

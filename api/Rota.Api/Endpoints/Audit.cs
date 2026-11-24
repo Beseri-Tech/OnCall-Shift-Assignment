@@ -22,9 +22,9 @@ internal static class Audit
         p.Name, p.StartDate, p.EndDate, p.LeaveDeadline, p.PointsBudget, p.Status, p.SwapDeadline,
     };
 
-    public static async Task<object> AccountAsync(RotaDbContext db, Account a, CancellationToken ct) => new
+    public static async Task<object> AccountAsync(RotaDbContext db, Person a, CancellationToken ct) => new
     {
-        a.Email, a.Role, Officer = await PersonNameAsync(db, a.PersonId, ct), a.Enabled,
+        a.Name, a.Email, a.Role, a.Enabled,
     };
 
     public static async Task<object> DistrictAsync(RotaDbContext db, District d, CancellationToken ct) => new
@@ -45,9 +45,9 @@ internal static class Audit
         IEnumerable<Guid?> ids, CancellationToken ct)
     {
         var list = ids.OfType<Guid>().Distinct().ToList();
-        return (await db.Accounts.IgnoreQueryFilters().Where(a => list.Contains(a.Id))
-                .Select(a => new { a.Id, a.Email, Name = a.Person != null ? a.Person.Name : null }).ToListAsync(ct))
-            .ToDictionary(a => a.Id, a => (a.Email, a.Name));
+        return (await db.People.IgnoreQueryFilters().Where(a => list.Contains(a.Id))
+                .Select(a => new { a.Id, a.Email, Name = a.Name }).ToListAsync(ct))
+            .ToDictionary(a => a.Id, a => (a.Email ?? "", (string?)a.Name));
     }
 
     public static async Task<string?> PersonNameAsync(RotaDbContext db, Guid? id, CancellationToken ct) =>

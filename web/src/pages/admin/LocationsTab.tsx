@@ -171,7 +171,7 @@ function StateBranch({ state: s, clinics, scope, master, onPick, onEdit, onRemov
   const inState = scope.kind === 'state' ? scope.id === s.id : scope.kind === 'district' && s.districts.some(d => d.id === scope.id)
   return (
     <NavLink label={s.name} fw={600} active={scope.kind === 'state' && scope.id === s.id} defaultOpened={inState}
-      onClick={() => onPick({ kind: 'state', id: s.id })} childrenOffset={16}
+      onClick={() => onPick({ kind: 'state', id: s.id })} childrenOffset={16} disableRightSectionRotation
       rightSection={<Group gap={2} wrap="nowrap">
         <Badge size="sm" variant="light" color="gray">{total}</Badge>
         {master && <RowActions label={s.name} onEdit={() => onEdit('state', s.id, s.name, null)}

@@ -21,9 +21,9 @@ public class AuditTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var admin = await ApiFixture.AdminClientAsync(app);
 
         var created = await Read<SavePersonResult>(await admin.PostAsJsonAsync("/api/admin/people",
-            new UpsertPersonRequest("Dr Aminah", null), ApiFixture.Json));
+            new UpsertPersonRequest("Dr Aminah", null, Email: ApiFixture.EmailFor("Dr Aminah")), ApiFixture.Json));
         (await admin.PutAsJsonAsync($"/api/admin/people/{created.Id}", new UpsertPersonRequest("Dr Aminah", "D001",
-            OfficerStatus.Excluded, StatusReason: "CUTI BERSALIN"), ApiFixture.Json)).EnsureSuccessStatusCode();
+            OfficerStatus.Excluded, StatusReason: "CUTI BERSALIN", Email: ApiFixture.EmailFor("Dr Aminah")), ApiFixture.Json)).EnsureSuccessStatusCode();
 
         var log = await Read<AuditPageDto>(await admin.GetAsync($"/api/admin/audit?personId={created.Id}"));
         Assert.Equal(["person.update", "person.create"], log.Items.Select(i => i.Action));
@@ -89,7 +89,7 @@ public class AuditTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         await using var app = fixture.CreateApp();
         var admin = await ApiFixture.AdminClientAsync(app);
         var created = await Read<SavePersonResult>(await admin.PostAsJsonAsync("/api/admin/people",
-            new UpsertPersonRequest("Dr Badrul", null), ApiFixture.Json));
+            new UpsertPersonRequest("Dr Badrul", null, Email: ApiFixture.EmailFor("Dr Badrul")), ApiFixture.Json));
         var officer = await ApiFixture.OfficerClientAsync(app, admin, created.Id);
 
         Assert.Equal(HttpStatusCode.Forbidden, (await officer.GetAsync("/api/admin/audit")).StatusCode);

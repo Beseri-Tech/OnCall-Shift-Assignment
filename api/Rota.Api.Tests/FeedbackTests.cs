@@ -20,7 +20,7 @@ public class FeedbackTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         await using var app = fixture.CreateApp();
         var admin = await ApiFixture.AdminClientAsync(app);
         var created = await Read<SavePersonResult>(await admin.PostAsJsonAsync("/api/admin/people",
-            new UpsertPersonRequest("Dr Aminah", null), ApiFixture.Json));
+            new UpsertPersonRequest("Dr Aminah", null, Email: ApiFixture.EmailFor("Dr Aminah")), ApiFixture.Json));
         var officer = await ApiFixture.OfficerClientAsync(app, admin, created.Id);
 
         (await officer.PostAsJsonAsync("/api/feedback",

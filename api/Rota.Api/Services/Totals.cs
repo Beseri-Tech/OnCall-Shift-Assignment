@@ -33,7 +33,7 @@ public static class Totals
             })
             .ToDictionaryAsync(x => x.PersonId, ct);
 
-        var people = await db.People
+        var people = await db.Officers
             .Select(p => new { p.Id, p.TallyWeekdayAdjust, p.TallyWeekendHolidayAdjust })
             .ToListAsync(ct);
 
