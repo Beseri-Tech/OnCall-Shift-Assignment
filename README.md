@@ -1,16 +1,25 @@
-# OnCall Shift Assignment
+# Rota-OC
 
-A web app for building a fair on-call rota, designed for hospital teams. Staff enter their leave and preferred on-call days; an admin locks leave, generates a balanced rota, adjusts it and publishes it.
+A web app for building a fair on-call rota and keeping on-call records, designed for hospital and clinic teams. Officers enter their leave and preferred on-call days; an admin locks leave, generates a balanced rota, adjusts it and publishes it. Developed by Beseri-Tech.
+
+This repository was called `OnCall-Shift-Assignment` until November 2026. GitHub redirects the old address, but the container image moved to `ghcr.io/beseri-tech/rota-oc`.
 
 The original WinForms desktop app lives on the [`legacy`](../../tree/legacy) branch.
 
-## How it works
+## What it does
 
-1. **Officers and accounts.** Officers are organised as state → district → clinic → officer (Perlis with Kangar and Arau to start; admins add clinics, and more districts or states if needed). An admin adds an officer and invites them by email in one step, or imports many from a CSV file (template in the app); the invite has a temporary password that must be changed at first sign-in. Forgotten passwords are reset by email. Roles: **Officer**, **Admin** (an officer who also runs the admin pages) and **Supervisor** (admin only, not on the rota). Everything needs sign-in.
-2. **Officers** mark their own leave (with a note) and preferred on-call days until the period's deadline, within the leave limits (points for weekends/public holidays/peak days, a weekday allowance and a per-day cap).
-3. **Admins** manage officers, clinics, districts, periods, public holidays, peak days and the shift **tally**, edit anyone's leave, then lock leave and generate a draft rota. Weekend and public-holiday shifts are balanced, back-to-back shifts avoided.
-4. The admin overrides days if needed (warnings for leave clashes) and **publishes**. Everyone sees the rota, and published shifts are added to each officer's tally. Timetable, tally and leave can be exported to Excel.
-5. Anyone signed in can **send feedback** (a problem, an idea or anything else) from the header; it carries the page they were on. Admins get a notification, read and filter it on the admin page's Feedback tab, and mark it resolved. Sending and resolving show up in the audit log.
+1. **Hospitals, officers and accounts.** The app runs the rota for more than one hospital; each has its own officers, periods, leave, swaps, reports and audit log, and nobody sees another hospital's data. Officers are organised as state → district → clinic → officer. An admin adds an officer and invites them by email in one step, or imports many from a CSV file. Roles: **Officer**, **Admin** (an officer who also runs the admin pages), **Supervisor** and **Master** (looks after the whole app and every hospital). Everything needs sign-in.
+2. **Leave.** Officers mark leave and preferred on-call days until the period's deadline, within the leave limits (points for weekends, public holidays and peak days, a weekday allowance and a per-day cap). Points show as CL / EX / RW badges. Officers can request leave with a supporting document.
+3. **Confirmed leave.** Admins record approved absences (for example an overseas trip) with several date ranges. They include the officer's CR (cuti rehat) days and cost 33% of what the days would have cost in points.
+4. **Rewards.** Busy-day shifts earn points for the next rota: public holiday +3, weekend +2, peak day +1. Each state sets which days are its weekend.
+5. **The rota.** Admins lock leave and generate a draft rota with weekend and public-holiday shifts balanced and back-to-back shifts avoided. Generator notes explain each choice. Admins override days (with warnings for leave clashes), send the draft for review, and **publish**. Published shifts count in each officer's tally.
+6. **Swaps.** Officers swap a shift with a colleague, who accepts or declines.
+7. **Cases and passover.** Officers record their on-call cases in a case log (exportable to Excel by month or year) and can generate the WhatsApp passover in the department's template.
+8. **ETAP.** Officers keep an ETAP profile and download the ETAP claim form for their on-call dates, with the patient-details attachment for days over 4 hours.
+9. **Reports.** Publishing saves a PDF report (assignments, reasons, swaps, overrides, officer totals). Admins download them from the Reports tab, masters from all hospitals. Timetable, tally and leave export to Excel.
+10. **Help.** The Help page is a directory of how everything works, with search and the user manual (uploaded by a master and stored in R2).
+11. **Feedback, audit and email.** Anyone can send feedback from the header. Important actions go to an audit log. Masters can switch email off for the whole app.
+12. **Changelog.** The footer shows the app version and links to the Changelog page.
 
 ## Run with Docker
 
@@ -23,7 +32,7 @@ cp .env.example .env
 Generate the first admin's password hash and paste it into `.env` with `ADMIN_EMAIL` (keep the single quotes):
 
 ```bash
-docker run --rm ghcr.io/beseri-tech/oncall-shift-assignment hash-password "your-admin-password"
+docker run --rm ghcr.io/beseri-tech/rota-oc hash-password "your-admin-password"
 ```
 
 Also set `POSTGRES_PASSWORD` in `.env`, then:
@@ -66,10 +75,17 @@ Every push to `master` then deploys the web app to Pages after the tests pass.
 `staging` is a permanent branch. Changes go in by pull request into `staging`; once staging has been checked, `staging` is merged into `master` by pull request. Every push to `staging`, after the tests pass:
 
 - deploys the web app to the Pages project `rota-staging` (`rota-staging.zogami.uk`; its production branch must be `staging`), built against `https://rota-staging-api.zogami.uk` and showing an amber **STAGING** ribbon and a `[STAGING]` tab title;
-- publishes the image as `ghcr.io/beseri-tech/oncall-shift-assignment:staging`.
+- publishes the image as `ghcr.io/beseri-tech/rota-oc:staging`.
 
-In Portainer, the staging stack runs `ghcr.io/beseri-tech/oncall-shift-assignment:staging` and the production stack `:latest` (or a release such as `:3.0.0`). The staging API runs from its own `.env` on its own database: `APP_TAG=staging`, `APP_BASE_URL=https://rota-staging.zogami.uk`, `WEB_ORIGIN=https://rota-staging.zogami.uk`, `R2_BUCKET_NAME=rota-staging`, `SMTP_ENABLED=false` (no email while testing; a master can switch it on under All hospitals → Settings), and its own admin and database password. Pulling and restarting the staging container (`docker compose pull && docker compose up -d`) happens on the server, not in CI. The variables `STAGING_VITE_API_URL` and `STAGING_PAGES_PROJECT` override the defaults.
+In Portainer, the staging stack runs `ghcr.io/beseri-tech/rota-oc:staging` and the production stack `:latest` (or a release such as `:3.0.0`). The staging API runs from its own `.env` on its own database: `APP_TAG=staging`, `APP_BASE_URL=https://rota-staging.zogami.uk`, `WEB_ORIGIN=https://rota-staging.zogami.uk`, `R2_BUCKET_NAME=rota-staging`, `SMTP_ENABLED=false` (no email while testing; a master can switch it on under All hospitals → Settings), and its own admin and database password. Pulling and restarting the staging container (`docker compose pull && docker compose up -d`) happens on the server, not in CI. The variables `STAGING_VITE_API_URL` and `STAGING_PAGES_PROJECT` override the defaults.
 
+
+## Hosting and CI
+
+- Production is <https://rota-oc.zogami.uk> and staging <https://rota-staging.zogami.uk>. The web app is on Cloudflare Pages (deployed with Wrangler from CI). The Docker image hosts the API only; it runs on servers from Portainer stacks, and Watchtower pulls new images.
+- CI (`.github/workflows/ci.yml`) runs only the affected jobs: `web/` runs the web checks and Pages deploy, `api/` runs the API tests and the Docker image. Workflow changes and version tags run everything.
+- Images: `ghcr.io/beseri-tech/rota-oc` with `:latest` (master), `:staging`, `:sha-…` and release tags. Feature branches go by pull request into `staging`, then `staging` into `master`.
+- Documents (the manual, leave attachments) and nightly database backups live in private Cloudflare R2 buckets (see below).
 
 ## Develop
 
@@ -106,11 +122,7 @@ Try a restore into a scratch database once before you need it. `pg_dump` in the 
 
 ## Versioning and changelog
 
-The app has one semantic version in `web/package.json`, shown in the footer. Each change that users can see bumps it (MAJOR / MINOR / PATCH) and adds an entry to `web/src/changelog.ts`, which feeds the in-app Changelog page. See [AGENTS.md](AGENTS.md) for the rules.
-
-## License
-
-[AGPL-3.0](LICENSE.txt)
+The app has one semantic version in `web/package.json`, shown in the footer. Each change that users can see bumps it (MAJOR for changes to how the rota works, MINOR for a feature, PATCH for a fix) and adds an entry to `web/src/changelog.ts`, which feeds the in-app Changelog page. Docs-only and CI-only changes need no bump. See [AGENTS.md](AGENTS.md) for the rules.
 
 ### Document storage on Cloudflare R2 (optional)
 
@@ -130,3 +142,7 @@ The user manual and officers' uploaded documents (e.g. proof for a leave request
 Uploads are checked on the server before they become downloadable (size, file type and the file's real signature; PDF, PNG, JPG or DOCX, up to 20 MB), and a new manual replaces the old one. Housekeeping runs in the background every 6 hours (`R2__CleanupEveryHours`, off with `R2__CleanupEnabled=false`): uploads never confirmed within 24 hours (`R2__QuarantineHours`) are deleted, and so are the documents of rejected leave requests after 30 days (`R2__RejectedRetentionDays`). A withdrawn request's document is deleted straight away. Approved leave keeps its document.
 
 **The documents bucket is not backed up** by the database backup below, and R2 keeps no old versions: a deleted or overwritten file is gone.
+
+## Credit and licence
+
+Developed by Beseri-Tech. Licensed under [AGPL-3.0](LICENSE.txt).
