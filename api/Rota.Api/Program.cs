@@ -179,6 +179,7 @@ app.MapFeedbackEndpoints();
 app.MapLeaveRequestEndpoints();
 app.MapDocumentEndpoints();
 app.MapCaseEndpoints();
+app.MapProfileEndpoints();
 app.MapAdminEndpoints();
 
 // Unknown /api routes are 404s; everything else is the React app (which shows the login page itself).

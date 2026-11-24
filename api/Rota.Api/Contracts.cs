@@ -313,3 +313,20 @@ public sealed record CaseImportRowDto(int Line, DateOnly? Date, string? Officer,
 
 public sealed record CaseImportResultDto(
     IReadOnlyList<CaseImportRowDto> Rows, IReadOnlyList<string> FileErrors, bool Committed, int Added, int Duplicates);
+
+// ---------------- officer ETAP profile ----------------
+
+/// <param name="NoTelefonBimbit">Mobile phone (also the officer's phone on the Officers tab).</param>
+public sealed record ProfileInput(
+    string? FullName, string? IcNo, string? Jawatan, string? Gred, DateOnly? TarikhPewartaanPakar, string? UnitTempatBertugas,
+    string? AlamatRumah, decimal? JarakKm, string? NoGaji, string? NoTelefonPejabat, string? NoTelefonBimbit, string? NoAkaunBank,
+    string? NamaCawanganBank);
+
+/// <param name="Verified">Verified by the officer and unchanged since (phone and email included).</param>
+/// <param name="Missing">Required fields still empty.</param>
+public sealed record ProfileDto(
+    string? FullName, string? IcNo, string? Jawatan, string? Gred, DateOnly? TarikhPewartaanPakar, string? UnitTempatBertugas,
+    string? AlamatRumah, decimal? JarakKm, string? NoGaji, string? NoTelefonPejabat, string? NoTelefonBimbit, string? Email,
+    string? NoAkaunBank, string? NamaCawanganBank, bool Verified, DateTimeOffset? VerifiedAt, IReadOnlyList<string> Missing);
+
+public sealed record VerifyProfileRequest(string? Password, bool Confirm);

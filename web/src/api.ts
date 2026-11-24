@@ -158,6 +158,14 @@ export interface OnCallCase extends Omit<CaseInput, 'onCallDate' | 'officerId'> 
 }
 export interface CaseImportRow { line: number; date: IsoDate | null; officer: string | null; duplicate: boolean; errors: ImportError[] }
 export interface CaseImportResult { rows: CaseImportRow[]; fileErrors: string[]; committed: boolean; added: number; duplicates: number }
+/** The officer's own ETAP details (section A). Only they can see it. */
+export interface ProfileInput {
+  fullName: string | null; icNo: string | null; jawatan: string | null; gred: string | null; tarikhPewartaanPakar: IsoDate | null
+  unitTempatBertugas: string | null; alamatRumah: string | null; jarakKm: number | null; noGaji: string | null
+  noTelefonPejabat: string | null; noTelefonBimbit: string | null; noAkaunBank: string | null; namaCawanganBank: string | null
+}
+/** verified: verified and unchanged since; missing: required fields still empty. */
+export interface EtapProfile extends ProfileInput { email: string | null; verified: boolean; verifiedAt: string | null; missing: string[] }
 /** configured: SMTP is set up on the server; enabled: the masters' on/off switch. */
 export interface EmailSettings { configured: boolean; enabled: boolean }
 /** tempPassword only comes back when the email could not be sent. */
@@ -332,6 +340,12 @@ export const api = {
   sendFeedback: (category: FeedbackCategory, message: string, page: string | null, toFacility: boolean) =>
     post<{ id: number }>('/api/feedback', { category, message, page, toFacility }),
   facilities: () => get<Facility[]>('/api/facilities'),
+
+  profile: {
+    get: () => get<EtapProfile>('/api/profile'),
+    save: (p: ProfileInput) => put<EtapProfile>('/api/profile', p),
+    verify: (password: string, confirm: boolean) => post<EtapProfile>('/api/profile/verify', { password, confirm }),
+  },
 
   /** The on-call case log (patient data: never put any of it in a URL). month = yyyy-MM. */
   cases: {

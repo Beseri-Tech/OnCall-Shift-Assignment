@@ -19,6 +19,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
     public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<AppSetting> Settings => Set<AppSetting>();
     public DbSet<OnCallCase> Cases => Set<OnCallCase>();
+    public DbSet<OfficerProfile> Profiles => Set<OfficerProfile>();
     public DbSet<Person> People => Set<Person>();
 
     /// <summary>The people on the rota (officers and on-call admins): every rota, leave and tally list starts here.</summary>
@@ -331,6 +332,25 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.HasOne<Person>().WithMany().HasForeignKey(c => c.RecordedById).OnDelete(DeleteBehavior.Restrict);
         });
 
+        b.Entity<OfficerProfile>(e =>
+        {
+            e.ToTable("officer_profiles");
+            e.HasKey(p => p.PersonId);
+            e.HasOne<Person>().WithOne().HasForeignKey<OfficerProfile>(p => p.PersonId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(p => p.FullName).HasMaxLength(200);
+            e.Property(p => p.IcNo).HasMaxLength(20);
+            e.Property(p => p.Jawatan).HasMaxLength(100);
+            e.Property(p => p.Gred).HasMaxLength(20);
+            e.Property(p => p.UnitTempatBertugas).HasMaxLength(300);
+            e.Property(p => p.AlamatRumah).HasMaxLength(400);
+            e.Property(p => p.JarakKm).HasPrecision(7, 1);
+            e.Property(p => p.NoGaji).HasMaxLength(30);
+            e.Property(p => p.NoTelefonPejabat).HasMaxLength(40);
+            e.Property(p => p.NoAkaunBank).HasMaxLength(30);
+            e.Property(p => p.NamaCawanganBank).HasMaxLength(150);
+            e.Property(p => p.VerifiedHash).HasMaxLength(64);
+        });
+
         FacilityFilters(b);
 
         b.Entity<ChangeLog>(e =>
@@ -358,6 +378,8 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
         b.Entity<RotaPeriod>().HasQueryFilter(p => FacilityId == null || p.FacilityId == FacilityId);
         b.Entity<ChangeLog>().HasQueryFilter(c => FacilityId == null || c.FacilityId == FacilityId);
         b.Entity<Feedback>().HasQueryFilter(f => FacilityId == null || f.FacilityId == FacilityId);
+        b.Entity<OfficerProfile>().HasQueryFilter(x => FacilityId == null ||
+            Set<Person>().Any(p => p.Id == x.PersonId && p.FacilityId == FacilityId));
         b.Entity<OnCallCase>().HasQueryFilter(c => c.DeletedAt == null && (FacilityId == null || c.FacilityId == FacilityId));
         b.Entity<DocumentRecord>().HasQueryFilter(d => FacilityId == null || d.FacilityId == null || d.FacilityId == FacilityId);
 

@@ -2,7 +2,7 @@ import { Box, Burger, Container, Divider, Drawer, Group, Menu, ScrollArea, Stack
 import { useDisclosure } from '@mantine/hooks'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  IconBook, IconBuildingHospital, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconHistory, IconKey, IconLayoutGrid, IconLogout, IconMessage2, IconPlaneDeparture, IconShieldLock, IconStethoscope, IconUserCircle,
+  IconBook, IconBuildingHospital, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconHistory, IconId, IconKey, IconLayoutGrid, IconLogout, IconMessage2, IconPlaneDeparture, IconShieldLock, IconStethoscope, IconUserCircle,
 } from '@tabler/icons-react'
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
@@ -90,6 +90,7 @@ export function Layout() {
                       <Text size="sm" fw={600} c="dark">{me?.personName ?? me?.email}</Text>
                       <Text size="xs" c="dimmed">{me?.email} · {me?.role}</Text>
                     </Menu.Label>
+                    {me?.personId && <Menu.Item leftSection={<IconId size={16} />} component={Link} to="/profile">My ETAP profile</Menu.Item>}
                     <Menu.Item leftSection={<IconKey size={16} />} component={Link} to="/account/password">Change password</Menu.Item>
                     <Menu.Item leftSection={<IconHistory size={16} />} component={Link} to="/changelog">Changelog · v{APP_VERSION}</Menu.Item>
                     <Menu.Item leftSection={<IconLogout size={16} />} onClick={() => logout.mutate()}>Sign out</Menu.Item>
@@ -136,6 +137,12 @@ export function Layout() {
               <IconMessage2 size={20} stroke={1.8} />
               <span>Send feedback</span>
             </UnstyledButton>
+            {me?.personId && (
+              <UnstyledButton component={Link} to="/profile" className="drawer-link">
+                <IconId size={20} stroke={1.8} />
+                <span>My ETAP profile</span>
+              </UnstyledButton>
+            )}
             <UnstyledButton component={Link} to="/account/password" className="drawer-link">
               <IconKey size={20} stroke={1.8} />
               <span>Change password</span>

@@ -12,6 +12,13 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.4.0', date: '2026-11-24', title: 'ETAP profile',
+    changes: [
+      { kind: 'new', text: 'Officers have a “My ETAP profile” page (account menu) for the details on the ETAP claim form: IC, jawatan, gred, address, distance, salary number, phones and bank. Only you can see them.' },
+      { kind: 'new', text: 'Verify your profile with your password once it is right. Any later change, including your phone or email, needs a new verification; the ETAP claim form will need a verified profile.' },
+    ],
+  },
+  {
     version: '3.3.0', date: '2026-11-24', title: 'On-call case log',
     changes: [
       { kind: 'new', text: 'Record every patient you see on call on the new Cases page, instead of the Google Form. The officer in charge comes from the rota, taggers are typed separately, and the DSA on call is always named.' },

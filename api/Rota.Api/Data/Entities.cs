@@ -534,6 +534,39 @@ public sealed class OnCallCase
     }
 }
 
+/// <summary>
+/// The personal details an officer's ETAP claim form needs (section A). Only the officer reads or changes it. They verify
+/// it themselves in the app; any later change (including their phone or email) makes it unverified until they verify again,
+/// and the ETAP form can't be made from an unverified profile.
+/// </summary>
+public sealed class OfficerProfile
+{
+    public Guid PersonId { get; set; }
+
+    /// <summary>Full name as in the IC.</summary>
+    public string? FullName { get; set; }
+    public string? IcNo { get; set; }
+    public string? Jawatan { get; set; }
+    public string? Gred { get; set; }
+
+    /// <summary>Gazetted as a specialist on: specialist rates apply.</summary>
+    public DateOnly? TarikhPewartaanPakar { get; set; }
+
+    public string? UnitTempatBertugas { get; set; }
+    public string? AlamatRumah { get; set; }
+    public decimal? JarakKm { get; set; }
+    public string? NoGaji { get; set; }
+    public string? NoTelefonPejabat { get; set; }
+    public string? NoAkaunBank { get; set; }
+    public string? NamaCawanganBank { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? VerifiedAt { get; set; }
+
+    /// <summary>SHA-256 of exactly what was verified (these fields + phone + email): differs as soon as anything changes.</summary>
+    public string? VerifiedHash { get; set; }
+}
+
 public enum FeedbackCategory { Bug, Suggestion, Other }
 
 /// <summary>Feedback about the app from a signed-in user; admins read it and mark it resolved.</summary>
