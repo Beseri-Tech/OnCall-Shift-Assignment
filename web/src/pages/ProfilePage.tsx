@@ -102,7 +102,7 @@ function ProfileForm({ profile }: { profile: EtapProfile }) {
                     onChange={e => set('alamatRumah', e.currentTarget.value.toUpperCase() || null)} />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 3 }}>
-                  <NumberInput label="Jarak (km)" description="Home to workplace" required min={0} max={10000} decimalScale={1}
+                  <NumberInput label="Jarak (km)" placeholder="Home to workplace" required min={0} max={10000} decimalScale={1}
                     value={v.jarakKm ?? ''} onChange={x => set('jarakKm', typeof x === 'number' ? x : null)} />
                 </Grid.Col>
               </Grid>
@@ -112,7 +112,7 @@ function ProfileForm({ profile }: { profile: EtapProfile }) {
               <SimpleGrid cols={{ base: 1, sm: 3 }}>
                 {field('noTelefonPejabat', 'No. telefon & samb. (pejabat)', { required: false, max: 40 })}
                 {field('noTelefonBimbit', 'No. telefon bimbit', { max: 32 })}
-                <TextInput label="E-mel" value={profile.email ?? ''} readOnly variant="filled" description="Your sign-in email" />
+                <TextInput label="E-mel (sign-in)" value={profile.email ?? ''} readOnly variant="filled" />
               </SimpleGrid>
             </Fieldset>
 
