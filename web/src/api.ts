@@ -152,9 +152,19 @@ export interface CaseInput {
   referralSource: string | null; department: string | null; diagnosis: string | null; management: string | null; plan: string | null
   /** The on-call officer in charge; null = whoever the rota has on call that date. */
   officerId: string | null; taggers: string | null; dsaName: string | null; dsaStatus: string | null; confidential: boolean
+  /** S/T and S/B, as typed. */
+  spokenTo: string | null; seenBy: string | null
+  /** TRAUMA (P/W, "presented with") or NON-TRAUMA (C/O, "complaint of"); presentation is that text. */
+  caseType: 'TRAUMA' | 'NON-TRAUMA' | null; presentation: string | null
+  /** Ix done, comma-separated; Rx given. */
+  investigations: string | null; prescription: string | null
+  /** For an ED referral: the zone. */
+  edZone: 'GREEN' | 'YELLOW' | 'RED' | null
 }
 export interface OnCallCase extends Omit<CaseInput, 'onCallDate' | 'officerId'> {
   id: string; personId: string; officer: string; recordedBy: string; onCallDate: IsoDate; minutes: number; canEdit: boolean
+  /** Recorded by, or the officer in charge is, the signed-in user: they can make its WhatsApp passover. */
+  canShare: boolean
   updatedAt: string
 }
 export interface CaseImportRow { line: number; date: IsoDate | null; officer: string | null; duplicate: boolean; errors: ImportError[] }
@@ -378,6 +388,8 @@ export const api = {
     create: (c: CaseInput) => post<{ id: string }>('/api/cases', c),
     update: (id: string, c: CaseInput) => put<void>(`/api/cases/${id}`, c),
     remove: (id: string) => del<void>(`/api/cases/${id}`),
+    /** The WhatsApp passover message for the department group. */
+    whatsapp: (id: string) => get<{ text: string }>(`/api/cases/${id}/whatsapp`),
     import: (csv: string, commit: boolean, defaultPersonId: string | null) =>
       post<CaseImportResult>('/api/cases/import', { csv, commit, defaultPersonId }),
     /** One month (yyyy-MM), or a whole year when `year` is given. */

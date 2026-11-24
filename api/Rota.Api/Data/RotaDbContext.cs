@@ -320,10 +320,17 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.Property(c => c.Age).HasMaxLength(20);
             e.Property(c => c.Race).HasMaxLength(60);
             e.Property(c => c.ReferralSource).HasMaxLength(60);
+            e.Property(c => c.EdZone).HasMaxLength(10);
             e.Property(c => c.Department).HasMaxLength(20);
             e.Property(c => c.Diagnosis).HasMaxLength(500);
             e.Property(c => c.Management).HasMaxLength(1000);
             e.Property(c => c.Plan).HasMaxLength(1000);
+            e.Property(c => c.SpokenTo).HasMaxLength(200);
+            e.Property(c => c.SeenBy).HasMaxLength(200);
+            e.Property(c => c.CaseType).HasMaxLength(20);
+            e.Property(c => c.Presentation).HasMaxLength(500);
+            e.Property(c => c.Investigations).HasMaxLength(300);
+            e.Property(c => c.Prescription).HasMaxLength(500);
             e.Property(c => c.Taggers).HasMaxLength(200);
             e.Property(c => c.DsaName).HasMaxLength(200);
             e.Property(c => c.DsaStatus).HasMaxLength(40);

@@ -1,11 +1,14 @@
 import {
-  ActionIcon, Alert, Autocomplete, Badge, Button, Checkbox, Fieldset, FileButton, Grid, Group, Input, Menu, Modal, Paper, SegmentedControl,
-  Select, SimpleGrid, Stack, Table, Tabs, Text, TextInput, Textarea, Tooltip,
+  ActionIcon, Alert, Autocomplete, Badge, Button, Checkbox, CopyButton, Fieldset, FileButton, Grid, Group, Input, Menu, Modal, Paper,
+  SegmentedControl, Select, SimpleGrid, Stack, Table, Tabs, TagsInput, Text, TextInput, Textarea, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput, MonthPickerInput, TimeInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconChevronDown, IconDownload, IconEdit, IconFileImport, IconLock, IconPlus, IconSearch, IconStethoscope, IconTrash } from '@tabler/icons-react'
+import {
+  IconBrandWhatsapp, IconCheck, IconChevronDown, IconCopy, IconDownload, IconEdit, IconFileImport, IconLock, IconPlus, IconSearch,
+  IconStethoscope, IconTrash,
+} from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api, type CaseImportResult, type CaseInput, type IsoDate, type OnCallCase } from '../api'
 import { isAdmin, useMe } from '../auth'
@@ -16,6 +19,12 @@ import { notifyError, notifyOk, usePhone } from '../lib'
 const RACES = ['MALAY', 'CHINESE', 'INDIAN', 'SIAMESE']
 const REFERRALS = ['ED', 'WARD', 'OT', 'OSCC', 'FORENSIC/MORTUARY']
 const DSA_STATUSES = ['CALLED AND ATTENDED', 'CALLED BUT FTA', 'CALLED BUT NO ANSWER', 'NOT BEEN CALLED']
+/** The colour of each choice's filled indicator, so the selection stands out at a glance. */
+const CHOICE_COLOR: Record<string, string> = {
+  OMFS: 'blue', PAEDS: 'grape', GREEN: 'green', YELLOW: 'yellow', RED: 'red', MALE: 'blue', FEMALE: 'pink', TRAUMA: 'red', 'NON-TRAUMA': 'teal',
+}
+const choice = (value: string | null | undefined) => ({ color: (value && CHOICE_COLOR[value]) || 'teal', autoContrast: true })
+const INVESTIGATIONS = ['X-RAY', 'OPG', 'PA SKULL', 'CT', 'FBC', 'RBS', 'RP', 'COAGULATION PROFILE']
 
 /** Before 08:00 you are still on the previous day's shift. */
 const currentShift = (): IsoDate => (new Date().getHours() < 8 ? addDays(todayIso(), -1) : todayIso())
@@ -31,14 +40,16 @@ const minutesBetween = (start: string, finish: string) => {
 const blank = (onCallDate: IsoDate): CaseInput => ({
   date: onCallDate, timeStart: '', timeFinish: '', onCallDate, patientName: '', patientIdNo: '', gender: '', age: null, race: null,
   referralSource: null, department: null, diagnosis: null, management: null, plan: null, officerId: null, taggers: null,
-  dsaName: null, dsaStatus: null, confidential: false,
+  dsaName: null, dsaStatus: null, confidential: false, spokenTo: null, seenBy: null, caseType: null, presentation: null,
+  investigations: null, prescription: null, edZone: null,
 })
 
 const toInput = (c: OnCallCase): CaseInput => ({
   date: c.date, timeStart: hm(c.timeStart), timeFinish: hm(c.timeFinish), onCallDate: c.onCallDate, patientName: c.patientName,
   patientIdNo: c.patientIdNo, gender: c.gender, age: c.age, race: c.race, referralSource: c.referralSource, department: c.department,
   diagnosis: c.diagnosis, management: c.management, plan: c.plan, officerId: c.personId, taggers: c.taggers, dsaName: c.dsaName,
-  dsaStatus: c.dsaStatus, confidential: c.confidential,
+  dsaStatus: c.dsaStatus, confidential: c.confidential, spokenTo: c.spokenTo, seenBy: c.seenBy, caseType: c.caseType,
+  presentation: c.presentation, investigations: c.investigations, prescription: c.prescription, edZone: c.edZone,
 })
 
 /** "Choose or type" fields: the list covers the usual answers; anything else can be typed in. */
@@ -71,6 +82,7 @@ export function CasesPage() {
  */
 function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSaved: () => void; onCancel?: () => void }) {
   const qc = useQueryClient()
+  const [shareId, setShareId] = useState<string | null>(null)
   const me = useMe().data
   const [v, setV] = useState<CaseInput>(() => (editing ? toInput(editing) : blank(currentShift())))
   const set = <K extends keyof CaseInput>(k: K, value: CaseInput[K]) => setV(s => ({ ...s, [k]: value }))
@@ -87,18 +99,29 @@ function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSave
     mutationFn: async () => {
       const body = { ...v, onCallDate: shift, timeStart: `${v.timeStart}:00`, timeFinish: `${v.timeFinish}:00` }
       if (editing) await api.cases.update(editing.id, body)
-      else await api.cases.create(body)
+      else return (await api.cases.create(body)).id
     },
-    onSuccess: () => {
+    onSuccess: id => {
       qc.invalidateQueries({ queryKey: ['cases'] })
-      notifyOk(editing ? 'Case saved.' : 'Case recorded. The shift, officer and DSA are kept for your next patient.')
+      if (editing) notifyOk('Case saved.')
       if (!editing) setV(s => ({ ...blank(shift), taggers: s.taggers, dsaName: s.dsaName, dsaStatus: s.dsaStatus }))
+      if (id) modals.openConfirmModal({
+        title: 'Case recorded', centered: true,
+        children: <Text size="sm">Would you like to generate the WhatsApp passover for the {v.department} group? The shift, officer and DSA are kept for your next patient.</Text>,
+        labels: { confirm: 'Generate passover', cancel: 'Not now' },
+        confirmProps: { color: 'green', leftSection: <IconBrandWhatsapp size={16} /> },
+        onConfirm: () => setShareId(id),
+      })
       onSaved()
     },
     onError: e => notifyError(e, 'Could not save the case'),
   })
 
-  const ready = canRecord && v.date && minutes && v.patientName.trim() && v.patientIdNo.trim() && v.gender && v.dsaName?.trim() && v.dsaStatus
+  const upper = (k: keyof CaseInput) => (e: { currentTarget: { value: string } }) => set(k, (e.currentTarget.value.toUpperCase() || null) as never)
+  const trauma = v.caseType === 'TRAUMA'
+
+  const fromEd = v.referralSource === 'ED'
+  const ready = canRecord && v.department && v.caseType && (!fromEd || v.edZone) && v.date && minutes && v.patientName.trim() && v.patientIdNo.trim() && v.gender && v.dsaName?.trim() && v.dsaStatus
 
   return (
     <form onSubmit={e => { e.preventDefault(); if (ready) save.mutate() }}>
@@ -114,7 +137,7 @@ function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSave
             </Grid.Col>
             <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
               <Input.Wrapper label="Patient seen on" required>
-                <SegmentedControl fullWidth value={nextDay ? 'next' : 'same'} onChange={x => set('date', x === 'next' ? addDays(shift, 1) : shift)}
+                <SegmentedControl fullWidth {...choice(null)} value={nextDay ? 'next' : 'same'} onChange={x => set('date', x === 'next' ? addDays(shift, 1) : shift)}
                   data={[{ value: 'same', label: formatLong(shift) }, { value: 'next', label: formatLong(addDays(shift, 1)) }]} />
               </Input.Wrapper>
             </Grid.Col>
@@ -148,48 +171,106 @@ function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSave
 
         <Fieldset legend="Patient">
           <Grid gap="md" align="flex-end">
-            <Grid.Col span={{ base: 12, md: 8 }}>
-              <TextInput label="Patient name" required value={v.patientName} maxLength={200}
-                onChange={e => set('patientName', e.currentTarget.value.toUpperCase())} />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, md: 4 }}>
-              <TextInput label="MyKad / KID / passport / reg no" required placeholder="MyKad without dashes" value={v.patientIdNo}
-                maxLength={40} onChange={e => set('patientIdNo', e.currentTarget.value.toUpperCase())} />
-            </Grid.Col>
             <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-              <Input.Wrapper label="Gender" required>
-                <SegmentedControl fullWidth value={v.gender} onChange={x => set('gender', x)} data={['MALE', 'FEMALE']} />
+              <Input.Wrapper label="Department" required>
+                <SegmentedControl fullWidth {...choice(v.department)} value={v.department ?? ''} onChange={x => set('department', x)} data={['OMFS', 'PAEDS']} />
               </Input.Wrapper>
             </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6, md: 2 }}>
-              <TextInput label="Age" placeholder="e.g. 34, 8 months" value={v.age ?? ''} maxLength={20} onChange={e => set('age', e.currentTarget.value.toUpperCase() || null)} />
-            </Grid.Col>
+            {!v.department && (
+              <Grid.Col span={{ base: 12, sm: 6, md: 9 }}><Text size="sm" c="dimmed">Choose the department to fill in the patient.</Text></Grid.Col>
+            )}
+          </Grid>
+          <Fieldset variant="unstyled" disabled={!v.department} mt="md">
+            <Grid gap="md" align="flex-end">
+              <Grid.Col span={{ base: 12, md: fromEd ? 3 : 4 }}>
+                <Autocomplete label="Source of referral" placeholder={pickOrType} data={REFERRALS} value={v.referralSource ?? ''}
+                  onChange={x => setV(s => ({ ...s, referralSource: x.toUpperCase() || null, edZone: x.toUpperCase() === 'ED' ? s.edZone : null }))} />
+              </Grid.Col>
+              {fromEd && (
+                <Grid.Col span={{ base: 12, md: 3 }}>
+                  <Input.Wrapper label="ED zone" required>
+                    <SegmentedControl fullWidth {...choice(v.edZone)} value={v.edZone ?? ''} onChange={x => set('edZone', x as CaseInput['edZone'])} disabled={!v.department}
+                      data={[{ value: 'GREEN', label: 'Green' }, { value: 'YELLOW', label: 'Yellow' }, { value: 'RED', label: 'Red' }]} />
+                  </Input.Wrapper>
+                </Grid.Col>
+              )}
+              <Grid.Col span={{ base: 12, sm: 6, md: fromEd ? 3 : 4 }}>
+                <TextInput label="Spoken to (S/T)" placeholder="e.g. DR RIDWAN" value={v.spokenTo ?? ''} maxLength={200} onChange={upper('spokenTo')} />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6, md: fromEd ? 3 : 4 }}>
+                <TextInput label="Seen by (S/B)" placeholder="e.g. DR KHONG" value={v.seenBy ?? ''} maxLength={200} onChange={upper('seenBy')} />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 8 }}>
+                <TextInput label="Patient name" required placeholder="e.g. MUHAMMAD HAZRIL BIN SYAMZUFARI" value={v.patientName} maxLength={200}
+                  onChange={e => set('patientName', e.currentTarget.value.toUpperCase())} />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <TextInput label="MyKad / KID / passport / reg no" required placeholder="e.g. 100711030571" value={v.patientIdNo}
+                  maxLength={40} onChange={e => set('patientIdNo', e.currentTarget.value.toUpperCase())} />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
+                <Input.Wrapper label="Gender" required>
+                  <SegmentedControl fullWidth {...choice(v.gender)} value={v.gender} onChange={x => set('gender', x)} data={['MALE', 'FEMALE']} disabled={!v.department} />
+                </Input.Wrapper>
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
+                <TextInput label="Age" placeholder="e.g. 16, 8 MONTHS" value={v.age ?? ''} maxLength={20} onChange={upper('age')} />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
+                <Autocomplete label="Race" placeholder={pickOrType} data={RACES} value={v.race ?? ''}
+                  onChange={x => set('race', x.toUpperCase() || null)} />
+              </Grid.Col>
+            </Grid>
+            <Checkbox mt="md" label="Confidential patient (the ETAP form leaves out the name and registration number)"
+              checked={v.confidential} onChange={e => set('confidential', e.currentTarget.checked)} />
+          </Fieldset>
+        </Fieldset>
+
+        <Fieldset legend="Clinical">
+          <Grid gap="md" align="flex-end">
             <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
-              <Autocomplete label="Race" placeholder={pickOrType} data={RACES} value={v.race ?? ''}
-                onChange={x => set('race', x.toUpperCase() || null)} />
+              <Input.Wrapper label="Case type" required>
+                <SegmentedControl fullWidth {...choice(v.caseType)} value={v.caseType ?? ''} onChange={x => set('caseType', x as CaseInput['caseType'])}
+                  data={['TRAUMA', 'NON-TRAUMA']} />
+              </Input.Wrapper>
             </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
-              <Select label="Department" placeholder="OMFS or PAEDS" data={['OMFS', 'PAEDS']} clearable value={v.department}
-                onChange={x => set('department', x)} />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, md: 4 }}>
-              <Autocomplete label="Source of referral" placeholder={pickOrType} data={REFERRALS} value={v.referralSource ?? ''}
-                onChange={x => set('referralSource', x.toUpperCase() || null)} />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, md: 8 }}>
-              <TextInput label="Diagnosis" value={v.diagnosis ?? ''} maxLength={500} onChange={e => set('diagnosis', e.currentTarget.value.toUpperCase() || null)} />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, md: 6 }}>
-              <Textarea label="Management" autosize minRows={2} maxLength={1000} value={v.management ?? ''}
-                onChange={e => set('management', e.currentTarget.value.toUpperCase() || null)} />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, md: 6 }}>
-              <Textarea label="Plan" autosize minRows={2} maxLength={1000} value={v.plan ?? ''}
-                onChange={e => set('plan', e.currentTarget.value.toUpperCase() || null)} />
+            <Grid.Col span={{ base: 12, sm: 6, md: 8 }}>
+              <Text size="sm" c="dimmed">
+                {v.caseType ? (trauma ? 'Trauma: written as presented with (P/W).' : 'Non-trauma: written as complaint of (C/O).')
+                  : 'Choose the case type to fill in the clinical details.'}
+              </Text>
             </Grid.Col>
           </Grid>
-          <Checkbox mt="md" label="Confidential patient (the ETAP form leaves out the name and registration number)"
-            checked={v.confidential} onChange={e => set('confidential', e.currentTarget.checked)} />
+          <Fieldset variant="unstyled" disabled={!v.caseType} mt="md">
+            <Grid gap="md" align="flex-start">
+              <Grid.Col span={{ base: 12, md: 8 }}>
+                <TextInput label={trauma ? 'Presented with (P/W)' : 'Complaint of (C/O)'}
+                  placeholder={trauma ? 'e.g. ALLEGED MB SKIDDED AROUND 10PM (21/11/2026)' : 'e.g. SWELLING LEFT CHEEK FOR 3 DAYS'}
+                  value={v.presentation ?? ''} maxLength={500} onChange={upper('presentation')} />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <TagsInput label="Investigations (Ix)" placeholder="e.g. OPG, PA SKULL (Enter to add)" data={INVESTIGATIONS} clearable
+                  disabled={!v.caseType} value={v.investigations ? v.investigations.split(', ') : []}
+                  onChange={xs => set('investigations', xs.map(x => x.trim().toUpperCase()).filter(Boolean).join(', ') || null)} />
+              </Grid.Col>
+              <Grid.Col span={12}>
+                <Textarea label="Diagnosis (Dx)" autosize minRows={4} maxLength={500} value={v.diagnosis ?? ''} onChange={upper('diagnosis')}
+                  placeholder={'e.g. OFSTI\nTRAUMA DENTAL INJURY\n- AVULSED TOOTH 11-13\n- TOOTH 21-22 COMPLICATED CROWN #\n- CLOSED RIGHT CONDYLAR #'} />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <Textarea label="Management (Mx)" autosize minRows={3} maxLength={1000} value={v.management ?? ''} onChange={upper('management')}
+                  placeholder={'e.g. T&S DONE\nARCHBAR ON MAXILLA AND MANDIBLE\nGIC 21 22'} />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <Textarea label="Prescription (Rx)" autosize minRows={3} maxLength={500} value={v.prescription ?? ''} onChange={upper('prescription')}
+                  placeholder="e.g. T. PCM, T. ARCOXIA, T. AUGMENTIN, 0.2% CHX M/W, CMC OINTMENT" />
+              </Grid.Col>
+              <Grid.Col span={12}>
+                <Textarea label="Plan" autosize minRows={3} maxLength={1000} value={v.plan ?? ''} onChange={upper('plan')}
+                  placeholder={'e.g. 1. TO DISCHARGE DENTALLY\n2. TO CONT. OTHER TEAM PLAN AND MANAGEMENT\n3. TCA 23/11/2026 @ 9.30AM AT OMFS HTF'} />
+              </Grid.Col>
+            </Grid>
+          </Fieldset>
         </Fieldset>
 
         <Group justify="flex-end">
@@ -197,7 +278,33 @@ function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSave
           <Button type="submit" loading={save.isPending} disabled={!ready}>{editing ? 'Save' : 'Record case'}</Button>
         </Group>
       </Stack>
+      {shareId && <WhatsAppModal caseId={shareId} onClose={() => setShareId(null)} />}
     </form>
+  )
+}
+
+/** The case as the WhatsApp passover message (seniors' template), ready to copy into the department group. */
+function WhatsAppModal({ caseId, onClose }: { caseId: string; onClose: () => void }) {
+  const text = useQuery({ queryKey: ['case-whatsapp', caseId], queryFn: () => api.cases.whatsapp(caseId), gcTime: 0 })
+  return (
+    <Modal opened onClose={onClose} title="WhatsApp passover" size="lg">
+      {text.isLoading ? <Loading /> : text.error ? <ErrorBox error={text.error} /> : (
+        <Stack>
+          <Text size="sm" c="dimmed">Copy and paste it into the department group. Check it before sending: it contains patient details.</Text>
+          <Textarea readOnly autosize minRows={8} maxRows={20} value={text.data?.text ?? ''} />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>Close</Button>
+            <CopyButton value={text.data?.text ?? ''}>
+              {({ copied, copy }) => (
+                <Button color={copied ? 'teal' : 'green'} leftSection={copied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={copy}>
+                  {copied ? 'Copied' : 'Copy text'}
+                </Button>
+              )}
+            </CopyButton>
+          </Group>
+        </Stack>
+      )}
+    </Modal>
   )
 }
 
@@ -209,6 +316,7 @@ function CaseLog() {
   const [personId, setPersonId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<OnCallCase | null>(null)
+  const [shareId, setShareId] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const ym = month.slice(0, 7)
   const cases = useQuery({ queryKey: ['cases', ym, personId], queryFn: () => api.cases.list(ym, personId ?? undefined) })
@@ -289,8 +397,15 @@ function CaseLog() {
                     <Table.Td><Text size="sm">{c.officer}</Text>{c.taggers && <Text size="xs" c="dimmed">{c.taggers}</Text>}</Table.Td>
                     <Table.Td><Text size="sm">{c.dsaName ?? '–'}</Text>{c.dsaStatus && <Text size="xs" c="dimmed">{c.dsaStatus}</Text>}</Table.Td>
                     <Table.Td>
-                      {c.canEdit && (
-                        <Group gap={4} wrap="nowrap" justify="flex-end">
+                      <Group gap={4} wrap="nowrap" justify="flex-end">
+                        {c.canShare && (
+                          <Tooltip label="WhatsApp passover">
+                            <ActionIcon variant="subtle" color="green" aria-label="WhatsApp passover" onClick={() => setShareId(c.id)}>
+                              <IconBrandWhatsapp size={18} />
+                            </ActionIcon>
+                          </Tooltip>
+                        )}
+                        {c.canEdit && (<>
                           <Tooltip label="Edit"><ActionIcon variant="subtle" aria-label="Edit" onClick={() => setEditing(c)}><IconEdit size={18} /></ActionIcon></Tooltip>
                           <Tooltip label="Remove">
                             <ActionIcon variant="subtle" color="red" aria-label="Remove" onClick={() => modals.openConfirmModal({
@@ -298,8 +413,8 @@ function CaseLog() {
                               labels: { confirm: 'Remove', cancel: 'Cancel' }, confirmProps: { color: 'red' }, onConfirm: () => remove.mutate(c.id),
                             })}><IconTrash size={18} /></ActionIcon>
                           </Tooltip>
-                        </Group>
-                      )}
+                        </>)}
+                      </Group>
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -314,6 +429,7 @@ function CaseLog() {
           <CaseForm editing={editing} onSaved={() => setEditing(null)} onCancel={() => setEditing(null)} />
         </Modal>
       )}
+      {shareId && <WhatsAppModal caseId={shareId} onClose={() => setShareId(null)} />}
       {importing && <CaseImportModal onClose={() => setImporting(false)} />}
     </Stack>
   )

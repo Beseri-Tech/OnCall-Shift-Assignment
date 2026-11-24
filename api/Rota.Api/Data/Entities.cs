@@ -507,10 +507,29 @@ public sealed class OnCallCase
     public string? Age { get; set; }
     public string? Race { get; set; }
     public string? ReferralSource { get; set; }
+
+    /// <summary>For an ED referral: GREEN, YELLOW or RED zone.</summary>
+    public string? EdZone { get; set; }
     public string? Department { get; set; }
     public string? Diagnosis { get; set; }
     public string? Management { get; set; }
     public string? Plan { get; set; }
+
+    /// <summary>Who referred and was spoken to (S/T), and who saw the patient (S/B), as typed.</summary>
+    public string? SpokenTo { get; set; }
+    public string? SeenBy { get; set; }
+
+    /// <summary>TRAUMA (written "presented with", P/W) or NON-TRAUMA ("complaint of", C/O).</summary>
+    public string? CaseType { get; set; }
+
+    /// <summary>The P/W or C/O text: what happened / the complaint.</summary>
+    public string? Presentation { get; set; }
+
+    /// <summary>Investigations done (Ix), comma-separated, e.g. "OPG, FBC".</summary>
+    public string? Investigations { get; set; }
+
+    /// <summary>Medicines given (Rx), as typed.</summary>
+    public string? Prescription { get; set; }
 
     /// <summary>The taggers (housemen / trainees) with the officer, as typed.</summary>
     public string? Taggers { get; set; }

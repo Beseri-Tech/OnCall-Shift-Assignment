@@ -64,6 +64,17 @@ public static partial class CaseEndpoints
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Oncall cases {label}.xlsx");
         }).RequireRateLimiting(DownloadLimit);
 
+        // The WhatsApp passover text for the department group (copied by the officer; recorded like a view).
+        g.MapGet("/{id:guid}/whatsapp", async (Guid id, RotaDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            var c = await db.Cases.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (c is null) return Results.NotFound();
+            if (!IsOwn(http, c)) return Results.Forbid();
+            Mapping.Log(db, http, "case.whatsapp", c.PersonId, new { c.OnCallDate }, c.Id);
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new CaseTextDto(CaseText.WhatsApp(c)));
+        });
+
         g.MapPost("/", async (CaseInput input, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
             if (http.User.AccountId() is not { } me || http.User.FacilityId() is null) return Results.Forbid();
@@ -128,8 +139,10 @@ public static partial class CaseEndpoints
     }
 
     /// <summary>Admins, whoever typed it in, and the officer in charge.</summary>
-    private static bool CanEdit(HttpContext http, OnCallCase c) =>
-        http.User.IsAdmin() || http.User.AccountId() == c.RecordedById || http.User.PersonId() == c.PersonId;
+    private static bool CanEdit(HttpContext http, OnCallCase c) => http.User.IsAdmin() || IsOwn(http, c);
+
+    /// <summary>The signed-in user recorded it or is its officer in charge (only they make its WhatsApp passover; admins too only for their own).</summary>
+    private static bool IsOwn(HttpContext http, OnCallCase c) => http.User.AccountId() == c.RecordedById || http.User.PersonId() == c.PersonId;
 
     /// <summary>Whoever the published (or in-review) rota has on call on the date.</summary>
     internal static async Task<OnCallOfficerDto?> OnCallOfficerAsync(RotaDbContext db, DateOnly date, CancellationToken ct) =>
@@ -180,29 +193,30 @@ public static partial class CaseEndpoints
             .Select(c => new CaseDto(c.Id, c.PersonId, names.GetValueOrDefault(c.PersonId, "?"), names.GetValueOrDefault(c.RecordedById, "?"),
                 c.OnCallDate, c.Date, c.TimeStart, c.TimeFinish, c.Minutes, c.PatientName, c.PatientIdNo, c.Gender, c.Age, c.Race,
                 c.ReferralSource, c.Department, c.Diagnosis, c.Management, c.Plan, c.Taggers, c.DsaName, c.DsaStatus, c.Confidential,
-                CanEdit(http, c), c.UpdatedAt))
+                CanEdit(http, c), IsOwn(http, c), c.UpdatedAt, c.SpokenTo, c.SeenBy, c.CaseType, c.Presentation, c.Investigations, c.Prescription, c.EdZone))
             .ToList();
     }
 
     private static readonly string[] ExportHeaders =
     [
         "On-call date", "Date", "Time start", "Time finish", "Duration (h:mm)", "Patient name", "MyKad/KID/Passport/Reg no",
-        "Gender", "Age", "Race", "Source of referral", "Department", "Diagnosis", "Management", "Plan",
-        "Officer incharge", "Taggers", "DSA oncall", "DSA status", "Recorded by", "Confidential",
+        "Gender", "Age", "Race", "Source of referral", "ED zone", "Department", "Diagnosis", "Management", "Plan",
+        "S/T", "S/B", "Case type", "P/W or C/O", "Ix", "Rx", "Officer incharge", "Taggers", "DSA oncall", "DSA status", "Recorded by", "Confidential",
     ];
 
     private static IReadOnlyList<string?> ExportRow(CaseDto c) =>
     [
         c.OnCallDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), c.Date.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
         c.TimeStart.ToString("HH:mm", CultureInfo.InvariantCulture), c.TimeFinish.ToString("HH:mm", CultureInfo.InvariantCulture),
-        $"{c.Minutes / 60}:{c.Minutes % 60:00}", c.PatientName, c.PatientIdNo, c.Gender, c.Age, c.Race, c.ReferralSource,
-        c.Department, c.Diagnosis, c.Management, c.Plan, c.Officer, c.Taggers, c.DsaName, c.DsaStatus, c.RecordedBy,
+        $"{c.Minutes / 60}:{c.Minutes % 60:00}", c.PatientName, c.PatientIdNo, c.Gender, c.Age, c.Race, c.ReferralSource, c.EdZone,
+        c.Department, c.Diagnosis, c.Management, c.Plan, c.SpokenTo, c.SeenBy, c.CaseType, c.Presentation, c.Investigations,
+        c.Prescription, c.Officer, c.Taggers, c.DsaName, c.DsaStatus, c.RecordedBy,
         c.Confidential ? "Yes" : "",
     ];
 
     /// <summary>
     /// Checks and copies the input onto the case (with the resolved officer in charge); returns the problems by field (nothing
-    /// is changed when there are any). strict: the form's rules (DSA name and status required); the old sheet import is lenient.
+    /// is changed when there are any). strict: the form's rules (department, case type, DSA name and status required); the old sheet import is lenient.
     /// </summary>
     internal static Dictionary<string, string[]> Apply(OnCallCase c, CaseInput i, Guid officer, bool strict)
     {
@@ -223,13 +237,22 @@ public static partial class CaseEndpoints
         else if (idNo.Length > 40) errors["patientIdNo"] = ["The number is too long."];
         if (!Genders.Contains(gender)) errors["gender"] = ["Choose MALE or FEMALE."];
         if (department is not null && !Departments.Contains(department)) errors["department"] = ["Department is OMFS or PAEDS."];
+        string? caseType = Upper(i.CaseType);
+        if (caseType is not null && caseType is not ("TRAUMA" or "NON-TRAUMA")) errors["caseType"] = ["Case type is TRAUMA or NON-TRAUMA."];
+        else if (strict && caseType is null) errors["caseType"] = ["Choose TRAUMA or NON-TRAUMA."];
+        if (strict && department is null) errors["department"] = ["Choose the department (OMFS or PAEDS)."];
+        string? referral = Upper(i.ReferralSource);
+        string? edZone = referral == "ED" ? Upper(i.EdZone) : null;
+        if (edZone is not null && edZone is not ("GREEN" or "YELLOW" or "RED")) errors["edZone"] = ["ED zone is GREEN, YELLOW or RED."];
+        else if (strict && referral == "ED" && edZone is null) errors["edZone"] = ["Choose the ED zone."];
         if (onCall != i.Date && onCall != i.Date.AddDays(-1))
             errors["onCallDate"] = ["The on-call date is the case date, or the day before for a case after midnight."];
         foreach (var (key, value, max) in new[]
                  {
                      ("age", i.Age, 20), ("race", i.Race, 60), ("referralSource", i.ReferralSource, 60), ("diagnosis", i.Diagnosis, 500),
                      ("management", i.Management, 1000), ("plan", i.Plan, 1000), ("taggers", i.Taggers, 200),
-                     ("dsaName", i.DsaName, 200),
+                     ("dsaName", i.DsaName, 200), ("spokenTo", i.SpokenTo, 200), ("seenBy", i.SeenBy, 200),
+                     ("presentation", i.Presentation, 500), ("investigations", i.Investigations, 300), ("prescription", i.Prescription, 500),
                  })
             if (value?.Trim().Length > max) errors[key] = [$"Too long (max {max} characters)."];
         if (errors.Count > 0) return errors;
@@ -244,11 +267,18 @@ public static partial class CaseEndpoints
         c.Gender = gender;
         c.Age = Upper(i.Age);
         c.Race = Upper(i.Race);
-        c.ReferralSource = Upper(i.ReferralSource);
+        c.ReferralSource = referral;
+        c.EdZone = edZone;
         c.Department = department;
         c.Diagnosis = Upper(i.Diagnosis);
         c.Management = Upper(i.Management);
         c.Plan = Upper(i.Plan);
+        c.SpokenTo = Upper(i.SpokenTo);
+        c.SeenBy = Upper(i.SeenBy);
+        c.CaseType = caseType;
+        c.Presentation = Upper(i.Presentation);
+        c.Investigations = Investigations(i.Investigations);
+        c.Prescription = Upper(i.Prescription);
         c.Taggers = Upper(i.Taggers);
         c.DsaName = Upper(i.DsaName);
         c.DsaStatus = dsaStatus;
@@ -266,6 +296,10 @@ public static partial class CaseEndpoints
         string digits = Regex.Replace(t, @"[\s-]", "");
         return digits.Length == 12 && digits.All(char.IsAsciiDigit) ? digits : Regex.Replace(t, @"\s+", " ");
     }
+
+    /// <summary>"opg ,  fbc,,X-ray" -> "OPG, FBC, X-RAY".</summary>
+    private static string? Investigations(string? s) =>
+        Upper(string.Join(", ", (s ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)));
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : Regex.Replace(s.Trim(), @"[ \t]+", " ");
     private static string? Upper(string? s) => Clean(s)?.ToUpperInvariant();

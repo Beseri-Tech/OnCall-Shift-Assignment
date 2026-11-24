@@ -18,7 +18,7 @@ public class CaseTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     private static CaseInput Case(string date, string start, string finish, string name = "ALI BIN ABU", string idNo = "900101-09-1234",
         Guid? officer = null, string? dsa = "Kak Ros") =>
         new(DateOnly.Parse(date), TimeOnly.Parse(start), TimeOnly.Parse(finish), null, name, idNo, "male", "34", "MALAY", "ED", "OMFS",
-            "Fractured mandible", "IMF", "Review in clinic", officer, "Dr HO Tagger", dsa, "called and attended", false);
+            "Fractured mandible", "IMF", "Review in clinic", officer, "Dr HO Tagger", dsa, "called and attended", false, CaseType: "trauma", EdZone: "green");
 
     [Fact]
     public async Task Officers_record_cases_everyone_in_the_hospital_reads_them_and_only_the_recorder_or_admins_change_them()
@@ -49,6 +49,57 @@ public class CaseTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         // With no rota, the officer in charge defaults to whoever typed it in; taggers and the DSA are separate.
         Assert.Equal(("Dr One", "DR HO TAGGER", "KAK ROS", "CALLED AND ATTENDED"), (first.Officer, first.Taggers, first.DsaName, first.DsaStatus));
         Assert.Equal(120, log.Single(c => c.Id != night.Id).Minutes);
+
+        // The WhatsApp passover text follows the seniors' template; a trauma case "presented with", Ix ticked.
+        var trauma = await Read<IdDto>(await one.PostAsJsonAsync("/api/cases", Case("2026-10-05", "22:00", "23:00", "MUHAMMAD HAZRIL", "100711030571") with
+        {
+            Age = "16", EdZone = "Yellow", SpokenTo = "Dr Ridwan", SeenBy = "Dr Khong", CaseType = "trauma",
+            Presentation = "Alleged MB skidded", Investigations = "opg , PA skull,", Diagnosis = "OFSTI", Management = "T&S done\nGIC 21 22",
+            Plan = "TCA 23/11/2026", Prescription = "T. PCM, 0.2% CHX M/W",
+        }, ApiFixture.Json));
+        Assert.Equal(HttpStatusCode.BadRequest, (await one.PostAsJsonAsync("/api/cases", Case("2026-10-05", "22:00", "23:00") with { CaseType = "minor" },
+            ApiFixture.Json)).StatusCode);
+        // Department, case type and (for ED) the zone are required on the form.
+        Assert.Equal(HttpStatusCode.BadRequest, (await one.PostAsJsonAsync("/api/cases", Case("2026-10-05", "22:00", "23:00") with { EdZone = null },
+            ApiFixture.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await one.PostAsJsonAsync("/api/cases", Case("2026-10-05", "22:00", "23:00") with { Department = null },
+            ApiFixture.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await one.PostAsJsonAsync("/api/cases", Case("2026-10-05", "22:00", "23:00") with { CaseType = null },
+            ApiFixture.Json)).StatusCode);
+        // Only the recorder / officer in charge makes the passover, not another officer reading the log.
+        Assert.Equal(HttpStatusCode.Forbidden, (await two.GetAsync($"/api/cases/{trauma.Id}/whatsapp")).StatusCode);
+        Assert.False((await Read<List<CaseDto>>(await two.GetAsync("/api/cases?month=2026-10"))).Single(c => c.Id == trauma.Id).CanShare);
+        var wa = await Read<CaseTextDto>(await one.GetAsync($"/api/cases/{trauma.Id}/whatsapp"));
+        Assert.Equal("""
+            Dear OMFS Officer
+            N/C from ED YELLOW ZONE
+
+            S/T DR RIDWAN
+            S/B DR KHONG
+
+            16Y/M/M
+            MUHAMMAD HAZRIL
+            100711-03-0571
+
+            P/W: ALLEGED MB SKIDDED
+
+            Ix:
+            OPG ✅
+            PA SKULL ✅
+
+            Dx:
+            OFSTI
+
+            Mx:
+            T&S DONE
+            GIC 21 22
+
+            Plan:
+            TCA 23/11/2026
+
+            Rx: T. PCM, 0.2% CHX M/W
+            """.ReplaceLineEndings("\n"), wa.Text);
+        (await one.DeleteAsync($"/api/cases/{trauma.Id}")).EnsureSuccessStatusCode();
 
         // Someone else's case: read-only for another officer, editable by an admin.
         Assert.Equal(HttpStatusCode.Forbidden, (await two.PutAsJsonAsync($"/api/cases/{night.Id}", Case("2026-10-06", "02:00", "04:00"), ApiFixture.Json)).StatusCode);

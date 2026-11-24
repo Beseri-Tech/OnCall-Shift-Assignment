@@ -20,7 +20,7 @@ public class EtapTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
     private static CaseInput Case(string date, string start, string finish, string name) =>
         new(DateOnly.Parse(date), TimeOnly.Parse(start), TimeOnly.Parse(finish), null, name, name + "-ID", "FEMALE", "30", "MALAY", "ED",
-            "OMFS", "Abscess", "I&D", null, null, null, "KAK ROS", "CALLED AND ATTENDED", false);
+            "OMFS", "Abscess", "I&D", null, null, null, "KAK ROS", "CALLED AND ATTENDED", false, CaseType: "NON-TRAUMA", EdZone: "GREEN");
 
     private static ProfileInput Profile(DateOnly? specialist = null) => new("Aminah binti Ali", "900101091234", "Pegawai Pergigian", "UD10",
         specialist, "Jabatan Pergigian, Hospital Tuanku Fauziah", "No 1, Jalan Kangar, 01000 Kangar, Perlis", 12.5m, "123456", "04-9761234",

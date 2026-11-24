@@ -290,22 +290,34 @@ public sealed record DecideLeaveRequestResult(LeaveRequestRangeDto Range, IReadO
 /// <param name="Taggers">Free text: the taggers with the officer.</param>
 /// <param name="DsaName">The DSA on call (required).</param>
 /// <param name="DsaStatus">CALLED AND ATTENDED, CALLED BUT FTA, CALLED BUT NO ANSWER or NOT BEEN CALLED (required).</param>
+/// <param name="CaseType">TRAUMA (P/W) or NON-TRAUMA (C/O).</param>
+/// <param name="Presentation">The P/W or C/O text.</param>
+/// <param name="Investigations">Ix done, comma-separated.</param>
+/// <param name="Prescription">Rx given.</param>
+/// <param name="EdZone">GREEN, YELLOW or RED: required on the form when the referral is ED, dropped otherwise.</param>
 public sealed record CaseInput(
     DateOnly Date, TimeOnly TimeStart, TimeOnly TimeFinish, DateOnly? OnCallDate, string PatientName, string PatientIdNo, string Gender,
     string? Age, string? Race, string? ReferralSource, string? Department, string? Diagnosis, string? Management, string? Plan,
-    Guid? OfficerId, string? Taggers, string? DsaName, string? DsaStatus, bool Confidential);
+    Guid? OfficerId, string? Taggers, string? DsaName, string? DsaStatus, bool Confidential,
+    string? SpokenTo = null, string? SeenBy = null, string? CaseType = null, string? Presentation = null, string? Investigations = null,
+    string? Prescription = null, string? EdZone = null);
 
 /// <summary>Whoever the rota (published, or in review) has on call on a date (shown on ETAP rows that aren't the officer's).</summary>
 public sealed record OnCallOfficerDto(Guid PersonId, string Name);
 
 /// <param name="Minutes">Length of the case (over midnight when the finish is at or before the start).</param>
 /// <param name="CanEdit">The signed-in user recorded it, or is an admin.</param>
+/// <param name="CanShare">The signed-in user recorded it or is its officer in charge: they can make its WhatsApp passover.</param>
 /// <param name="PersonId">The on-call officer in charge (Officer is their name).</param>
 public sealed record CaseDto(
     Guid Id, Guid PersonId, string Officer, string RecordedBy, DateOnly OnCallDate, DateOnly Date, TimeOnly TimeStart, TimeOnly TimeFinish,
     int Minutes, string PatientName, string PatientIdNo, string Gender, string? Age, string? Race, string? ReferralSource, string? Department,
     string? Diagnosis, string? Management, string? Plan, string? Taggers, string? DsaName, string? DsaStatus, bool Confidential, bool CanEdit,
-    DateTimeOffset UpdatedAt);
+    bool CanShare, DateTimeOffset UpdatedAt, string? SpokenTo, string? SeenBy, string? CaseType, string? Presentation, string? Investigations,
+    string? Prescription, string? EdZone);
+
+/// <summary>The case as a WhatsApp passover message for the department group.</summary>
+public sealed record CaseTextDto(string Text);
 
 /// <param name="Csv">The Google Form's response sheet, exported as CSV.</param>
 /// <param name="DefaultPersonId">Officer in charge for rows whose "officer & taggers" column names nobody on the rota.</param>

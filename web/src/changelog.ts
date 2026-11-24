@@ -12,6 +12,15 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.7.0', date: '2026-11-24', title: 'WhatsApp passover',
+    changes: [
+      { kind: 'new', text: 'After recording a case you are asked whether to generate the WhatsApp passover in the seniors’ template (referral, S/T, S/B, patient, P/W or C/O, Ix ticked, Dx, Mx, plan, Rx), ready to copy into the department group. The WhatsApp button in the case log opens it again for your own cases.' },
+      { kind: 'new', text: 'An ED referral asks for the zone (green, yellow or red), shown in the passover as e.g. “N/C from ED GREEN ZONE”.' },
+      { kind: 'new', text: 'The case form has Spoken to (S/T), Seen by (S/B), case type (trauma: presented with; non-trauma: complaint of), investigations (Ix) and prescription (Rx). They are in the case log and Excel, not on the ETAP form.' },
+      { kind: 'improved', text: 'Department and case type are now required and come first: the patient and clinical details open once they are chosen. Department is what the ETAP form shows under Catatan. Diagnosis takes several lines, and each field shows an example.' },
+    ],
+  },
+  {
     version: '3.6.0', date: '2026-11-24', title: 'Patient details for ETAP, state weekends',
     changes: [
       { kind: 'new', text: 'The ETAP download now ends with a patient-details attachment for every day over 4 hours: each patient’s time, details, diagnosis, treatment, plan and DSA, with a “Disahkan oleh” signature space. No more screenshots of the response sheet.' },
