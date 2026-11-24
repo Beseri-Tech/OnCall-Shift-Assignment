@@ -283,7 +283,7 @@ public sealed record DecideLeaveRequestResult(LeaveRequestRangeDto Range, IReadO
 
 /// <param name="OnCallDate">The shift the case belongs to; default: the case date, or the day before when it starts before 08:00.</param>
 /// <param name="TimeFinish">At or before TimeStart = the next day.</param>
-/// <param name="OfficerId">The on-call officer in charge; default: whoever the rota has on call that date.</param>
+/// <param name="OfficerId">The on-call officer in charge; default: the officer recording it.</param>
 /// <param name="Taggers">Free text: the taggers with the officer.</param>
 /// <param name="DsaName">The DSA on call (required).</param>
 /// <param name="DsaStatus">CALLED AND ATTENDED, CALLED BUT FTA, CALLED BUT NO ANSWER or NOT BEEN CALLED (required).</param>
@@ -292,7 +292,7 @@ public sealed record CaseInput(
     string? Age, string? Race, string? ReferralSource, string? Department, string? Diagnosis, string? Management, string? Plan,
     Guid? OfficerId, string? Taggers, string? DsaName, string? DsaStatus, bool Confidential);
 
-/// <summary>Whoever the rota (published, or in review) has on call on a date.</summary>
+/// <summary>Whoever the rota (published, or in review) has on call on a date (shown on ETAP rows that aren't the officer's).</summary>
 public sealed record OnCallOfficerDto(Guid PersonId, string Name);
 
 /// <param name="Minutes">Length of the case (over midnight when the finish is at or before the start).</param>
