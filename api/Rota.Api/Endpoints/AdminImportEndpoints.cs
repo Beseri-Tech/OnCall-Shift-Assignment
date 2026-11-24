@@ -128,7 +128,7 @@ public static class AdminImportEndpoints
 
         var names = (await db.People.Select(p => p.Name).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var codes = (await db.People.Select(p => p.Code).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var emails = (await db.Accounts.Select(a => a.Email).ToListAsync(ct)).ToHashSet();
+        var emails = (await db.Accounts.IgnoreQueryFilters().Select(a => a.Email).ToListAsync(ct)).ToHashSet();
         var clinics = await db.Clinics.Include(c => c.District).ThenInclude(d => d!.State).ToListAsync(ct);
         var states = await db.States.Select(s => s.Name).OrderBy(n => n).ToListAsync(ct);
         var districts = await db.Districts.Include(d => d.State).ToListAsync(ct);

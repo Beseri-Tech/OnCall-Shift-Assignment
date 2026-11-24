@@ -1,11 +1,22 @@
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Rota.Api.Auth;
 using Rota.Api.Endpoints;
 
 namespace Rota.Api.Data;
 
-public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbContext(options), IDataProtectionKeyContext
+/// <summary>
+/// Every query is scoped to the signed-in user's hospital (<see cref="FacilityId"/>) by global query filters, so an endpoint
+/// can't show another hospital's data by forgetting a Where. No facility (a master who hasn't picked one, login, background
+/// services) = no filter; every non-master account has a facility, so only masters and system code see across hospitals.
+/// </summary>
+public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttpContextAccessor? http = null)
+    : DbContext(options), IDataProtectionKeyContext
 {
+    /// <summary>The hospital this request works in, from the login cookie.</summary>
+    public Guid? FacilityId => http?.HttpContext?.User.FacilityId();
+
+    public DbSet<Facility> Facilities => Set<Facility>();
     public DbSet<Person> People => Set<Person>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<State> States => Set<State>();
@@ -40,8 +51,9 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
         b.Entity<Person>(e =>
         {
             e.ToTable("people");
-            e.HasIndex(p => p.Code).IsUnique();
-            e.HasIndex(p => p.Name).IsUnique();
+            e.HasIndex(p => new { p.FacilityId, p.Code }).IsUnique();
+            e.HasIndex(p => new { p.FacilityId, p.Name }).IsUnique();
+            e.HasOne<Facility>().WithMany().HasForeignKey(p => p.FacilityId).OnDelete(DeleteBehavior.Restrict);
             e.Property(p => p.Code).HasMaxLength(32);
             e.Property(p => p.Name).HasMaxLength(200);
             e.Property(p => p.Status).HasConversion<string>().HasMaxLength(16);
@@ -64,6 +76,8 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.Property(a => a.ResetTokenHash).HasMaxLength(64);
             e.HasOne(a => a.Person).WithMany().HasForeignKey(a => a.PersonId).OnDelete(DeleteBehavior.Cascade);
             e.Ignore(a => a.IsAdmin);
+            e.HasOne<Facility>().WithMany().HasForeignKey(a => a.FacilityId).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t => t.HasCheckConstraint("ck_accounts_facility", "\"Role\" = 'Master' OR \"FacilityId\" IS NOT NULL"));
         });
 
         b.Entity<State>(e =>
@@ -103,20 +117,24 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.ToTable("rota_periods");
             e.Property(p => p.Name).HasMaxLength(100);
             e.Property(p => p.Status).HasConversion<string>().HasMaxLength(16);
+            e.HasIndex(p => p.FacilityId);
+            e.HasOne<Facility>().WithMany().HasForeignKey(p => p.FacilityId).OnDelete(DeleteBehavior.Restrict);
             e.HasMany(p => p.Runs).WithOne(r => r.Period).HasForeignKey(r => r.PeriodId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<PublicHoliday>(e =>
         {
             e.ToTable("public_holidays");
-            e.HasKey(h => h.Date);
+            e.HasKey(h => new { h.StateId, h.Date });
+            e.HasOne<State>().WithMany().HasForeignKey(h => h.StateId).OnDelete(DeleteBehavior.Cascade);
             e.Property(h => h.Name).HasMaxLength(100);
         });
 
         b.Entity<PeakDay>(e =>
         {
             e.ToTable("peak_days");
-            e.HasKey(h => h.Date);
+            e.HasKey(h => new { h.StateId, h.Date });
+            e.HasOne<State>().WithMany().HasForeignKey(h => h.StateId).OnDelete(DeleteBehavior.Cascade);
             e.Property(h => h.Name).HasMaxLength(100);
         });
 
@@ -247,6 +265,8 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.Property(f => f.Message).HasMaxLength(FeedbackEndpoints.MaxMessageLength);
             e.Property(f => f.Page).HasMaxLength(200);
             e.HasIndex(f => f.CreatedAt);
+            e.HasIndex(f => f.FacilityId);
+            e.HasOne<Facility>().WithMany().HasForeignKey(f => f.FacilityId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Account>().WithMany().HasForeignKey(f => f.AccountId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne<Account>().WithMany().HasForeignKey(f => f.ResolvedByAccountId).OnDelete(DeleteBehavior.SetNull);
         });
@@ -264,11 +284,24 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasIndex(d => d.ObjectKey).IsUnique();
             e.HasIndex(d => new { d.ParentType, d.ParentId });
             e.HasIndex(d => new { d.Kind, d.Status });
+            e.HasIndex(d => d.FacilityId);
             e.HasOne<Account>().WithMany().HasForeignKey(d => d.UploadedByAccountId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne<Person>().WithMany().HasForeignKey(d => d.OwnerPersonId).OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<DataProtectionKey>().ToTable("data_protection_keys");
+
+        b.Entity<Facility>(e =>
+        {
+            e.ToTable("facilities");
+            e.HasIndex(f => f.Code).IsUnique();
+            e.HasIndex(f => f.Name).IsUnique();
+            e.Property(f => f.Name).HasMaxLength(100);
+            e.Property(f => f.Code).HasMaxLength(16);
+            e.HasOne(f => f.District).WithMany(d => d.Facilities).HasForeignKey(f => f.DistrictId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        FacilityFilters(b);
 
         b.Entity<ChangeLog>(e =>
         {
@@ -283,6 +316,72 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options) : DbC
             e.HasIndex(c => new { c.Entity, c.At });
             e.HasIndex(c => new { c.AccountId, c.At });
             e.HasIndex(c => new { c.PersonId, c.At });
+            e.HasIndex(c => new { c.FacilityId, c.At });
         });
     }
+
+    private void FacilityFilters(ModelBuilder b)
+    {
+        // EF reads FacilityId afresh for every query. Children are scoped through their officer or period, so a lookup by
+        // their own id (a run, a leave approval, a swap...) can't reach another hospital either.
+        b.Entity<Person>().HasQueryFilter(p => FacilityId == null || p.FacilityId == FacilityId);
+        b.Entity<RotaPeriod>().HasQueryFilter(p => FacilityId == null || p.FacilityId == FacilityId);
+        b.Entity<Account>().HasQueryFilter(a => FacilityId == null || a.FacilityId == FacilityId);
+        b.Entity<ChangeLog>().HasQueryFilter(c => FacilityId == null || c.FacilityId == FacilityId);
+        b.Entity<Feedback>().HasQueryFilter(f => FacilityId == null || f.FacilityId == FacilityId);
+        b.Entity<DocumentRecord>().HasQueryFilter(d => FacilityId == null || d.FacilityId == null || d.FacilityId == FacilityId);
+
+        b.Entity<PublicHoliday>().HasQueryFilter(h => FacilityId == null ||
+            Set<Facility>().Any(f => f.Id == FacilityId && f.District!.StateId == h.StateId));
+        b.Entity<PeakDay>().HasQueryFilter(h => FacilityId == null ||
+            Set<Facility>().Any(f => f.Id == FacilityId && f.District!.StateId == h.StateId));
+
+        b.Entity<RotaRun>().HasQueryFilter(r => FacilityId == null ||
+            Set<RotaPeriod>().Any(p => p.Id == r.PeriodId && p.FacilityId == FacilityId));
+        b.Entity<ShiftAssignment>().HasQueryFilter(a => FacilityId == null ||
+            Set<RotaRun>().Any(r => r.Id == a.RunId && Set<RotaPeriod>().Any(p => p.Id == r.PeriodId && p.FacilityId == FacilityId)));
+        b.Entity<PeriodDay>().HasQueryFilter(d => FacilityId == null ||
+            Set<RotaPeriod>().Any(p => p.Id == d.PeriodId && p.FacilityId == FacilityId));
+        b.Entity<PeriodExclusion>().HasQueryFilter(x => FacilityId == null ||
+            Set<Person>().Any(p => p.Id == x.PersonId && p.FacilityId == FacilityId));
+        b.Entity<PointGrant>().HasQueryFilter(x => FacilityId == null ||
+            Set<Person>().Any(p => p.Id == x.PersonId && p.FacilityId == FacilityId));
+        b.Entity<LeaveDay>().HasQueryFilter(x => FacilityId == null ||
+            Set<Person>().Any(p => p.Id == x.PersonId && p.FacilityId == FacilityId));
+        b.Entity<PreferredDate>().HasQueryFilter(x => FacilityId == null ||
+            Set<Person>().Any(p => p.Id == x.PersonId && p.FacilityId == FacilityId));
+        b.Entity<LeaveApproval>().HasQueryFilter(x => FacilityId == null ||
+            Set<Person>().Any(p => p.Id == x.PersonId && p.FacilityId == FacilityId));
+        b.Entity<LeaveRequest>().HasQueryFilter(x => FacilityId == null ||
+            Set<Person>().Any(p => p.Id == x.PersonId && p.FacilityId == FacilityId));
+        b.Entity<LeaveRequestRange>().HasQueryFilter(x => FacilityId == null ||
+            Set<LeaveRequest>().Any(r => r.Id == x.RequestId && Set<Person>().Any(p => p.Id == r.PersonId && p.FacilityId == FacilityId)));
+        b.Entity<SwapRequest>().HasQueryFilter(x => FacilityId == null ||
+            Set<Person>().Any(p => p.Id == x.FromPersonId && p.FacilityId == FacilityId));
+    }
+
+    /// <summary>New rows get the current hospital (and its state, for holidays) unless the code set one.</summary>
+    public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
+    {
+        if (FacilityId is { } fid)
+        {
+            Guid? stateId = null;
+            foreach (var e in ChangeTracker.Entries().Where(e => e.State == EntityState.Added).ToList())
+            {
+                switch (e.Entity)
+                {
+                    case Person p when p.FacilityId == Guid.Empty: p.FacilityId = fid; break;
+                    case RotaPeriod p when p.FacilityId == Guid.Empty: p.FacilityId = fid; break;
+                    case ChangeLog c when c.FacilityId is null: c.FacilityId = fid; break;
+                    case DocumentRecord d when d.FacilityId is null && d.Kind != DocumentKind.Manual: d.FacilityId = fid; break;
+                    case PublicHoliday h when h.StateId == Guid.Empty: h.StateId = stateId ??= await StateOfAsync(fid, ct); break;
+                    case PeakDay h when h.StateId == Guid.Empty: h.StateId = stateId ??= await StateOfAsync(fid, ct); break;
+                }
+            }
+        }
+        return await base.SaveChangesAsync(ct);
+    }
+
+    public Task<Guid> StateOfAsync(Guid facilityId, CancellationToken ct) =>
+        Facilities.Where(f => f.Id == facilityId).Select(f => f.District!.StateId).FirstAsync(ct);
 }

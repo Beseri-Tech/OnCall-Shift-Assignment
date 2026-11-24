@@ -269,7 +269,7 @@ public static class AdminLeaveApprovalEndpoints
         var people = await db.People.AsNoTracking().ToListAsync(ct);
         var byId = people.ToDictionary(p => p.Id);
         var accountIds = approvals.Select(a => a.CreatedByAccountId).OfType<Guid>().Distinct().ToList();
-        var creators = await db.Accounts.Where(a => accountIds.Contains(a.Id))
+        var creators = await db.Accounts.IgnoreQueryFilters().Where(a => accountIds.Contains(a.Id))
             .Select(a => new { a.Id, a.Email, a.PersonId }).ToListAsync(ct);
         var creatorName = creators.ToDictionary(c => c.Id,
             c => c.PersonId is { } pid && byId.TryGetValue(pid, out var p) ? p.Name : c.Email);

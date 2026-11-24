@@ -6,7 +6,8 @@ using Rota.Api.Services;
 namespace Rota.Api.Endpoints;
 
 /// <summary>
-/// Feedback about the app: any signed-in user sends it, admins read it, filter it and mark it resolved.
+/// Feedback: any signed-in user sends it either about the app (masters read it) or to their hospital's admins, who read it,
+/// filter it and mark it resolved.
 /// Sending and resolving are recorded in the audit log.
 /// </summary>
 public static class FeedbackEndpoints
@@ -32,18 +33,25 @@ public static class FeedbackEndpoints
 
             var me = http.User.AccountId();
             var since = DateTimeOffset.UtcNow.AddDays(-1);
-            if (await db.Feedback.CountAsync(f => f.AccountId == me && f.CreatedAt >= since, ct) >= MaxPerDay)
+            if (await db.Feedback.IgnoreQueryFilters().CountAsync(f => f.AccountId == me && f.CreatedAt >= since, ct) >= MaxPerDay)
                 return Results.Problem("You've sent a lot of feedback today. Please try again tomorrow.",
                     statusCode: StatusCodes.Status429TooManyRequests);
 
-            var feedback = new Feedback { AccountId = me, Category = req.Category, Message = message, Page = page };
+            var feedback = new Feedback
+            {
+                AccountId = me, Category = req.Category, Message = message, Page = page,
+                FacilityId = req.ToFacility ? http.User.FacilityId() : null,
+            };
             db.Feedback.Add(feedback);
             await db.SaveChangesAsync(ct);   // for the id
 
             Mapping.Log(db, http, "feedback.create", http.User.PersonId(), null, feedback.Id,
                 after: new { feedback.Category, feedback.Page, feedback.Message });
             string preview = message.Length > 200 ? message[..200] + "…" : message;
-            await notifier.ToAdminsAsync(Notifier.Feedback, $"New feedback: {feedback.Category}", preview, "/admin/feedback", ct);
+            if (feedback.FacilityId is null)
+                await notifier.ToMastersAsync(Notifier.Feedback, $"New app feedback: {feedback.Category}", preview, "/admin/feedback", ct);
+            else
+                await notifier.ToAdminsAsync(Notifier.Feedback, $"New feedback: {feedback.Category}", preview, "/admin/feedback", ct);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/admin/feedback/{feedback.Id}", new { feedback.Id });
         });
@@ -65,15 +73,16 @@ public static class FeedbackEndpoints
             int size = Math.Clamp(pageSize ?? 25, 1, MaxPageSize), number = Math.Max(page ?? 1, 1);
             int total = await q.CountAsync(ct);
             int open = await db.Feedback.CountAsync(f => f.ResolvedAt == null, ct);
-            var items = await q.OrderByDescending(f => f.CreatedAt).ThenByDescending(f => f.Id)
-                .Skip((number - 1) * size).Take(size)
-                .Select(f => new FeedbackDto(
+            var rows = await q.OrderByDescending(f => f.CreatedAt).ThenByDescending(f => f.Id)
+                .Skip((number - 1) * size).Take(size).ToListAsync(ct);
+            var names = await Audit.AccountNamesAsync(db, rows.Select(f => f.AccountId).Concat(rows.Select(f => f.ResolvedByAccountId)), ct);
+            var items = rows.Select(f => new FeedbackDto(
                     f.Id, f.CreatedAt, f.Category, f.Message, f.Page, f.AccountId,
-                    db.Accounts.Where(a => a.Id == f.AccountId).Select(a => a.Email).FirstOrDefault(),
-                    db.Accounts.Where(a => a.Id == f.AccountId && a.Person != null).Select(a => a.Person!.Name).FirstOrDefault(),
+                    f.AccountId is { } a && names.TryGetValue(a, out var s) ? s.Email : null,
+                    f.AccountId is { } a2 && names.TryGetValue(a2, out var s2) ? s2.Name : null,
                     f.ResolvedAt,
-                    db.Accounts.Where(a => a.Id == f.ResolvedByAccountId).Select(a => a.Email).FirstOrDefault()))
-                .ToListAsync(ct);
+                    f.ResolvedByAccountId is { } r && names.TryGetValue(r, out var s3) ? s3.Email : null))
+                .ToList();
             return new FeedbackPageDto(items, total, number, size, open);
         });
 

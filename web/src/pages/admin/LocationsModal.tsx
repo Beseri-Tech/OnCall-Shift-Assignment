@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query'
 import { IconEdit, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
 import { api, type Clinic, type State } from '../../api'
+import { isMaster, useMe } from '../../auth'
 import { notifyError, notifyOk } from '../../lib'
 
 type Level = 'state' | 'district' | 'clinic'
@@ -17,6 +18,8 @@ const LABEL: Record<Level, string> = { state: 'state', district: 'district', cli
 export function LocationsModal({ opened, states, clinics, onClose, onSaved }: {
   opened: boolean; states: State[]; clinics: Clinic[]; onClose: () => void; onSaved: () => void
 }) {
+  // States and districts are shared by every hospital: only masters change them.
+  const master = isMaster(useMe().data)
   const blank = (level: Level = 'clinic'): Form => ({ level, id: null, name: '', parentId: null })
   const [form, setForm] = useState<Form>(blank())
 
@@ -57,9 +60,9 @@ export function LocationsModal({ opened, states, clinics, onClose, onSaved }: {
           <Paper key={s.id} withBorder p="sm">
             <Group justify="space-between" mb={4}>
               <Title order={5}>{s.name}</Title>
-              <Buttons onEdit={() => setForm({ level: 'state', id: s.id, name: s.name, parentId: null })}
+              {master && <Buttons onEdit={() => setForm({ level: 'state', id: s.id, name: s.name, parentId: null })}
                 onRemove={() => confirmRemove('state', s.id, s.name, s.districts.length
-                  ? 'Remove its districts first.' : 'It has no districts.')} />
+                  ? 'Remove its districts first.' : 'It has no districts.')} />}
             </Group>
             {s.districts.length === 0 && <Text size="sm" c="dimmed">No districts yet.</Text>}
             <Stack gap="xs">
@@ -69,9 +72,9 @@ export function LocationsModal({ opened, states, clinics, onClose, onSaved }: {
                   <div key={d.id}>
                     <Group justify="space-between" wrap="nowrap">
                       <Text fw={600} size="sm">{d.name} <Text span size="xs" c="dimmed">({inDistrict.length} clinic{inDistrict.length === 1 ? '' : 's'})</Text></Text>
-                      <Buttons onEdit={() => setForm({ level: 'district', id: d.id, name: d.name, parentId: s.id })}
+                      {master && <Buttons onEdit={() => setForm({ level: 'district', id: d.id, name: d.name, parentId: s.id })}
                         onRemove={() => confirmRemove('district', d.id, d.name, inDistrict.length
-                          ? 'Move or remove its clinics first.' : 'It has no clinics.')} />
+                          ? 'Move or remove its clinics first.' : 'It has no clinics.')} />}
                     </Group>
                     {inDistrict.map(c => (
                       <Group key={c.id} justify="space-between" wrap="nowrap" pl="md">
@@ -95,7 +98,7 @@ export function LocationsModal({ opened, states, clinics, onClose, onSaved }: {
               <Text fw={600} size="sm">{form.id ? `Edit ${LABEL[form.level]}` : `Add a ${LABEL[form.level]}`}</Text>
               {!form.id && (
                 <Group gap={4}>
-                  {(['clinic', 'district', 'state'] as const).map(l => (
+                  {(master ? ['clinic', 'district', 'state'] as const : ['clinic'] as const).map(l => (
                     <Button key={l} size="compact-xs" variant={form.level === l ? 'light' : 'subtle'}
                       onClick={() => setForm(blank(l))}>{LABEL[l]}</Button>
                   ))}

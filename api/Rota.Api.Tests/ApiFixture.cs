@@ -50,11 +50,13 @@ public sealed class ApiFixture : IAsyncLifetime
         });
     }
 
-    public static async Task<HttpClient> AdminClientAsync(WebApplicationFactory<Program> app)
+    public static async Task<HttpClient> AdminClientAsync(WebApplicationFactory<Program> app, Guid? facilityId = null)
     {
         var client = app.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
         var res = await client.PostAsJsonAsync("/api/auth/login", new { email = AdminEmail, password = AdminPasswordText });
         res.EnsureSuccessStatusCode();
+        // The configured admin is a master: work in the hospital all existing data belongs to.
+        (await client.PostAsJsonAsync("/api/auth/facility", new SetFacilityRequest(facilityId ?? Facility.HtfId))).EnsureSuccessStatusCode();
         return client;
     }
 

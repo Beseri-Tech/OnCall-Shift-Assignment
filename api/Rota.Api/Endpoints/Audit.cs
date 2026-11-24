@@ -37,6 +37,19 @@ internal static class Audit
         c.Name, District = await db.Districts.Where(d => d.Id == c.DistrictId).Select(d => d.Name).FirstOrDefaultAsync(ct),
     };
 
+    /// <summary>
+    /// Email and officer name of these accounts, in any hospital (a master who acted here belongs to none). A separate query:
+    /// IgnoreQueryFilters inside a bigger query would switch the hospital filter off for all of it.
+    /// </summary>
+    public static async Task<Dictionary<Guid, (string Email, string? Name)>> AccountNamesAsync(RotaDbContext db,
+        IEnumerable<Guid?> ids, CancellationToken ct)
+    {
+        var list = ids.OfType<Guid>().Distinct().ToList();
+        return (await db.Accounts.IgnoreQueryFilters().Where(a => list.Contains(a.Id))
+                .Select(a => new { a.Id, a.Email, Name = a.Person != null ? a.Person.Name : null }).ToListAsync(ct))
+            .ToDictionary(a => a.Id, a => (a.Email, a.Name));
+    }
+
     public static async Task<string?> PersonNameAsync(RotaDbContext db, Guid? id, CancellationToken ct) =>
         id is { } pid ? await db.People.Where(p => p.Id == pid).Select(p => p.Name).FirstOrDefaultAsync(ct) : null;
 

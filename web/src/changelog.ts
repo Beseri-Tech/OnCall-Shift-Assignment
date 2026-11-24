@@ -12,6 +12,17 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.0.0', date: '2026-11-24', title: 'More hospitals',
+    changes: [
+      { kind: 'new', text: 'The app can now run the on-call rota for more than one hospital. Each hospital has its own officers, rota periods, leave, swaps, reports and audit log, and nobody sees another hospital’s data. Everything so far belongs to Hospital Tuanku Fauziah (HTF).' },
+      { kind: 'new', text: 'Public holidays and peak days are now kept per state, so each hospital gets its own state’s holidays.' },
+      { kind: 'new', text: 'A new Master role looks after the whole app: masters add hospitals, states and districts, switch between hospitals from the header, and can do everything a supervisor can in any hospital.' },
+      { kind: 'improved', text: 'When sending feedback you can choose who reads it: your hospital’s admins, or the app team.' },
+      { kind: 'improved', text: 'The header shows which hospital you are in.' },
+      { kind: 'improved', text: 'Everyone is signed out once with this update. Sign in again with your usual email and password.' },
+    ],
+  },
+  {
     version: '2.8.5', date: '2026-11-18', title: 'Lighter server',
     changes: [
       { kind: 'improved', text: 'The server now runs on a smaller, leaner base system, so it starts faster and has less that needs security patching. Nothing changes in how the app looks or works.' },

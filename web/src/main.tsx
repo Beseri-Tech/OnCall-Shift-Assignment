@@ -11,6 +11,7 @@ import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { ApiError } from './api'
+import { EnvironmentBanner } from './components/EnvironmentBanner'
 import { AdminOnly, Home, RequireLogin } from './components/RouteGuards'
 import { Loading } from './components/common'
 import { Layout } from './components/Layout'
@@ -56,6 +57,7 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="light">
+      <EnvironmentBanner />
       <Notifications position="top-right" />
       <ModalsProvider>
         <QueryClientProvider client={queryClient}>

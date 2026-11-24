@@ -59,6 +59,9 @@ namespace Rota.Api.Data.Migrations
                     b.Property<bool>("Enabled")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("LastLoginAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -97,10 +100,15 @@ namespace Rota.Api.Data.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
+                    b.HasIndex("FacilityId");
+
                     b.HasIndex("PersonId")
                         .IsUnique();
 
-                    b.ToTable("accounts", (string)null);
+                    b.ToTable("accounts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_accounts_facility", "\"Role\" = 'Master' OR \"FacilityId\" IS NOT NULL");
+                        });
                 });
 
             modelBuilder.Entity("Rota.Api.Data.ChangeLog", b =>
@@ -139,6 +147,9 @@ namespace Rota.Api.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Ip")
                         .HasColumnType("text");
 
@@ -155,6 +166,8 @@ namespace Rota.Api.Data.Migrations
                     b.HasIndex("AccountId", "At");
 
                     b.HasIndex("Entity", "At");
+
+                    b.HasIndex("FacilityId", "At");
 
                     b.HasIndex("PersonId", "At");
 
@@ -243,6 +256,9 @@ namespace Rota.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -285,6 +301,8 @@ namespace Rota.Api.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FacilityId");
+
                     b.HasIndex("ObjectKey")
                         .IsUnique();
 
@@ -297,6 +315,38 @@ namespace Rota.Api.Data.Migrations
                     b.HasIndex("ParentType", "ParentId");
 
                     b.ToTable("documents", (string)null);
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.Facility", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("DistrictId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("DistrictId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("facilities", (string)null);
                 });
 
             modelBuilder.Entity("Rota.Api.Data.Feedback", b =>
@@ -318,6 +368,9 @@ namespace Rota.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -338,6 +391,8 @@ namespace Rota.Api.Data.Migrations
                     b.HasIndex("AccountId");
 
                     b.HasIndex("CreatedAt");
+
+                    b.HasIndex("FacilityId");
 
                     b.HasIndex("ResolvedByAccountId");
 
@@ -585,6 +640,9 @@ namespace Rota.Api.Data.Migrations
 
             modelBuilder.Entity("Rota.Api.Data.PeakDay", b =>
                 {
+                    b.Property<Guid>("StateId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
@@ -593,7 +651,7 @@ namespace Rota.Api.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.HasKey("Date");
+                    b.HasKey("StateId", "Date");
 
                     b.ToTable("peak_days", (string)null);
                 });
@@ -665,6 +723,9 @@ namespace Rota.Api.Data.Migrations
                     b.Property<bool>("ExtraShift")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid>("FacilityId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -705,10 +766,10 @@ namespace Rota.Api.Data.Migrations
 
                     b.HasIndex("ClinicId");
 
-                    b.HasIndex("Code")
+                    b.HasIndex("FacilityId", "Code")
                         .IsUnique();
 
-                    b.HasIndex("Name")
+                    b.HasIndex("FacilityId", "Name")
                         .IsUnique();
 
                     b.ToTable("people", (string)null);
@@ -751,6 +812,9 @@ namespace Rota.Api.Data.Migrations
 
             modelBuilder.Entity("Rota.Api.Data.PublicHoliday", b =>
                 {
+                    b.Property<Guid>("StateId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
@@ -759,7 +823,7 @@ namespace Rota.Api.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.HasKey("Date");
+                    b.HasKey("StateId", "Date");
 
                     b.ToTable("public_holidays", (string)null);
                 });
@@ -775,6 +839,9 @@ namespace Rota.Api.Data.Migrations
 
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date");
+
+                    b.Property<Guid>("FacilityId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly?>("LeaveDeadline")
                         .HasColumnType("date");
@@ -799,6 +866,8 @@ namespace Rota.Api.Data.Migrations
                         .HasColumnType("date");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FacilityId");
 
                     b.ToTable("rota_periods", (string)null);
                 });
@@ -939,6 +1008,11 @@ namespace Rota.Api.Data.Migrations
 
             modelBuilder.Entity("Rota.Api.Data.Account", b =>
                 {
+                    b.HasOne("Rota.Api.Data.Facility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Rota.Api.Data.Person", "Person")
                         .WithMany()
                         .HasForeignKey("PersonId")
@@ -991,12 +1065,28 @@ namespace Rota.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.Facility", b =>
+                {
+                    b.HasOne("Rota.Api.Data.District", "District")
+                        .WithMany("Facilities")
+                        .HasForeignKey("DistrictId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("District");
+                });
+
             modelBuilder.Entity("Rota.Api.Data.Feedback", b =>
                 {
                     b.HasOne("Rota.Api.Data.Account", null)
                         .WithMany()
                         .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Rota.Api.Data.Facility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("Rota.Api.Data.Account", null)
                         .WithMany()
@@ -1054,6 +1144,15 @@ namespace Rota.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.PeakDay", b =>
+                {
+                    b.HasOne("Rota.Api.Data.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Rota.Api.Data.PeriodDay", b =>
                 {
                     b.HasOne("Rota.Api.Data.RotaPeriod", null)
@@ -1085,6 +1184,12 @@ namespace Rota.Api.Data.Migrations
                         .HasForeignKey("ClinicId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Rota.Api.Data.Facility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Clinic");
                 });
 
@@ -1109,6 +1214,24 @@ namespace Rota.Api.Data.Migrations
                         .WithMany("PreferredDates")
                         .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.PublicHoliday", b =>
+                {
+                    b.HasOne("Rota.Api.Data.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.RotaPeriod", b =>
+                {
+                    b.HasOne("Rota.Api.Data.Facility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -1163,6 +1286,8 @@ namespace Rota.Api.Data.Migrations
             modelBuilder.Entity("Rota.Api.Data.District", b =>
                 {
                     b.Navigation("Clinics");
+
+                    b.Navigation("Facilities");
                 });
 
             modelBuilder.Entity("Rota.Api.Data.LeaveRequest", b =>

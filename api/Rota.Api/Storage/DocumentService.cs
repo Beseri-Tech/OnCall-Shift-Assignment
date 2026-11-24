@@ -50,7 +50,7 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
 
     public static bool CanUpload(ClaimsPrincipal user, DocumentKind kind) => kind switch
     {
-        DocumentKind.Manual => user.IsAdmin(),
+        DocumentKind.Manual => user.IsMaster(),   // one manual for every hospital
         DocumentKind.LeaveDocument => user.PersonId() is not null || user.IsAdmin(),
         DocumentKind.RotaReport => false,   // only the server saves these, never an upload
         _ => true,

@@ -2,15 +2,19 @@ import { Box, Burger, Container, Divider, Drawer, Group, Menu, ScrollArea, Stack
 import { useDisclosure } from '@mantine/hooks'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  IconBook, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconHistory, IconKey, IconLayoutGrid, IconLogout, IconMessage2, IconPlaneDeparture, IconShieldLock, IconUserCircle,
+  IconBook, IconBuildingHospital, IconCalendarCheck, IconCalendarEvent, IconCalendarUser, IconChevronDown, IconHistory, IconKey, IconLayoutGrid, IconLogout, IconMessage2, IconPlaneDeparture, IconShieldLock, IconUserCircle,
 } from '@tabler/icons-react'
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { api } from '../api'
-import { isAdmin, useMe } from '../auth'
+import { isAdmin, isMaster, useMe } from '../auth'
+import { FacilitySwitcher } from './FacilitySwitcher'
+import { Loading } from './common'
 import { FeedbackButton, FeedbackModal } from './FeedbackButton'
 import { APP_VERSION } from '../changelog'
 import { NotificationBell } from './NotificationBell'
+
+const HospitalsPage = lazy(() => import('../pages/HospitalsPage').then(m => ({ default: m.HospitalsPage })))
 
 /** Below this the header nav moves into a side drawer (Mantine's md: 62em, about 992px), so phones and tablets get the menu. */
 const DRAWER_BELOW = 'md'
@@ -27,8 +31,13 @@ export function Layout() {
   // Following a link closes the drawer.
   useEffect(close, [pathname, close])
 
+  // A master works in one hospital at a time; until they pick one they get the hospitals page.
+  const master = isMaster(me)
+  const allHospitals = master && !me?.facility && !['/changelog', '/account'].some(p => pathname.startsWith(p))
+  const subtitle = `Dental Officers · ${me?.facility?.name ?? 'All hospitals'}`
+
   // Supervisors aren't on the rota: no leave of their own, but they can edit officers' leave.
-  const links = [
+  const links = allHospitals ? [{ to: '/', label: 'Hospitals', icon: IconBuildingHospital, end: true }] : [
     me?.personId
       ? { to: '/', label: 'My leave', icon: IconCalendarUser, end: true }
       : { to: '/leave', label: 'Leave', icon: IconCalendarUser, end: false },
@@ -51,7 +60,7 @@ export function Layout() {
                 <div className="brand-mark"><img src="/favicon.svg" width={26} height={26} alt="" /></div>
                 <div className="brand-text">
                   <Text fw={800} size="lg" c="white" lh={1.1} truncate>On-Call Rota</Text>
-                  <Text size="xs" c="brand.1" lh={1.1} truncate visibleFrom="lg">Dental Officers · Perlis</Text>
+                  <Text size="xs" c="brand.1" lh={1.1} truncate visibleFrom="lg">{subtitle}</Text>
                 </div>
               </Link>
             </Group>
@@ -64,6 +73,7 @@ export function Layout() {
                   </UnstyledButton>
                 ))}
               </Group>
+              {master && <Box visibleFrom={DRAWER_BELOW}><FacilitySwitcher /></Box>}
               <FeedbackButton onClick={() => setFeedback(true)} />
               <NotificationBell />
               <Box visibleFrom={DRAWER_BELOW}>
@@ -97,12 +107,13 @@ export function Layout() {
             <div className="brand-mark"><img src="/favicon.svg" width={26} height={26} alt="" /></div>
             <div style={{ minWidth: 0 }}>
               <Text fw={800} c="white" lh={1.1}>On-Call Rota</Text>
-              <Text size="xs" c="brand.1" lh={1.2}>Dental Officers · Perlis</Text>
+              <Text size="xs" c="brand.1" lh={1.2}>{subtitle}</Text>
             </div>
           </Group>
           <Burger opened onClick={close} color="white" size="sm" aria-label="Close menu" />
         </div>
         <ScrollArea style={{ flex: 1 }}>
+          {master && <Box px="sm" pt="sm"><FacilitySwitcher w="100%" /></Box>}
           <Stack gap={2} p="sm" component="nav">
             {links.map(({ to, label, icon: Icon, end }) => (
               <UnstyledButton key={to} component={NavLink} to={to} end={end} className="drawer-link">
@@ -143,7 +154,7 @@ export function Layout() {
       <FeedbackModal opened={feedback} onClose={() => setFeedback(false)} />
 
       <Container size="xl" w="100%" py={{ base: 'md', sm: 'lg' }} px={{ base: 'sm', sm: 'md' }} style={{ flex: 1 }}>
-        <Outlet />
+        {allHospitals ? <Suspense fallback={<Loading />}><HospitalsPage /></Suspense> : <Outlet />}
       </Container>
       <Container size="xl" w="100%" pb="md" px={{ base: 'sm', sm: 'md' }}>
         <Text component={Link} to="/changelog" size="xs" c="dimmed" ta="center" display="block" td="none">

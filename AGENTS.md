@@ -17,6 +17,10 @@ Docs-only or CI-only changes need no bump. Details of the scheme are also in the
 
 If a change affects what users see or the rules, also update the Rules page and the user manual.
 
+## Branches
+
+`staging` is permanent. Branch from `staging`, open pull requests into `staging` (it deploys to rota-staging.zogami.uk), and once staging passes, open a pull request from `staging` into `master` (production). Don't open feature pull requests straight into `master`.
+
 ## Credit
 
 User-facing pages and documents carry "Developed by Beseri-Tech".

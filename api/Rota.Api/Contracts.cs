@@ -74,7 +74,18 @@ public sealed record NotificationsDto(IReadOnlyList<NotificationDto> Items, int 
 
 public sealed record LoginRequest(string Email, string Password);
 
-public sealed record MeDto(Guid AccountId, string Email, AccountRole Role, Guid? PersonId, string? PersonName, bool MustChangePassword);
+/// <param name="Facility">The hospital the user works in (for a master: the one they picked, or null).</param>
+public sealed record MeDto(Guid AccountId, string Email, AccountRole Role, Guid? PersonId, string? PersonName, bool MustChangePassword,
+    FacilityRef? Facility);
+
+public sealed record FacilityRef(Guid Id, string Name, string Code);
+
+public sealed record SetFacilityRequest(Guid? FacilityId);
+
+public sealed record FacilityDto(Guid Id, string Name, string Code, Guid DistrictId, string District, Guid StateId, string State,
+    int Officers, int Accounts, string? CurrentPeriod, PeriodStatus? CurrentPeriodStatus);
+
+public sealed record UpsertFacilityRequest(string Name, string Code, Guid DistrictId);
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
@@ -236,7 +247,8 @@ public sealed record AuditActorDto(Guid AccountId, string Email, string? Name);
 public sealed record AuditFiltersDto(IReadOnlyList<AuditActorDto> Actors, IReadOnlyList<string> Actions, IReadOnlyList<string> Entities);
 
 /// <summary>Page is the app path the user was on (optional).</summary>
-public sealed record SubmitFeedbackRequest(FeedbackCategory Category, string Message, string? Page);
+/// <param name="ToFacility">True: to the sender's hospital admins. False: about the app, to the masters.</param>
+public sealed record SubmitFeedbackRequest(FeedbackCategory Category, string Message, string? Page, bool ToFacility = false);
 
 public sealed record FeedbackDto(
     long Id, DateTimeOffset CreatedAt, FeedbackCategory Category, string Message, string? Page, Guid? AccountId,

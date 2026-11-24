@@ -14,6 +14,7 @@ public static class AdminEndpoints
         var admin = app.MapGroup("/api/admin").RequireAuthorization(Session.AdminPolicy);
         MapPeople(admin.MapGroup("/people").WithTags("Admin people"));
         admin.MapLocationEndpoints();
+        app.MapFacilityList();
         admin.MapImportEndpoints();
         MapPeriods(admin.MapGroup("/periods").WithTags("Admin periods"));
         MapHolidays(admin.MapGroup("/holidays").WithTags("Admin holidays"));
@@ -448,7 +449,7 @@ public static class AdminEndpoints
         g.MapPut("/", async (UpsertHolidayRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
             string name = Clean(req.Name) ?? "Peak day";
-            var p = await db.PeakDays.FindAsync([req.Date], ct);
+            var p = await db.PeakDays.FirstOrDefaultAsync(x => x.Date == req.Date, ct);
             var before = p is null ? null : new { p.Date, p.Name };
             if (p is null) db.PeakDays.Add(new PeakDay { Date = req.Date, Name = name });
             else p.Name = name;
@@ -459,7 +460,7 @@ public static class AdminEndpoints
 
         g.MapDelete("/{date}", async (DateOnly date, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
-            var p = await db.PeakDays.FindAsync([date], ct);
+            var p = await db.PeakDays.FirstOrDefaultAsync(x => x.Date == date, ct);
             if (p is null) return Results.NotFound();
             db.PeakDays.Remove(p);
             Mapping.Log(db, http, "peak-day.delete", null, null, date, before: new { p.Date, p.Name });
@@ -477,7 +478,7 @@ public static class AdminEndpoints
 
         g.MapPut("/", async (UpsertHolidayRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
-            var h = await db.Holidays.FindAsync([req.Date], ct);
+            var h = await db.Holidays.FirstOrDefaultAsync(x => x.Date == req.Date, ct);
             var before = h is null ? null : new { h.Date, h.Name };
             if (h is null) db.Holidays.Add(new PublicHoliday { Date = req.Date, Name = req.Name.Trim() });
             else h.Name = req.Name.Trim();
@@ -505,7 +506,7 @@ public static class AdminEndpoints
 
         g.MapDelete("/{date}", async (DateOnly date, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
-            var h = await db.Holidays.FindAsync([date], ct);
+            var h = await db.Holidays.FirstOrDefaultAsync(x => x.Date == date, ct);
             if (h is null) return Results.NotFound();
             db.Holidays.Remove(h);
             Mapping.Log(db, http, "holiday.delete", null, null, date, before: new { h.Date, h.Name });

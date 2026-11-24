@@ -39,12 +39,14 @@ The app is at <http://localhost:8080> and the admin page at `/admin`. Database m
 | Variable | Purpose | Default |
 |---|---|---|
 | `POSTGRES_PASSWORD` | database password | required |
-| `ADMIN_EMAIL` | first admin's sign-in email (created while no admin exists) | required |
-| `ADMIN_PASSWORD_HASH` | first admin's password hash | required |
+| `ADMIN_EMAIL` | first master's sign-in email (created while no master exists) | required |
+| `ADMIN_PASSWORD_HASH` | first master's password hash | required |
 | `APP_BASE_URL` | public address, used in email links | the request's address |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | email for invites and password resets; without it invites show the temporary password to the admin | off |
 | `APP_PORT` | published port | `8080` |
 | `APP_TAG` | image tag to run | `latest` |
+| `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare R2 bucket for the manual and uploaded documents (see below) | off |
+| `TIME_ZONE` | used for "today" and deadlines | `Asia/Kuala_Lumpur` |
 | `WEB_ORIGIN` | address of a separately hosted web app allowed to call the API (see below) | off |
 
 ### Web app on Cloudflare Pages (optional)
@@ -57,8 +59,16 @@ The API serves the web app itself, so this is optional. To host the web app on C
 4. In GitHub repo settings → Secrets and variables → Actions, add the secrets `CLOUDFLARE_API_TOKEN` (permission: Account → Cloudflare Pages → Edit) and `CLOUDFLARE_ACCOUNT_ID`. Optionally add the variables `VITE_API_URL` (the API address) and `CLOUDFLARE_PAGES_PROJECT`.
 
 Every push to `master` then deploys the web app to Pages after the tests pass.
-| `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare R2 bucket for the manual and uploaded documents (see below) | off |
-| `TIME_ZONE` | used for "today" and deadlines | `Asia/Kuala_Lumpur` |
+
+### Staging
+
+`staging` is a permanent branch. Changes go in by pull request into `staging`; once staging has been checked, `staging` is merged into `master` by pull request. Every push to `staging`, after the tests pass:
+
+- deploys the web app to the Pages project `rota-staging` (`rota-staging.zogami.uk`; its production branch must be `staging`), built against `https://rota-staging-api.zogami.uk` and showing an amber **STAGING** ribbon and a `[STAGING]` tab title;
+- publishes the image as `ghcr.io/beseri-tech/oncall-shift-assignment:staging`.
+
+In Portainer, the staging stack runs `ghcr.io/beseri-tech/oncall-shift-assignment:staging` and the production stack `:latest` (or a release such as `:3.0.0`). The staging API runs from its own `.env` on its own database: `APP_TAG=staging`, `APP_BASE_URL=https://rota-staging.zogami.uk`, `WEB_ORIGIN=https://rota-staging.zogami.uk`, `R2_BUCKET_NAME=rota-staging`, and its own admin and database password. Pulling and restarting the staging container (`docker compose pull && docker compose up -d`) happens on the server, not in CI. The variables `STAGING_VITE_API_URL` and `STAGING_PAGES_PROJECT` override the defaults.
+
 
 ## Develop
 
