@@ -12,6 +12,12 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.8.1', date: '2026-11-24', title: 'Manual from storage only',
+    changes: [
+      { kind: 'improved', text: 'The user manual is now only the copy a master uploads under All hospitals → Manual. The old copy built into the app is gone, which makes the app download smaller. Until a manual is uploaded, the Help page shows no manual button.' },
+    ],
+  },
+  {
     version: '3.8.0', date: '2026-11-24', title: 'Help page, reorganised',
     changes: [
       { kind: 'improved', text: 'The Rules page is now called Help and is a directory: chapters for rota and leave, on-call work (cases, WhatsApp passover, ETAP), your account and, for admins, running the rota. Jump to any section from the directory, the side list or the search box.' },
