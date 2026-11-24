@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using Amazon.S3;
-using Amazon.S3.Transfer;
+using Amazon.S3.Model;
 using Npgsql;
 using Rota.Api.Storage;
 
@@ -83,7 +83,16 @@ public sealed class DatabaseBackup(IConfiguration config, LocalClock clock, Time
             var size = new FileInfo(file).Length;
             if (size == 0) throw new InvalidOperationException("pg_dump produced an empty file.");
 
-            await new TransferUtility(s3).UploadAsync(file, bucket, key, ct);
+            // One PutObject (dumps are far below its 5 GiB limit). R2 rejects the SDK's chunked payload signing
+            // (STREAMING-AWS4-HMAC-SHA256-PAYLOAD), so send the body in one piece with an unsigned payload over HTTPS.
+            await s3.PutObjectAsync(new PutObjectRequest
+            {
+                BucketName = bucket,
+                Key = key,
+                FilePath = file,
+                UseChunkEncoding = false,
+                DisablePayloadSigning = true,
+            }, ct);
             var stored = await s3.GetObjectMetadataAsync(bucket, key, ct);
             if (stored.ContentLength != size)
                 throw new InvalidOperationException($"Uploaded {stored.ContentLength} bytes but the dump is {size} bytes.");
