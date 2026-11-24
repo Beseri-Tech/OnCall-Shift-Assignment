@@ -7,7 +7,7 @@ import { notifyError, notifyOk } from '../../lib'
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`
 
-/** Upload the user manual (a PDF). Officers get it from the Rules page; a new upload replaces the old one. */
+/** Upload the user manual (a PDF). Officers get it from the Help page; a new upload replaces the old one. */
 export function ManualTab() {
   const qc = useQueryClient()
   const manual = useQuery({ queryKey: ['manual'], queryFn: () => api.documents.manual() })
@@ -32,7 +32,7 @@ export function ManualTab() {
     <Paper className="panel" p="lg">
       <Stack gap="md">
         <Text size="sm" c="dimmed">
-          The user manual (PDF) is kept in private storage and shown to officers on the Rules page. Uploading a new file replaces the current one.
+          The user manual (PDF) is kept in private storage and shown to officers on the Help page. Uploading a new file replaces the current one.
         </Text>
         {m ? (
           <Alert icon={<IconBook size={18} />} color="teal" variant="light" title={m.fileName}>
