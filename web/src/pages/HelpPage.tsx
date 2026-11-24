@@ -28,20 +28,13 @@ const POINTS = [
   { day: 'Peak day', cost: '1', note: 'a busy weekday, e.g. the eve of Raya', color: 'orange' },
 ]
 
-/** The manual from private storage when one has been uploaded; otherwise the copy bundled with the app. */
+/** The manual from private storage, once a master has uploaded one. Nothing is shown until then. */
 function ManualButton() {
   const manual = useQuery({ queryKey: ['manual'], queryFn: () => api.documents.manual(), retry: false })
-  const label = 'Open user manual (PDF)'
-  if (manual.data) {
-    return (
-      <Button variant="light" leftSection={<IconDownload size={18} />} onClick={() => openDocument(manual.data!.id).catch(notifyError)}>
-        {label}
-      </Button>
-    )
-  }
+  if (!manual.data) return null
   return (
-    <Button component="a" href="/assets/Rota-OC-user-manual.pdf" download variant="light" leftSection={<IconDownload size={18} />}>
-      Download user manual (PDF)
+    <Button variant="light" leftSection={<IconDownload size={18} />} onClick={() => openDocument(manual.data!.id).catch(notifyError)}>
+      Open user manual (PDF)
     </Button>
   )
 }

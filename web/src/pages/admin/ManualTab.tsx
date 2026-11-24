@@ -39,7 +39,7 @@ export function ManualTab() {
             {mb(m.sizeBytes)}{m.uploadedAt && ` · uploaded ${new Date(m.uploadedAt).toLocaleString('en-GB')}`}
           </Alert>
         ) : (
-          <Alert color="gray" variant="light">No manual uploaded yet. Officers see the built-in copy until you add one.</Alert>
+          <Alert color="gray" variant="light">No manual uploaded yet. The Help page shows no manual button until you add one.</Alert>
         )}
         <Group>
           <FileButton accept="application/pdf" onChange={f => f && upload.mutate(f)}>
