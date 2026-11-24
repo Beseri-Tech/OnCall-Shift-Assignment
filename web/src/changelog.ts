@@ -12,6 +12,14 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.8.0', date: '2026-11-24', title: 'Rules and guidelines, reorganised',
+    changes: [
+      { kind: 'improved', text: 'The Rules and guidelines page is now a directory: chapters for rota and leave, on-call work (cases, WhatsApp passover, ETAP), your account and, for admins, running the rota. Jump to any section from the directory, the side list or the search box.' },
+      { kind: 'new', text: 'The Rules page now explains the case log, the WhatsApp passover, the ETAP claim and your ETAP profile, and which days count as the weekend in your state.' },
+      { kind: 'fixed', text: '"Developed by Beseri-Tech" no longer shows twice on the Rules page.' },
+    ],
+  },
+  {
     version: '3.7.0', date: '2026-11-24', title: 'WhatsApp passover',
     changes: [
       { kind: 'new', text: 'After recording a case you are asked whether to generate the WhatsApp passover in the seniors’ template (referral, S/T, S/B, patient, P/W or C/O, Ix ticked, Dx, Mx, plan, Rx), ready to copy into the department group. The WhatsApp button in the case log opens it again for your own cases.' },

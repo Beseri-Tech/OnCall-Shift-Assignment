@@ -784,3 +784,10 @@ body {
 @media (min-width: 801px) {
   .auth-form-credit { display: none; }
 }
+
+/* Rules page directory */
+.rules-link { padding: 5px 8px; border-radius: 8px; color: var(--mantine-color-brand-9); }
+.rules-link:hover { background: var(--mantine-color-brand-0); }
+.rules-side { padding: 6px 10px; border-left: 3px solid transparent; color: var(--mantine-color-gray-7); border-radius: 0 8px 8px 0; }
+.rules-side:hover { background: var(--mantine-color-brand-0); }
+.rules-side.active { border-left-color: var(--mantine-color-brand-6); background: var(--mantine-color-brand-0); color: var(--mantine-color-brand-9); font-weight: 600; }
