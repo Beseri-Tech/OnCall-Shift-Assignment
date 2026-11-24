@@ -243,7 +243,7 @@ public sealed record LeaveApprovalResultDto(LeaveApprovalDto Approval, IReadOnly
 public sealed record AuditEntryDto(
     long Id, DateTimeOffset At, Guid? AccountId, string? ActorEmail, string? ActorName, string Action, string? Entity,
     string? EntityId, Guid? PersonId, string? PersonName, JsonElement? Detail, JsonElement? Before, JsonElement? After,
-    string? Ip, string? UserAgent);
+    string? Ip, string? UserAgent, string? FacilityCode = null);
 
 public sealed record AuditPageDto(IReadOnlyList<AuditEntryDto> Items, int Total, int Page, int PageSize);
 

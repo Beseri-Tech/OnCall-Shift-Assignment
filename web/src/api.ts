@@ -58,8 +58,9 @@ export type DocumentKind = 'Manual' | 'LeaveDocument' | 'Other' | 'RotaReport'
 export interface ArchivedReport {
   documentId: string; runId: string; periodName: string; fileName: string; sizeBytes: number
   createdAt: string; createdBy: string | null; runIsPublished: boolean
+  facilityCode: string | null
 }
-export interface UnarchivedRun { runId: string; periodName: string; publishedAt: string | null }
+export interface UnarchivedRun { runId: string; periodName: string; publishedAt: string | null; facilityCode: string | null }
 export interface ReportArchive { storageEnabled: boolean; reports: ArchivedReport[]; unarchived: UnarchivedRun[] }
 export interface StoredDocument {
   id: string; kind: DocumentKind; fileName: string; contentType: string; sizeBytes: number
@@ -206,10 +207,14 @@ export interface AuditEntry {
   id: number; at: string; accountId: string | null; actorEmail: string | null; actorName: string | null; action: string
   entity: string | null; entityId: string | null; personId: string | null; personName: string | null
   detail: unknown; before: unknown; after: unknown; ip: string | null; userAgent: string | null
+  /** The hospital it happened in; null for app-wide changes (hospitals, locations, masters, settings). */
+  facilityCode: string | null
 }
 export interface AuditPage { items: AuditEntry[]; total: number; page: number; pageSize: number }
 export interface AuditFilters { actors: { accountId: string; email: string; name: string | null }[]; actions: string[]; entities: string[] }
 export interface AuditQuery {
+  /** A hospital's id, or "none" for app-wide changes. */
+  facility?: string
   from?: IsoDate; to?: IsoDate; accountId?: string; action?: string; entity?: string; personId?: string; page?: number
   pageSize?: number
 }
@@ -424,7 +429,8 @@ export const api = {
       get<AuditPage>(`/api/admin/audit${q({ ...f, page: page?.toString(), pageSize: pageSize?.toString() })}`),
     auditFilters: () => get<AuditFilters>('/api/admin/audit/filters'),
 
-    reportArchive: () => get<ReportArchive>('/api/admin/reports'),
+    /** facilityId: one hospital's reports (masters outside a hospital); otherwise the current hospital's. */
+    reportArchive: (facilityId?: string) => get<ReportArchive>(`/api/admin/reports${q({ facilityId })}`),
     archiveReport: (runId: string) => post<ArchivedReport>(`/api/admin/runs/${runId}/report/archive`),
 
     feedback: ({ page, pageSize, ...f }: FeedbackQuery) =>

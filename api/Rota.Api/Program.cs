@@ -149,7 +149,7 @@ string[] noFacilityNeeded =
 [
     "/api/auth", "/api/health", "/api/facilities", "/api/notifications", "/api/feedback", "/api/documents",
     "/api/admin/facilities", "/api/admin/states", "/api/admin/districts", "/api/admin/clinics", "/api/admin/accounts",
-    "/api/admin/feedback", "/api/admin/audit", "/api/admin/settings",
+    "/api/admin/feedback", "/api/admin/audit", "/api/admin/settings", "/api/admin/reports",
 ];
 app.Use(async (http, next) =>
 {

@@ -81,7 +81,8 @@ public class FacilityTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         (await sup.PostAsJsonAsync("/api/feedback",
             new SubmitFeedbackRequest(FeedbackCategory.Bug, "For the developers", null), ApiFixture.Json)).EnsureSuccessStatusCode();
         Assert.Equal("For HSB admins", Assert.Single((await Read<FeedbackPageDto>(await sup.GetAsync("/api/admin/feedback"))).Items).Message);
-        Assert.DoesNotContain((await Read<AuditPageDto>(await sup.GetAsync("/api/admin/audit"))).Items, e => e.PersonId == htfPerson.Id);
+        // The audit log is app-wide: masters only.
+        Assert.Equal(HttpStatusCode.Forbidden, (await sup.GetAsync("/api/admin/audit")).StatusCode);
         var bell = await Read<NotificationsDto>(await master.GetAsync("/api/notifications"));
         Assert.Equal("New app feedback: Bug", Assert.Single(bell.Items, n => n.Kind == "feedback").Title);
 
@@ -90,6 +91,15 @@ public class FacilityTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal(htfPerson.Id, Assert.Single(await Read<List<AdminPersonDto>>(await master.GetAsync("/api/admin/people"))).Id);
         await Read<MeDto>(await master.PostAsJsonAsync("/api/auth/facility", new SetFacilityRequest(null)));
         Assert.Equal(HttpStatusCode.BadRequest, (await master.GetAsync("/api/admin/people")).StatusCode);
+
+        // Outside a hospital a master reads the whole audit log, or one hospital's, and every hospital's reports.
+        var hsbLog = await Read<AuditPageDto>(await master.GetAsync($"/api/admin/audit?facility={hsb}&pageSize=200"));
+        Assert.NotEmpty(hsbLog.Items);
+        Assert.All(hsbLog.Items, e => Assert.Equal("HSB", e.FacilityCode));
+        Assert.DoesNotContain(hsbLog.Items, e => e.PersonId == htfPerson.Id);
+        var appLog = await Read<AuditPageDto>(await master.GetAsync("/api/admin/audit?facility=none&pageSize=200"));
+        Assert.Contains(appLog.Items, e => e.Action == "facility.create");
+        (await master.GetAsync($"/api/admin/reports?facilityId={hsb}")).EnsureSuccessStatusCode();
         Assert.Equal(2, (await Read<List<FacilityDto>>(await master.GetAsync("/api/facilities"))).Count);
         Assert.Single(await Read<List<FacilityDto>>(await sup.GetAsync("/api/facilities")));
     }

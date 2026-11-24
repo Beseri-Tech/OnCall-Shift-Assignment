@@ -19,6 +19,8 @@ export const CHANGELOG: Release[] = [
       { kind: 'new', text: 'Masters can switch email off or on for the whole app (All hospitals → Settings). While it is off, invites show the temporary password to the admin instead of emailing it. The choice is kept.' },
       { kind: 'fixed', text: 'A hospital admin can no longer remove a clinic that another hospital’s officers work at.' },
       { kind: 'improved', text: 'The user manual is the same for every hospital, so it is now uploaded by masters from All hospitals → Manual. Hospital admins no longer see a Manual tab; everyone still reads it from the Rules page.' },
+      { kind: 'improved', text: 'The audit log covers the whole app, so it moved to the masters’ All hospitals page, with a Hospital filter and column. Changes to hospitals, states, districts, clinics and settings show as app-wide.' },
+      { kind: 'new', text: 'Masters can download every hospital’s rota reports from All hospitals → Reports, filtered by hospital. Hospital admins still have their own Reports tab.' },
     ],
   },
   {

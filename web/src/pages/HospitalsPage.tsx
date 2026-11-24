@@ -1,7 +1,7 @@
 import { ActionIcon, Alert, Badge, Button, Group, Modal, Paper, Select, Stack, Switch, Table, Tabs, Text, TextInput } from '@mantine/core'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconBook, IconBuildingHospital, IconEdit, IconMail, IconSettings, IconMapPin, IconMessage2, IconPlus, IconTrash, IconUserShield } from '@tabler/icons-react'
+import { IconBook, IconBuildingHospital, IconEdit, IconFileText, IconHistory, IconMail, IconSettings, IconMapPin, IconMessage2, IconPlus, IconTrash, IconUserShield } from '@tabler/icons-react'
 import { useState } from 'react'
 import { api, type Facility } from '../api'
 import { useSwitchFacility } from '../auth'
@@ -11,6 +11,8 @@ import { AccountsTab } from './admin/AccountsTab'
 import { FeedbackTab } from './admin/FeedbackTab'
 import { LocationsTab } from './admin/LocationsTab'
 import { ManualTab } from './admin/ManualTab'
+import { AuditTab } from './admin/AuditTab'
+import { ReportsTab } from './admin/ReportsTab'
 
 /** What a master sees before picking a hospital: every hospital, app feedback, and the master accounts. */
 export function HospitalsPage() {
@@ -18,7 +20,7 @@ export function HospitalsPage() {
   return (
     <Stack gap="md">
       <PageHeader icon={IconBuildingHospital} title="All hospitals"
-        description="Each hospital runs its own rota. Open one to work in it, add hospitals, read feedback about the app, manage accounts, the user manual and app settings." />
+        description="Each hospital runs its own rota. Open one to work in it, add hospitals, read feedback about the app, download reports, manage accounts and the user manual, see the audit log and change app settings." />
       <Tabs value={tab} onChange={setTab} keepMounted={false} variant="pills" radius="xl">
         <Paper className="panel" p={6} mb="md" radius="xl">
           <Tabs.List className="tabs-scroll">
@@ -26,7 +28,9 @@ export function HospitalsPage() {
             <Tabs.Tab value="locations" leftSection={<IconMapPin size={16} />}>Clinics &amp; districts</Tabs.Tab>
             <Tabs.Tab value="feedback" leftSection={<IconMessage2 size={16} />}>Feedback</Tabs.Tab>
             <Tabs.Tab value="masters" leftSection={<IconUserShield size={16} />}>Accounts</Tabs.Tab>
+            <Tabs.Tab value="reports" leftSection={<IconFileText size={16} />}>Reports</Tabs.Tab>
             <Tabs.Tab value="manual" leftSection={<IconBook size={16} />}>Manual</Tabs.Tab>
+            <Tabs.Tab value="log" leftSection={<IconHistory size={16} />}>Audit log</Tabs.Tab>
             <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>Settings</Tabs.Tab>
           </Tabs.List>
         </Paper>
@@ -34,7 +38,9 @@ export function HospitalsPage() {
         <Tabs.Panel value="locations"><LocationsTab /></Tabs.Panel>
         <Tabs.Panel value="feedback"><FeedbackTab /></Tabs.Panel>
         <Tabs.Panel value="masters"><AccountsTab /></Tabs.Panel>
+        <Tabs.Panel value="reports"><ReportsTab allHospitals /></Tabs.Panel>
         <Tabs.Panel value="manual"><ManualTab /></Tabs.Panel>
+        <Tabs.Panel value="log"><AuditTab /></Tabs.Panel>
         <Tabs.Panel value="settings"><SettingsTab /></Tabs.Panel>
       </Tabs>
     </Stack>
