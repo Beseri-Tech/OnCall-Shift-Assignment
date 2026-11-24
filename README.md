@@ -64,10 +64,10 @@ Every push to `master` then deploys the web app to Pages after the tests pass.
 
 `staging` is a permanent branch. Changes go in by pull request into `staging`; once staging has been checked, `staging` is merged into `master` by pull request. Every push to `staging`, after the tests pass:
 
-- deploys the web app to the Pages project `rota-staging` (`rota-staging.zogami.uk`), built against `https://rota-staging-api.zogami.uk` and showing an amber **STAGING** ribbon and a `[STAGING]` tab title;
+- deploys the web app to the Pages project `rota-staging` (`rota-staging.zogami.uk`; its production branch must be `staging`), built against `https://rota-staging-api.zogami.uk` and showing an amber **STAGING** ribbon and a `[STAGING]` tab title;
 - publishes the image as `ghcr.io/beseri-tech/oncall-shift-assignment:staging`.
 
-The staging API runs from its own `.env` on its own database: `APP_TAG=staging`, `APP_BASE_URL=https://rota-staging.zogami.uk`, `WEB_ORIGIN=https://rota-staging.zogami.uk`, `R2_BUCKET_NAME=rota-staging`, and its own admin and database password. Pulling and restarting the staging container (`docker compose pull && docker compose up -d`) happens on the server, not in CI. The variables `STAGING_VITE_API_URL` and `STAGING_PAGES_PROJECT` override the defaults.
+In Portainer, the staging stack runs `ghcr.io/beseri-tech/oncall-shift-assignment:staging` and the production stack `:latest` (or a release such as `:3.0.0`). The staging API runs from its own `.env` on its own database: `APP_TAG=staging`, `APP_BASE_URL=https://rota-staging.zogami.uk`, `WEB_ORIGIN=https://rota-staging.zogami.uk`, `R2_BUCKET_NAME=rota-staging`, and its own admin and database password. Pulling and restarting the staging container (`docker compose pull && docker compose up -d`) happens on the server, not in CI. The variables `STAGING_VITE_API_URL` and `STAGING_PAGES_PROJECT` override the defaults.
 
 
 ## Develop

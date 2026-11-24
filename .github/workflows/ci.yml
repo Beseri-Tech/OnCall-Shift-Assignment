@@ -109,14 +109,16 @@ jobs:
               || (vars.VITE_API_URL || 'https://rota-api.zogami.uk') }}
           # Shows the staging ribbon. Production leaves it unset, so a missing value can never mark production as staging.
           VITE_APP_ENVIRONMENT: ${{ github.ref == 'refs/heads/staging' && 'staging' || '' }}
-      # --branch must be the project's production branch (main for Direct Upload projects), else it's a preview deploy.
+      # --branch must be the project's production branch, else it's a preview deploy:
+      # main for the production project, staging for rota-staging (set in Pages → Settings → Production branch).
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: web
           command: >-
-            pages deploy dist --branch=main --project-name=${{ github.ref == 'refs/heads/staging'
+            pages deploy dist --branch=${{ github.ref_name == 'staging' && 'staging' || 'main' }}
+            --project-name=${{ github.ref == 'refs/heads/staging'
               && (vars.STAGING_PAGES_PROJECT || 'rota-staging')
               || (vars.CLOUDFLARE_PAGES_PROJECT || 'oncall-rota') }}
 
