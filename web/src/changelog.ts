@@ -12,6 +12,16 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.5.0', date: '2026-11-24', title: 'ETAP claim form',
+    changes: [
+      { kind: 'new', text: 'A new ETAP page builds your monthly on-call claim: add your rota dates (or type the days you did), adjust the times to match your punch card, and see each day priced as passive call under or over 4 hours, on a working day or a rest day / public holiday.' },
+      { kind: 'new', text: 'A day counts as over 4 hours when your recorded cases for that on-call date add up to 4 hours or more; those patients fill the form’s table (confidential ones without name and registration number).' },
+      { kind: 'new', text: 'Download the official ETAP form filled in with your verified profile, days, totals and patients, together with the latest surat arahan. Bring your own punch-card copy and bank statement.' },
+      { kind: 'new', text: 'Claimed a date the rota gives to a colleague? Report the swap: once they (or an admin) confirm, the rota and tally are corrected.' },
+      { kind: 'new', text: 'Admins upload the surat arahan (Admin → Surat arahan); masters set each state’s weekly rest days (Fri + Sat in Kedah, Kelantan and Terengganu).' },
+    ],
+  },
+  {
     version: '3.4.0', date: '2026-11-24', title: 'ETAP profile',
     changes: [
       { kind: 'new', text: 'Officers have a “My ETAP profile” page (account menu) for the details on the ETAP claim form: IC, jawatan, gred, address, distance, salary number, phones and bank. Only you can see them.' },

@@ -1,6 +1,6 @@
 import { Paper, Stack, Tabs } from '@mantine/core'
 import {
-  IconCalendarCog, IconMapPin, IconFileText, IconMessage2, IconPlaneDeparture, IconShieldLock, IconSum, IconUsers, IconWand,
+  IconCalendarCog, IconFileCertificate, IconMapPin, IconFileText, IconMessage2, IconPlaneDeparture, IconShieldLock, IconSum, IconUsers, IconWand,
 } from '@tabler/icons-react'
 import { PageHeader } from '../../components/common'
 import { useEffect } from 'react'
@@ -11,10 +11,11 @@ import { LocationsTab } from './LocationsTab'
 import { PeopleTab } from './PeopleTab'
 import { PeriodsTab } from './PeriodsTab'
 import { ReportsTab } from './ReportsTab'
+import { SuratArahanTab } from './SuratArahanTab'
 import { RotaTab } from './RotaTab'
 import { TallyTab } from './TallyTab'
 
-const TABS = ['rota', 'people', 'locations', 'leave', 'tally', 'periods', 'feedback', 'reports'] as const
+const TABS = ['rota', 'people', 'locations', 'leave', 'tally', 'periods', 'feedback', 'reports', 'surat-arahan'] as const
 type Tab = (typeof TABS)[number]
 
 /** Only reachable by admins and supervisors (see AdminOnly in main.tsx; the API checks too). */
@@ -43,6 +44,7 @@ export function AdminPage() {
           <Tabs.Tab value="periods" leftSection={<IconCalendarCog size={16} />}>Periods & holidays</Tabs.Tab>
           <Tabs.Tab value="feedback" leftSection={<IconMessage2 size={16} />}>Feedback</Tabs.Tab>
           <Tabs.Tab value="reports" leftSection={<IconFileText size={16} />}>Reports</Tabs.Tab>
+          <Tabs.Tab value="surat-arahan" leftSection={<IconFileCertificate size={16} />}>Surat arahan</Tabs.Tab>
         </Tabs.List>
         </Paper>
         <Tabs.Panel value="rota"><RotaTab /></Tabs.Panel>
@@ -53,6 +55,7 @@ export function AdminPage() {
         <Tabs.Panel value="periods"><PeriodsTab /></Tabs.Panel>
         <Tabs.Panel value="feedback"><FeedbackTab /></Tabs.Panel>
         <Tabs.Panel value="reports"><ReportsTab /></Tabs.Panel>
+        <Tabs.Panel value="surat-arahan"><SuratArahanTab /></Tabs.Panel>
       </Tabs>
     </Stack>
   )

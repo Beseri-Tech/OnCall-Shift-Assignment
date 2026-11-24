@@ -103,13 +103,15 @@ public static class AdminLocationEndpoints
         {
             var states = await db.States.Include(s => s.Districts).ThenInclude(d => d.Clinics).AsSplitQuery().OrderBy(s => s.Name).ToListAsync(ct);
             return states.Select(s => new StateDto(s.Id, s.Name,
-                s.Districts.OrderBy(d => d.Name).Select(d => new DistrictDto(d.Id, d.Name, d.Clinics.Count)).ToList())).ToList();
+                s.Districts.OrderBy(d => d.Name).Select(d => new DistrictDto(d.Id, d.Name, d.Clinics.Count)).ToList(),
+                Rota.Core.Leave.BlockedDays.FromMask(s.WeekendDays))).ToList();
         });
 
         g.MapPost("/", async (UpsertStateRequest req, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
             if (await ValidateStateAsync(db, req, null, ct) is { } problem) return problem;
             var state = new State { Name = Clean(req.Name)! };
+            if (req.WeekendDays is { Count: > 0 } wd) state.WeekendDays = Rota.Core.Leave.BlockedDays.ToMask(wd);
             db.States.Add(state);
             Mapping.Log(db, http, "state.create", null, null, state.Id, after: new { state.Name });
             await db.SaveChangesAsync(ct);
@@ -123,6 +125,7 @@ public static class AdminLocationEndpoints
             if (await ValidateStateAsync(db, req, id, ct) is { } problem) return problem;
             var before = new { state.Name };
             state.Name = Clean(req.Name)!;
+            if (req.WeekendDays is { Count: > 0 } wd) state.WeekendDays = Rota.Core.Leave.BlockedDays.ToMask(wd);
             Mapping.Log(db, http, "state.update", null, null, id, before, new { state.Name });
             await db.SaveChangesAsync(ct);
             return Results.NoContent();

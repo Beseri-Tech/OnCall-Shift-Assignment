@@ -30,6 +30,8 @@ const AdminPage = lazy(() => import('./pages/admin/AdminPage').then(m => ({ defa
 // oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })))
 // oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const EtapPage = lazy(() => import('./pages/EtapPage').then(m => ({ default: m.EtapPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
 const CasesPage = lazy(() => import('./pages/CasesPage').then(m => ({ default: m.CasesPage })))
 
 // Clinical teal. Shade 7 is the default so white button text keeps 4.5:1 contrast.
@@ -82,6 +84,7 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="leave-requests" element={<LeaveRequestsPage />} />
                   <Route path="cases" element={<Suspense fallback={<Loading />}><CasesPage /></Suspense>} />
                   <Route path="profile" element={<Suspense fallback={<Loading />}><ProfilePage /></Suspense>} />
+                  <Route path="etap" element={<Suspense fallback={<Loading />}><EtapPage /></Suspense>} />
                   <Route element={<AdminOnly />}>
                     <Route path="leave" element={<LeavePage />} />
                     <Route path="admin/*" element={<Suspense fallback={<Loading />}><AdminPage /></Suspense>} />

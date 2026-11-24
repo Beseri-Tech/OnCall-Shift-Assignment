@@ -142,11 +142,13 @@ public sealed record TallyUpdate(Guid PersonId, int Weekday, int WeekendHoliday)
 
 // State -> district -> clinic -> officer.
 
-public sealed record StateDto(Guid Id, string Name, IReadOnlyList<DistrictDto> Districts);
+/// <param name="WeekendDays">The state's weekly rest days (0 = Sunday ... 6 = Saturday).</param>
+public sealed record StateDto(Guid Id, string Name, IReadOnlyList<DistrictDto> Districts, IReadOnlyList<int>? WeekendDays = null);
 
 public sealed record DistrictDto(Guid Id, string Name, int Clinics);
 
-public sealed record UpsertStateRequest(string Name);
+/// <param name="WeekendDays">Weekly rest days (0 = Sunday ... 6 = Saturday); null keeps the current ones (Sat + Sun for a new state).</param>
+public sealed record UpsertStateRequest(string Name, IReadOnlyList<int>? WeekendDays = null);
 
 public sealed record UpsertDistrictRequest(string Name, Guid StateId);
 
@@ -330,3 +332,52 @@ public sealed record ProfileDto(
     string? NoAkaunBank, string? NamaCawanganBank, bool Verified, DateTimeOffset? VerifiedAt, IReadOnlyList<string> Missing);
 
 public sealed record VerifyProfileRequest(string? Password, bool Confirm);
+
+// ---------------- ETAP claim ----------------
+
+/// <summary>One on-call day as the officer typed it: the on-call date and when the duty started and ended.</summary>
+public sealed record EtapRowInput(DateOnly Date, DateOnly FromDate, TimeOnly FromTime, DateOnly ToDate, TimeOnly ToTime);
+
+public enum EtapDayType { Working, Rest, Holiday }
+
+/// <param name="CaseMinutes">Total length of the officer's cases on this on-call date (4 h or more = category 2).</param>
+/// <param name="Category">2a / 2b (passive call melebihi 4 jam) or 3a / 3b (kurang 4 jam); a = working day, b = rest day or holiday.</param>
+/// <param name="InRota">The published rota has this officer on call that date.</param>
+/// <param name="RotaOfficer">When not: who the rota has instead.</param>
+/// <param name="Report">The latest shift-change report for the date, if any.</param>
+public sealed record EtapRowDto(
+    DateOnly Date, DateOnly FromDate, TimeOnly FromTime, DateOnly ToDate, TimeOnly ToTime, int Minutes, EtapDayType DayType,
+    string? HolidayName, int CaseMinutes, int CaseCount, string Category, bool InRota, OnCallOfficerDto? RotaOfficer,
+    ShiftReportDto? Report);
+
+public sealed record EtapLineDto(string Category, string Label, int Days, int Rate, int Amount);
+
+/// <param name="Name">Null for a confidential patient (the form leaves name and registration number out).</param>
+public sealed record EtapPatientDto(DateOnly Date, string? Name, string? RegNo, int Minutes, string? DiagnosisAndTreatment, string? Notes,
+    bool Confidential);
+
+/// <param name="ProfileVerified">The ETAP PDF needs a verified profile.</param>
+/// <param name="Specialist">Specialist rates (the profile has a tarikh pewartaan pakar).</param>
+/// <param name="RotaDates">The officer's on-call dates in the published rota this month.</param>
+/// <param name="Saved">A draft is saved for this month.</param>
+/// <param name="UnclaimedRotaRows">Rota dates not in the claim yet, with the usual times (for "use my rota dates").</param>
+public sealed record EtapDto(
+    string Month, bool ProfileVerified, bool Specialist, IReadOnlyList<EtapRowDto> Rows, IReadOnlyList<DateOnly> RotaDates,
+    IReadOnlyList<EtapLineDto> Lines, int TotalDays, int TotalAmount, IReadOnlyList<EtapPatientDto> Patients, SuratArahanDto? SuratArahan,
+    bool Saved, IReadOnlyList<EtapRowInput> UnclaimedRotaRows);
+
+public sealed record EtapSaveRequest(IReadOnlyList<EtapRowInput> Rows);
+
+/// <param name="ColleagueId">Who the rota has on call that date.</param>
+/// <param name="ReturnDate">The reporter's own rota date the colleague did in return, if it was a swap.</param>
+public sealed record ShiftReportRequest(DateOnly Date, Guid ColleagueId, DateOnly? ReturnDate);
+
+/// <param name="CanDecide">The viewer may confirm or reject it (the colleague, or an admin).</param>
+public sealed record ShiftReportDto(
+    Guid Id, DateOnly Date, Guid ReporterId, string Reporter, Guid ColleagueId, string Colleague, DateOnly? ReturnDate,
+    ShiftReportStatus Status, bool CanDecide, DateTimeOffset CreatedAt);
+
+public sealed record SuratArahanDto(Guid Id, Guid DocumentId, string FileName, DateOnly EffectiveFrom, string? Reference, DateTimeOffset CreatedAt);
+
+/// <param name="DocumentId">An uploaded document of kind SuratArahan.</param>
+public sealed record AddSuratArahanRequest(Guid DocumentId, DateOnly EffectiveFrom, string? Reference);

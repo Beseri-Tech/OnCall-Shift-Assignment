@@ -54,7 +54,7 @@ export interface OverviewPerson { id: string; code: string; name: string; leave:
 export interface Overview { period: Period; days: OverviewDay[]; people: OverviewPerson[] }
 export interface PublishedRota { period: Period; runId: string; days: RotaDay[]; inReview: boolean }
 
-export type DocumentKind = 'Manual' | 'LeaveDocument' | 'Other' | 'RotaReport'
+export type DocumentKind = 'Manual' | 'LeaveDocument' | 'Other' | 'RotaReport' | 'SuratArahan'
 export interface ArchivedReport {
   documentId: string; runId: string; periodName: string; fileName: string; sizeBytes: number
   createdAt: string; createdBy: string | null; runIsPublished: boolean
@@ -158,6 +158,27 @@ export interface OnCallCase extends Omit<CaseInput, 'onCallDate' | 'officerId'> 
 }
 export interface CaseImportRow { line: number; date: IsoDate | null; officer: string | null; duplicate: boolean; errors: ImportError[] }
 export interface CaseImportResult { rows: CaseImportRow[]; fileErrors: string[]; committed: boolean; added: number; duplicates: number }
+/** One on-call day of an ETAP claim as typed: times are "HH:mm:ss". */
+export interface EtapRowInput { date: IsoDate; fromDate: IsoDate; fromTime: string; toDate: IsoDate; toTime: string }
+export type EtapDayType = 'Working' | 'Rest' | 'Holiday'
+export interface EtapRow extends EtapRowInput {
+  minutes: number; dayType: EtapDayType; holidayName: string | null; caseMinutes: number; caseCount: number
+  /** 2a / 2b: passive call 4 h or more (working day / rest day or holiday); 3a / 3b: under 4 h. */
+  category: string; inRota: boolean; rotaOfficer: { personId: string; name: string } | null; report: ShiftReport | null
+}
+export interface EtapLine { category: string; label: string; days: number; rate: number; amount: number }
+export interface EtapPatient { date: IsoDate; name: string | null; regNo: string | null; minutes: number; diagnosisAndTreatment: string | null; notes: string | null; confidential: boolean }
+export interface SuratArahan { id: string; documentId: string; fileName: string; effectiveFrom: IsoDate; reference: string | null; createdAt: string }
+export interface EtapClaim {
+  month: string; profileVerified: boolean; specialist: boolean; rows: EtapRow[]; rotaDates: IsoDate[]; lines: EtapLine[]
+  totalDays: number; totalAmount: number; patients: EtapPatient[]; suratArahan: SuratArahan | null; saved: boolean
+  unclaimedRotaRows: EtapRowInput[]
+}
+export type ShiftReportStatus = 'Pending' | 'Confirmed' | 'Rejected' | 'Cancelled'
+export interface ShiftReport {
+  id: string; date: IsoDate; reporterId: string; reporter: string; colleagueId: string; colleague: string; returnDate: IsoDate | null
+  status: ShiftReportStatus; canDecide: boolean; createdAt: string
+}
 /** The officer's own ETAP details (section A). Only they can see it. */
 export interface ProfileInput {
   fullName: string | null; icNo: string | null; jawatan: string | null; gred: string | null; tarikhPewartaanPakar: IsoDate | null
@@ -177,7 +198,8 @@ export interface TallyRow {
 }
 // State -> district -> clinic -> officer.
 export interface District { id: string; name: string; clinics: number }
-export interface State { id: string; name: string; districts: District[] }
+/** weekendDays: weekly rest days (0 = Sunday ... 6 = Saturday), for the ETAP day type. */
+export interface State { id: string; name: string; districts: District[]; weekendDays: number[] }
 export interface Clinic { id: string; name: string; districtId: string; district: string; state: string; people: number }
 /** A date nobody from the clinic can be on call (e.g. a clinic event). */
 export interface ClinicBlockedDay { clinicId: string; clinicName: string; date: IsoDate; reason: string | null }
@@ -347,6 +369,19 @@ export const api = {
     verify: (password: string, confirm: boolean) => post<EtapProfile>('/api/profile/verify', { password, confirm }),
   },
 
+  /** ETAP claim for a month (yyyy-MM). The PDF is built on request and never stored. */
+  etap: {
+    get: (month: string) => get<EtapClaim>(`/api/etap${q({ month })}`),
+    save: (month: string, rows: EtapRowInput[]) => put<EtapClaim>(`/api/etap${q({ month })}`, { rows }),
+    pdfUrl: (month: string) => `${API}/api/etap/pdf${q({ month })}`,
+    reports: () => get<ShiftReport[]>('/api/etap/shift-reports'),
+    report: (date: IsoDate, colleagueId: string, returnDate: IsoDate | null) =>
+      post<{ id: string }>('/api/etap/shift-reports', { date, colleagueId, returnDate }),
+    confirm: (id: string) => post<void>(`/api/etap/shift-reports/${id}/confirm`),
+    reject: (id: string) => post<void>(`/api/etap/shift-reports/${id}/reject`),
+    cancel: (id: string) => post<void>(`/api/etap/shift-reports/${id}/cancel`),
+  },
+
   /** The on-call case log (patient data: never put any of it in a URL). month = yyyy-MM. */
   cases: {
     list: (month: string, personId?: string) => get<OnCallCase[]>(`/api/cases${q({ month, personId })}`),
@@ -407,8 +442,13 @@ export const api = {
     reorder: (ids: string[]) => post<void>('/api/admin/people/reorder', { ids }),
 
     states: () => get<State[]>('/api/admin/states'),
-    createState: (name: string) => post<string>('/api/admin/states', { name }),
-    updateState: (id: string, name: string) => put<void>(`/api/admin/states/${id}`, { name }),
+    createState: (name: string, weekendDays?: number[]) => post<string>('/api/admin/states', { name, weekendDays }),
+    updateState: (id: string, name: string, weekendDays?: number[]) => put<void>(`/api/admin/states/${id}`, { name, weekendDays }),
+
+    suratArahan: () => get<SuratArahan[]>('/api/admin/surat-arahan'),
+    addSuratArahan: (documentId: string, effectiveFrom: IsoDate, reference: string | null) =>
+      post<{ id: string }>('/api/admin/surat-arahan', { documentId, effectiveFrom, reference }),
+    deleteSuratArahan: (id: string) => del<void>(`/api/admin/surat-arahan/${id}`),
     deleteState: (id: string) => del<void>(`/api/admin/states/${id}`),
     createDistrict: (name: string, stateId: string) => post<string>('/api/admin/districts', { name, stateId }),
     updateDistrict: (id: string, name: string, stateId: string) => put<void>(`/api/admin/districts/${id}`, { name, stateId }),

@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The official ETAP claim form (Borang Penyata Tuntutan ETAP, 30/10/2025): the ETAP PDF is written over it. -->
+    <EmbeddedResource Include="Reports\etap-template.pdf" LogicalName="etap-template.pdf" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AWSSDK.S3" Version="4.0.*" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.12" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />

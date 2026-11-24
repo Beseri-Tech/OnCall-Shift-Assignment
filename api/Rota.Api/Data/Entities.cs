@@ -101,6 +101,12 @@ public sealed class State
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public string Name { get; set; } = "";
 
+    /// <summary>
+    /// The state's weekly rest days (bit n = <see cref="DayOfWeek"/> n): Sat + Sun in most states, Fri + Sat in Kedah, Kelantan and
+    /// Terengganu. Used for the ETAP day type (working day vs rest day).
+    /// </summary>
+    public int WeekendDays { get; set; } = (1 << (int)DayOfWeek.Saturday) | (1 << (int)DayOfWeek.Sunday);
+
     public List<District> Districts { get; set; } = [];
 }
 
@@ -567,6 +573,59 @@ public sealed class OfficerProfile
     public string? VerifiedHash { get; set; }
 }
 
+/// <summary>A surat arahan uploaded by an admin. An ETAP claim for a month uses the latest one effective by the end of that month.</summary>
+public sealed class SuratArahan
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid FacilityId { get; set; }
+    public Guid DocumentId { get; set; }
+    public DateOnly EffectiveFrom { get; set; }
+
+    /// <summary>The letter's reference number, if any.</summary>
+    public string? Reference { get; set; }
+
+    public Guid? CreatedById { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>An officer's ETAP claim for one month, kept as a draft they come back to. Rows hold what they typed.</summary>
+public sealed class EtapClaim
+{
+    public Guid PersonId { get; set; }
+    public int Year { get; set; }
+    public int Month { get; set; }
+
+    /// <summary>JSON array of <c>EtapRowInput</c>.</summary>
+    public string Rows { get; set; } = "[]";
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public enum ShiftReportStatus { Pending, Confirmed, Rejected, Cancelled }
+
+/// <summary>
+/// An officer reports doing an on-call date the published rota gives to a colleague (a swap made outside the app). Once the
+/// colleague or an admin confirms, the published rota is changed to match, so the tally follows.
+/// </summary>
+public sealed class ShiftChangeReport
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid FacilityId { get; set; }
+    public Guid ReporterId { get; set; }
+    public DateOnly Date { get; set; }
+
+    /// <summary>Who the rota has on call that date.</summary>
+    public Guid ColleagueId { get; set; }
+
+    /// <summary>The reporter's own rota date the colleague did in return, if it was a swap.</summary>
+    public DateOnly? ReturnDate { get; set; }
+
+    public ShiftReportStatus Status { get; set; } = ShiftReportStatus.Pending;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? DecidedById { get; set; }
+    public DateTimeOffset? DecidedAt { get; set; }
+}
+
 public enum FeedbackCategory { Bug, Suggestion, Other }
 
 /// <summary>Feedback about the app from a signed-in user; admins read it and mark it resolved.</summary>
@@ -601,6 +660,8 @@ public enum DocumentKind
     Other,
     /// <summary>The PDF report of a published rota, saved when it is published. Admins only.</summary>
     RotaReport,
+    /// <summary>The hospital's surat arahan (on-call instruction letter): admins upload it, everyone in the hospital reads it.</summary>
+    SuratArahan,
 }
 
 public enum DocumentStatus
