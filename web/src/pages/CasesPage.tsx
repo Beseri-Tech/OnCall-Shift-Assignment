@@ -1,6 +1,6 @@
 import {
-  ActionIcon, Alert, Autocomplete, Badge, Button, Checkbox, FileButton, Group, Modal, Paper, SegmentedControl, Select, SimpleGrid,
-  Stack, Table, Tabs, Text, TextInput, Textarea, Tooltip,
+  ActionIcon, Alert, Autocomplete, Badge, Button, Checkbox, Fieldset, FileButton, Grid, Group, Input, Modal, Paper, SegmentedControl,
+  Select, SimpleGrid, Stack, Table, Tabs, Text, TextInput, Textarea, Tooltip,
 } from '@mantine/core'
 import { DatePickerInput, MonthPickerInput, TimeInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
@@ -17,8 +17,8 @@ const RACES = ['MALAY', 'CHINESE', 'INDIAN', 'SIAMESE']
 const REFERRALS = ['ED', 'WARD', 'OT', 'OSCC', 'FORENSIC/MORTUARY']
 const DSA_STATUSES = ['CALLED AND ATTENDED', 'CALLED BUT FTA', 'CALLED BUT NO ANSWER', 'NOT BEEN CALLED']
 
-/** A case starting before 08:00 belongs to the previous day's on-call shift. */
-const defaultOnCall = (date: IsoDate, start: string) => (start && start < '08:00' ? addDays(date, -1) : date)
+/** Before 08:00 you are still on the previous day's shift. */
+const currentShift = (): IsoDate => (new Date().getHours() < 8 ? addDays(todayIso(), -1) : todayIso())
 const hm = (t: string) => t.slice(0, 5)
 const duration = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
 const minutesBetween = (start: string, finish: string) => {
@@ -28,8 +28,8 @@ const minutesBetween = (start: string, finish: string) => {
   return m === 0 ? 1440 : m
 }
 
-const blank = (date: IsoDate): CaseInput => ({
-  date, timeStart: '', timeFinish: '', onCallDate: null, patientName: '', patientIdNo: '', gender: '', age: null, race: null,
+const blank = (onCallDate: IsoDate): CaseInput => ({
+  date: onCallDate, timeStart: '', timeFinish: '', onCallDate, patientName: '', patientIdNo: '', gender: '', age: null, race: null,
   referralSource: null, department: null, diagnosis: null, management: null, plan: null, officerId: null, taggers: null,
   dsaName: null, dsaStatus: null, confidential: false,
 })
@@ -40,6 +40,9 @@ const toInput = (c: OnCallCase): CaseInput => ({
   diagnosis: c.diagnosis, management: c.management, plan: c.plan, officerId: c.personId, taggers: c.taggers, dsaName: c.dsaName,
   dsaStatus: c.dsaStatus, confidential: c.confidential,
 })
+
+/** "Choose or type" fields: the list covers the usual answers; anything else can be typed in. */
+const pickOrType = 'Choose, or type if not listed'
 
 /** The on-call case log ("Buku Oncall"): replaces the Google Form. Everyone in the hospital reads it. */
 export function CasesPage() {
@@ -62,100 +65,133 @@ export function CasesPage() {
   )
 }
 
-/** Add (no `editing`) or edit a case. After adding, the shift details stay for the next patient of the same shift. */
+/**
+ * Add (no `editing`) or edit a case. The officer in charge is the officer recording it. After adding, the shift, officer and
+ * DSA details stay for the next patient of the same shift.
+ */
 function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSaved: () => void; onCancel?: () => void }) {
   const qc = useQueryClient()
-  const [v, setV] = useState<CaseInput>(() => (editing ? toInput(editing) : blank(todayIso())))
+  const me = useMe().data
+  const [v, setV] = useState<CaseInput>(() => (editing ? toInput(editing) : blank(currentShift())))
   const set = <K extends keyof CaseInput>(k: K, value: CaseInput[K]) => setV(s => ({ ...s, [k]: value }))
-  const officers = useQuery({ queryKey: ['people'], queryFn: api.people })
-  const onCallDate = v.onCallDate ?? defaultOnCall(v.date, v.timeStart)
-  const rota = useQuery({ queryKey: ['cases', 'on-call-officer', onCallDate], queryFn: () => api.cases.onCallOfficer(onCallDate) })
+  const shift = v.onCallDate ?? v.date
+  const nextDay = v.date !== shift
   const minutes = minutesBetween(v.timeStart, v.timeFinish)
+  const officer = editing ? editing.officer : me?.personName
+  const canRecord = !!editing || !!me?.personId
 
-  // The officer in charge follows the rota until someone picks one.
-  const [officerPicked, setOfficerPicked] = useState(!!editing)
-  const officerId = officerPicked ? v.officerId : rota.data?.personId ?? null
+  // A case starting before 08:00 is usually after midnight, on the day after the shift date; the officer can change it.
+  const setStart = (t: string) => setV(s => ({ ...s, timeStart: t, date: t && t < '08:00' ? addDays(s.onCallDate ?? s.date, 1) : (s.onCallDate ?? s.date) }))
 
   const save = useMutation({
     mutationFn: async () => {
-      const body = { ...v, officerId, onCallDate, timeStart: `${v.timeStart}:00`, timeFinish: `${v.timeFinish}:00` }
+      const body = { ...v, onCallDate: shift, timeStart: `${v.timeStart}:00`, timeFinish: `${v.timeFinish}:00` }
       if (editing) await api.cases.update(editing.id, body)
       else await api.cases.create(body)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['cases'] })
-      notifyOk(editing ? 'Case saved.' : 'Case recorded. The shift details are kept for your next patient.')
-      if (!editing) {
-        setV(s => ({ ...blank(s.date), date: s.date, onCallDate: s.onCallDate, officerId: s.officerId, taggers: s.taggers,
-          dsaName: s.dsaName, dsaStatus: s.dsaStatus }))
-      }
+      notifyOk(editing ? 'Case saved.' : 'Case recorded. The shift, officer and DSA are kept for your next patient.')
+      if (!editing) setV(s => ({ ...blank(shift), taggers: s.taggers, dsaName: s.dsaName, dsaStatus: s.dsaStatus }))
       onSaved()
     },
     onError: e => notifyError(e, 'Could not save the case'),
   })
 
-  const ready = v.date && minutes && v.patientName.trim() && v.patientIdNo.trim() && v.gender && officerId
-    && v.dsaName?.trim() && v.dsaStatus
+  const ready = canRecord && v.date && minutes && v.patientName.trim() && v.patientIdNo.trim() && v.gender && v.dsaName?.trim() && v.dsaStatus
 
   return (
     <form onSubmit={e => { e.preventDefault(); if (ready) save.mutate() }}>
-      <Stack>
-        <Text fw={700}>Shift</Text>
-        <SimpleGrid cols={{ base: 1, sm: 3 }}>
-          <DatePickerInput label="Date" required value={v.date} valueFormat="D MMM YYYY"
-            onChange={d => setV(s => ({ ...s, date: (d as string) ?? todayIso(), onCallDate: null }))} />
-          <TimeInput label="Time start" required value={v.timeStart} onChange={e => setV(s => ({ ...s, timeStart: e.currentTarget.value, onCallDate: null }))} />
-          <TimeInput label="Time finish" required value={v.timeFinish} onChange={e => set('timeFinish', e.currentTarget.value)}
-            description={minutes ? `${duration(minutes)}${v.timeFinish <= v.timeStart ? ' (next day)' : ''}` : undefined} />
-        </SimpleGrid>
-        <Group gap="xs">
-          <Text size="sm">Counts for the on-call shift of</Text>
-          <SegmentedControl size="xs" value={onCallDate} onChange={x => set('onCallDate', x)}
-            data={[{ value: addDays(v.date, -1), label: formatLong(addDays(v.date, -1)) }, { value: v.date, label: formatLong(v.date) }]} />
-        </Group>
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <Select label="Officer in charge" required searchable value={officerId}
-            data={(officers.data ?? []).map(p => ({ value: p.id, label: p.name }))}
-            onChange={x => { setOfficerPicked(true); set('officerId', x) }}
-            description={!officerPicked && rota.data ? 'From the rota' : !rota.data ? 'Nobody on the rota that day: pick the officer' : undefined} />
-          <TextInput label="Taggers" placeholder="e.g. Dr Hafiz (HO)" value={v.taggers ?? ''} maxLength={200}
-            onChange={e => set('taggers', e.currentTarget.value || null)} />
-        </SimpleGrid>
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput label="DSA on call" required placeholder="DSA's name" value={v.dsaName ?? ''} maxLength={200}
-            onChange={e => set('dsaName', e.currentTarget.value.toUpperCase() || null)} />
-          <Select label="DSA" required value={v.dsaStatus} data={DSA_STATUSES} onChange={x => set('dsaStatus', x)} />
+      <Stack gap="md">
+        {!canRecord && (
+          <Alert color="orange" variant="light">Only officers on the rota record on-call cases. You can read the case log.</Alert>
+        )}
+        <Fieldset legend="Shift">
+          <Grid gap="md" align="flex-end">
+            <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+              <DatePickerInput label="On-call date" required value={shift} valueFormat="ddd, D MMM YYYY"
+                onChange={d => d && setV(s => ({ ...s, onCallDate: d as string, date: nextDay ? addDays(d as string, 1) : (d as string) }))} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+              <Input.Wrapper label="Patient seen on" required>
+                <SegmentedControl fullWidth value={nextDay ? 'next' : 'same'} onChange={x => set('date', x === 'next' ? addDays(shift, 1) : shift)}
+                  data={[{ value: 'same', label: formatLong(shift) }, { value: 'next', label: formatLong(addDays(shift, 1)) }]} />
+              </Input.Wrapper>
+            </Grid.Col>
+            <Grid.Col span={{ base: 6, md: 3 }}>
+              <TimeInput label="Time start" required value={v.timeStart} onChange={e => setStart(e.currentTarget.value)} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 6, md: 3 }}>
+              <TimeInput label="Time finish" required value={v.timeFinish} onChange={e => set('timeFinish', e.currentTarget.value)}
+                rightSectionWidth={80} rightSection={minutes ? <Text size="xs" c="dimmed">{duration(minutes)}</Text> : null} />
+            </Grid.Col>
+          </Grid>
+        </Fieldset>
+
+        <SimpleGrid cols={{ base: 1, md: 2 }}>
+          <Fieldset legend="Officer">
+            <Stack gap="sm">
+              <TextInput label="Officer in charge" value={officer ?? ''} readOnly variant="filled" />
+              <TextInput label="Taggers" placeholder="e.g. Dr Hafiz (HO)" value={v.taggers ?? ''} maxLength={200}
+                onChange={e => set('taggers', e.currentTarget.value || null)} />
+            </Stack>
+          </Fieldset>
+          <Fieldset legend="DSA">
+            <Stack gap="sm">
+              <TextInput label="DSA on call" required placeholder="DSA's name" value={v.dsaName ?? ''} maxLength={200}
+                onChange={e => set('dsaName', e.currentTarget.value.toUpperCase() || null)} />
+              <Select label="DSA status" required placeholder="Was the DSA called?" value={v.dsaStatus} data={DSA_STATUSES}
+                onChange={x => set('dsaStatus', x)} />
+            </Stack>
+          </Fieldset>
         </SimpleGrid>
 
-        <Text fw={700} mt="sm">Patient</Text>
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput label="Patient name" required value={v.patientName} maxLength={200}
-            onChange={e => set('patientName', e.currentTarget.value.toUpperCase())} />
-          <TextInput label="MyKad / KID / passport / reg no" required description="MyKad without dashes" value={v.patientIdNo}
-            maxLength={40} onChange={e => set('patientIdNo', e.currentTarget.value.toUpperCase())} />
-        </SimpleGrid>
-        <SimpleGrid cols={{ base: 1, sm: 4 }}>
-          <Stack gap={4}>
-            <Text size="sm" fw={500}>Gender <Text span c="red">*</Text></Text>
-            <SegmentedControl value={v.gender} onChange={x => set('gender', x)} data={['MALE', 'FEMALE']} />
-          </Stack>
-          <TextInput label="Age" value={v.age ?? ''} maxLength={20} onChange={e => set('age', e.currentTarget.value || null)} />
-          <Autocomplete label="Race" data={RACES} value={v.race ?? ''} description="Or type another"
-            onChange={x => set('race', x.toUpperCase() || null)} />
-          <Select label="Department" data={['OMFS', 'PAEDS']} clearable value={v.department} onChange={x => set('department', x)} />
-        </SimpleGrid>
-        <Autocomplete label="Source of referral" data={REFERRALS} value={v.referralSource ?? ''} description="Or type another"
-          onChange={x => set('referralSource', x.toUpperCase() || null)} maw={360} />
-        <Textarea label="Diagnosis" autosize minRows={1} maxLength={500} value={v.diagnosis ?? ''}
-          onChange={e => set('diagnosis', e.currentTarget.value || null)} />
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <Textarea label="Management" autosize minRows={2} maxLength={1000} value={v.management ?? ''}
-            onChange={e => set('management', e.currentTarget.value || null)} />
-          <Textarea label="Plan" autosize minRows={2} maxLength={1000} value={v.plan ?? ''}
-            onChange={e => set('plan', e.currentTarget.value || null)} />
-        </SimpleGrid>
-        <Checkbox label="Confidential patient (leave the name and registration number out of the ETAP form)"
-          checked={v.confidential} onChange={e => set('confidential', e.currentTarget.checked)} />
+        <Fieldset legend="Patient">
+          <Grid gap="md" align="flex-end">
+            <Grid.Col span={{ base: 12, md: 8 }}>
+              <TextInput label="Patient name" required value={v.patientName} maxLength={200}
+                onChange={e => set('patientName', e.currentTarget.value.toUpperCase())} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 4 }}>
+              <TextInput label="MyKad / KID / passport / reg no" required placeholder="MyKad without dashes" value={v.patientIdNo}
+                maxLength={40} onChange={e => set('patientIdNo', e.currentTarget.value.toUpperCase())} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+              <Input.Wrapper label="Gender" required>
+                <SegmentedControl fullWidth value={v.gender} onChange={x => set('gender', x)} data={['MALE', 'FEMALE']} />
+              </Input.Wrapper>
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6, md: 2 }}>
+              <TextInput label="Age" placeholder="e.g. 34, 8 months" value={v.age ?? ''} maxLength={20} onChange={e => set('age', e.currentTarget.value || null)} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
+              <Autocomplete label="Race" placeholder={pickOrType} data={RACES} value={v.race ?? ''}
+                onChange={x => set('race', x.toUpperCase() || null)} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+              <Select label="Department" placeholder="OMFS or PAEDS" data={['OMFS', 'PAEDS']} clearable value={v.department}
+                onChange={x => set('department', x)} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 4 }}>
+              <Autocomplete label="Source of referral" placeholder={pickOrType} data={REFERRALS} value={v.referralSource ?? ''}
+                onChange={x => set('referralSource', x.toUpperCase() || null)} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 8 }}>
+              <TextInput label="Diagnosis" value={v.diagnosis ?? ''} maxLength={500} onChange={e => set('diagnosis', e.currentTarget.value || null)} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 6 }}>
+              <Textarea label="Management" autosize minRows={2} maxLength={1000} value={v.management ?? ''}
+                onChange={e => set('management', e.currentTarget.value || null)} />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 6 }}>
+              <Textarea label="Plan" autosize minRows={2} maxLength={1000} value={v.plan ?? ''}
+                onChange={e => set('plan', e.currentTarget.value || null)} />
+            </Grid.Col>
+          </Grid>
+          <Checkbox mt="md" label="Confidential patient (the ETAP form leaves out the name and registration number)"
+            checked={v.confidential} onChange={e => set('confidential', e.currentTarget.checked)} />
+        </Fieldset>
+
         <Group justify="flex-end">
           {onCancel && <Button variant="default" onClick={onCancel}>Cancel</Button>}
           <Button type="submit" loading={save.isPending} disabled={!ready}>{editing ? 'Save' : 'Record case'}</Button>

@@ -385,8 +385,6 @@ export const api = {
   /** The on-call case log (patient data: never put any of it in a URL). month = yyyy-MM. */
   cases: {
     list: (month: string, personId?: string) => get<OnCallCase[]>(`/api/cases${q({ month, personId })}`),
-    onCallOfficer: async (date: IsoDate) =>
-      (await get<{ personId: string; name: string } | undefined>(`/api/cases/on-call-officer${q({ date })}`)) ?? null,
     create: (c: CaseInput) => post<{ id: string }>('/api/cases', c),
     update: (id: string, c: CaseInput) => put<void>(`/api/cases/${id}`, c),
     remove: (id: string) => del<void>(`/api/cases/${id}`),
