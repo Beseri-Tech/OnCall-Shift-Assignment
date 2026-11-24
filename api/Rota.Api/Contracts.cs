@@ -82,6 +82,12 @@ public sealed record FacilityRef(Guid Id, string Name, string Code);
 
 public sealed record SetFacilityRequest(Guid? FacilityId);
 
+/// <param name="Configured">SMTP (or a pickup directory) is set up on the server.</param>
+/// <param name="Enabled">The master's switch: when off, nothing is emailed (invites show the temporary password instead).</param>
+public sealed record EmailSettingsDto(bool Configured, bool Enabled);
+
+public sealed record EmailSettingsRequest(bool Enabled);
+
 public sealed record FacilityDto(Guid Id, string Name, string Code, Guid DistrictId, string District, Guid StateId, string State,
     int Officers, int Accounts, string? CurrentPeriod, PeriodStatus? CurrentPeriodStatus);
 
@@ -95,7 +101,7 @@ public sealed record ResetPasswordRequest(string Token, string NewPassword);
 
 public sealed record AccountDto(
     Guid Id, string Email, AccountRole Role, Guid? PersonId, string? PersonName, bool Enabled, bool MustChangePassword,
-    DateTimeOffset? TempPasswordExpiresAt, DateTimeOffset? LastLoginAt);
+    DateTimeOffset? TempPasswordExpiresAt, DateTimeOffset? LastLoginAt, Guid? FacilityId = null, string? FacilityCode = null);
 
 public sealed record InviteRequest(string Email, AccountRole Role, Guid? PersonId);
 

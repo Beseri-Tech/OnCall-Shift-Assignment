@@ -1,7 +1,7 @@
-import { ActionIcon, Badge, Button, Group, Modal, Paper, Select, Stack, Table, Tabs, Text, TextInput } from '@mantine/core'
+import { ActionIcon, Alert, Badge, Button, Group, Modal, Paper, Select, Stack, Switch, Table, Tabs, Text, TextInput } from '@mantine/core'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconBuildingHospital, IconEdit, IconMapPin, IconMessage2, IconPlus, IconTrash, IconUserShield } from '@tabler/icons-react'
+import { IconBuildingHospital, IconEdit, IconMail, IconSettings, IconMapPin, IconMessage2, IconPlus, IconTrash, IconUserShield } from '@tabler/icons-react'
 import { useState } from 'react'
 import { api, type Facility } from '../api'
 import { useSwitchFacility } from '../auth'
@@ -9,7 +9,7 @@ import { ErrorBox, Loading, PageHeader, StatusBadge } from '../components/common
 import { notifyError, notifyOk } from '../lib'
 import { AccountsTab } from './admin/AccountsTab'
 import { FeedbackTab } from './admin/FeedbackTab'
-import { LocationsModal } from './admin/LocationsModal'
+import { LocationsTab } from './admin/LocationsTab'
 
 /** What a master sees before picking a hospital: every hospital, app feedback, and the master accounts. */
 export function HospitalsPage() {
@@ -17,18 +17,22 @@ export function HospitalsPage() {
   return (
     <Stack gap="md">
       <PageHeader icon={IconBuildingHospital} title="All hospitals"
-        description="Each hospital runs its own rota. Open one to work in it, add hospitals, read feedback about the app and manage master accounts." />
+        description="Each hospital runs its own rota. Open one to work in it, add hospitals, read feedback about the app, manage accounts and app settings." />
       <Tabs value={tab} onChange={setTab} keepMounted={false} variant="pills" radius="xl">
         <Paper className="panel" p={6} mb="md" radius="xl">
           <Tabs.List className="tabs-scroll">
             <Tabs.Tab value="hospitals" leftSection={<IconBuildingHospital size={16} />}>Hospitals</Tabs.Tab>
+            <Tabs.Tab value="locations" leftSection={<IconMapPin size={16} />}>Clinics &amp; districts</Tabs.Tab>
             <Tabs.Tab value="feedback" leftSection={<IconMessage2 size={16} />}>Feedback</Tabs.Tab>
-            <Tabs.Tab value="masters" leftSection={<IconUserShield size={16} />}>Master accounts</Tabs.Tab>
+            <Tabs.Tab value="masters" leftSection={<IconUserShield size={16} />}>Accounts</Tabs.Tab>
+            <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>Settings</Tabs.Tab>
           </Tabs.List>
         </Paper>
         <Tabs.Panel value="hospitals"><HospitalsTab /></Tabs.Panel>
+        <Tabs.Panel value="locations"><LocationsTab /></Tabs.Panel>
         <Tabs.Panel value="feedback"><FeedbackTab /></Tabs.Panel>
         <Tabs.Panel value="masters"><AccountsTab /></Tabs.Panel>
+        <Tabs.Panel value="settings"><SettingsTab /></Tabs.Panel>
       </Tabs>
     </Stack>
   )
@@ -38,9 +42,7 @@ function HospitalsTab() {
   const qc = useQueryClient()
   const facilities = useQuery({ queryKey: ['facilities'], queryFn: api.facilities })
   const states = useQuery({ queryKey: ['admin', 'states'], queryFn: api.admin.states })
-  const clinics = useQuery({ queryKey: ['admin', 'clinics'], queryFn: api.admin.clinics })
   const [editing, setEditing] = useState<Facility | 'new' | null>(null)
-  const [locations, setLocations] = useState(false)
   const switchTo = useSwitchFacility()
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['facilities'] }); qc.invalidateQueries({ queryKey: ['admin'] }) }
@@ -50,13 +52,12 @@ function HospitalsTab() {
     onError: e => notifyError(e, 'Could not remove'),
   })
 
-  if (facilities.isLoading || states.isLoading || clinics.isLoading) return <Loading />
-  if (facilities.error || states.error || clinics.error) return <ErrorBox error={facilities.error ?? states.error ?? clinics.error} />
+  if (facilities.isLoading || states.isLoading) return <Loading />
+  if (facilities.error || states.error) return <ErrorBox error={facilities.error ?? states.error} />
 
   return (
     <Stack gap="md">
       <Group justify="flex-end">
-        <Button variant="default" leftSection={<IconMapPin size={16} />} onClick={() => setLocations(true)}>States, districts & clinics</Button>
         <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing('new')}>Add hospital</Button>
       </Group>
       <Paper withBorder>
@@ -109,7 +110,6 @@ function HospitalsTab() {
           districts={states.data!.map(s => ({ group: s.name, items: s.districts.map(d => ({ value: d.id, label: d.name })) }))}
           onClose={() => setEditing(null)} onSaved={refresh} />
       )}
-      <LocationsModal opened={locations} states={states.data!} clinics={clinics.data!} onClose={() => setLocations(false)} onSaved={refresh} />
     </Stack>
   )
 }
@@ -139,7 +139,7 @@ function HospitalModal({ hospital, districts, onClose, onSaved }: {
           <TextInput label="Short code" required value={code} onChange={e => setCode(e.currentTarget.value.toUpperCase())} placeholder="HSB"
             maxLength={16} description="Shown in the header and on the feedback form." />
           <Select label="District" required searchable data={districts} value={districtId} onChange={setDistrictId}
-            description="Its state's public holidays apply. Add states and districts with “States, districts & clinics”." />
+            description="Its state's public holidays apply. Add states and districts on the Clinics & districts tab." />
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancel</Button>
@@ -148,5 +148,36 @@ function HospitalModal({ hospital, districts, onClose, onSaved }: {
         </Stack>
       </form>
     </Modal>
+  )
+}
+
+/** App-wide switches. Email: off on staging so testing never emails real people; the choice is saved on the server. */
+function SettingsTab() {
+  const qc = useQueryClient()
+  const email = useQuery({ queryKey: ['admin', 'settings', 'email'], queryFn: api.admin.emailSettings })
+  const save = useMutation({
+    mutationFn: api.admin.setEmailEnabled,
+    onSuccess: s => { qc.setQueryData(['admin', 'settings', 'email'], s); notifyOk(s.enabled ? 'Email switched on.' : 'Email switched off.') },
+    onError: e => notifyError(e, 'Could not change the email setting'),
+  })
+
+  if (email.isLoading) return <Loading />
+  if (email.error) return <ErrorBox error={email.error} />
+  const { configured, enabled } = email.data!
+
+  return (
+    <Paper withBorder p="lg" maw={720}>
+      <Stack gap="md">
+        <Group gap="sm"><IconMail size={20} /><Text fw={700}>Email</Text></Group>
+        <Switch size="md" checked={enabled} disabled={save.isPending} onChange={e => save.mutate(e.currentTarget.checked)}
+          label={enabled ? 'Email is on' : 'Email is off'}
+          description="Invites, password resets and rota notifications. When off, nothing is emailed: invites and password resets show the temporary password to the admin instead, and in-app notifications still arrive." />
+        {!configured && (
+          <Alert color="orange" variant="light">
+            The server has no mail settings (SMTP), so nothing is sent even when this is on.
+          </Alert>
+        )}
+      </Stack>
+    </Paper>
   )
 }

@@ -43,6 +43,7 @@ The app is at <http://localhost:8080> and the admin page at `/admin`. Database m
 | `ADMIN_PASSWORD_HASH` | first master's password hash | required |
 | `APP_BASE_URL` | public address, used in email links | the request's address |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | email for invites and password resets; without it invites show the temporary password to the admin | off |
+| `SMTP_ENABLED` | whether email starts switched on; masters can change it in the app (All hospitals → Settings) and that choice is kept | `true` |
 | `APP_PORT` | published port | `8080` |
 | `APP_TAG` | image tag to run | `latest` |
 | `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare R2 bucket for the manual and uploaded documents (see below) | off |
@@ -67,7 +68,7 @@ Every push to `master` then deploys the web app to Pages after the tests pass.
 - deploys the web app to the Pages project `rota-staging` (`rota-staging.zogami.uk`; its production branch must be `staging`), built against `https://rota-staging-api.zogami.uk` and showing an amber **STAGING** ribbon and a `[STAGING]` tab title;
 - publishes the image as `ghcr.io/beseri-tech/oncall-shift-assignment:staging`.
 
-In Portainer, the staging stack runs `ghcr.io/beseri-tech/oncall-shift-assignment:staging` and the production stack `:latest` (or a release such as `:3.0.0`). The staging API runs from its own `.env` on its own database: `APP_TAG=staging`, `APP_BASE_URL=https://rota-staging.zogami.uk`, `WEB_ORIGIN=https://rota-staging.zogami.uk`, `R2_BUCKET_NAME=rota-staging`, and its own admin and database password. Pulling and restarting the staging container (`docker compose pull && docker compose up -d`) happens on the server, not in CI. The variables `STAGING_VITE_API_URL` and `STAGING_PAGES_PROJECT` override the defaults.
+In Portainer, the staging stack runs `ghcr.io/beseri-tech/oncall-shift-assignment:staging` and the production stack `:latest` (or a release such as `:3.0.0`). The staging API runs from its own `.env` on its own database: `APP_TAG=staging`, `APP_BASE_URL=https://rota-staging.zogami.uk`, `WEB_ORIGIN=https://rota-staging.zogami.uk`, `R2_BUCKET_NAME=rota-staging`, `SMTP_ENABLED=false` (no email while testing; a master can switch it on under All hospitals → Settings), and its own admin and database password. Pulling and restarting the staging container (`docker compose pull && docker compose up -d`) happens on the server, not in CI. The variables `STAGING_VITE_API_URL` and `STAGING_PAGES_PROJECT` override the defaults.
 
 
 ## Develop

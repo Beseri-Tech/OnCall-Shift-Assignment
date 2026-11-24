@@ -32,6 +32,7 @@ services:
       App__BaseUrl: ${APP_BASE_URL:-}
       App__WebOrigin: ${WEB_ORIGIN:-}
       Smtp__Host: ${SMTP_HOST:-}
+      Smtp__Enabled: ${SMTP_ENABLED:-true}
       Smtp__Port: ${SMTP_PORT:-587}
       Smtp__User: ${SMTP_USER:-}
       Smtp__Password: ${SMTP_PASSWORD:-}

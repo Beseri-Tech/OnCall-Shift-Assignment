@@ -111,6 +111,22 @@ namespace Rota.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.AppSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("app_settings", (string)null);
+                });
+
             modelBuilder.Entity("Rota.Api.Data.ChangeLog", b =>
                 {
                     b.Property<long>("Id")

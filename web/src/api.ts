@@ -135,7 +135,11 @@ export interface UpsertFacility { name: string; code: string; districtId: string
 export interface Account {
   id: string; email: string; role: AccountRole; personId: string | null; personName: string | null; enabled: boolean
   mustChangePassword: boolean; tempPasswordExpiresAt: string | null; lastLoginAt: string | null
+  /** The hospital it belongs to; null for masters. */
+  facilityId: string | null; facilityCode: string | null
 }
+/** configured: SMTP is set up on the server; enabled: the masters' on/off switch. */
+export interface EmailSettings { configured: boolean; enabled: boolean }
 /** tempPassword only comes back when the email could not be sent. */
 export interface InviteResult { accountId: string; emailSent: boolean; tempPassword: string | null }
 export interface TallyRow {
@@ -360,6 +364,8 @@ export const api = {
     createFacility: (f: UpsertFacility) => post<string>('/api/admin/facilities', f),
     updateFacility: (id: string, f: UpsertFacility) => put<void>(`/api/admin/facilities/${id}`, f),
     deleteFacility: (id: string) => del<void>(`/api/admin/facilities/${id}`),
+    emailSettings: () => get<EmailSettings>('/api/admin/settings/email'),
+    setEmailEnabled: (enabled: boolean) => put<EmailSettings>('/api/admin/settings/email', { enabled }),
 
     clinics: () => get<Clinic[]>('/api/admin/clinics'),
     createClinic: (c: UpsertClinic) => post<string>('/api/admin/clinics', c),

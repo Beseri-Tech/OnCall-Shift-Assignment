@@ -1,6 +1,6 @@
 import { Paper, Stack, Tabs } from '@mantine/core'
 import {
-  IconBook, IconCalendarCog, IconFileText, IconHistory, IconMessage2, IconPlaneDeparture, IconShieldLock, IconSum, IconUserShield, IconUsers, IconWand,
+  IconBook, IconCalendarCog, IconMapPin, IconFileText, IconHistory, IconMessage2, IconPlaneDeparture, IconShieldLock, IconSum, IconUserShield, IconUsers, IconWand,
 } from '@tabler/icons-react'
 import { PageHeader } from '../../components/common'
 import { useEffect } from 'react'
@@ -9,6 +9,7 @@ import { AccountsTab } from './AccountsTab'
 import { AuditTab } from './AuditTab'
 import { ConfirmedLeaveTab } from './ConfirmedLeaveTab'
 import { FeedbackTab } from './FeedbackTab'
+import { LocationsTab } from './LocationsTab'
 import { ManualTab } from './ManualTab'
 import { PeopleTab } from './PeopleTab'
 import { PeriodsTab } from './PeriodsTab'
@@ -16,7 +17,7 @@ import { ReportsTab } from './ReportsTab'
 import { RotaTab } from './RotaTab'
 import { TallyTab } from './TallyTab'
 
-const TABS = ['rota', 'people', 'leave', 'tally', 'periods', 'accounts', 'feedback', 'reports', 'manual', 'log'] as const
+const TABS = ['rota', 'people', 'locations', 'leave', 'tally', 'periods', 'accounts', 'feedback', 'reports', 'manual', 'log'] as const
 type Tab = (typeof TABS)[number]
 
 /** Only reachable by admins and supervisors (see AdminOnly in main.tsx; the API checks too). */
@@ -39,6 +40,7 @@ export function AdminPage() {
         <Tabs.List className="tabs-scroll">
           <Tabs.Tab value="rota" leftSection={<IconWand size={16} />}>Generate rota</Tabs.Tab>
           <Tabs.Tab value="people" leftSection={<IconUsers size={16} />}>Officers</Tabs.Tab>
+          <Tabs.Tab value="locations" leftSection={<IconMapPin size={16} />}>Clinics</Tabs.Tab>
           <Tabs.Tab value="leave" leftSection={<IconPlaneDeparture size={16} />}>Confirmed leave</Tabs.Tab>
           <Tabs.Tab value="tally" leftSection={<IconSum size={16} />}>Tally</Tabs.Tab>
           <Tabs.Tab value="periods" leftSection={<IconCalendarCog size={16} />}>Periods & holidays</Tabs.Tab>
@@ -51,6 +53,7 @@ export function AdminPage() {
         </Paper>
         <Tabs.Panel value="rota"><RotaTab /></Tabs.Panel>
         <Tabs.Panel value="people"><PeopleTab /></Tabs.Panel>
+        <Tabs.Panel value="locations"><LocationsTab /></Tabs.Panel>
         <Tabs.Panel value="leave"><ConfirmedLeaveTab /></Tabs.Panel>
         <Tabs.Panel value="tally"><TallyTab /></Tabs.Panel>
         <Tabs.Panel value="periods"><PeriodsTab /></Tabs.Panel>

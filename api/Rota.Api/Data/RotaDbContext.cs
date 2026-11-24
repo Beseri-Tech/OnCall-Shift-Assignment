@@ -17,6 +17,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
     public Guid? FacilityId => http?.HttpContext?.User.FacilityId();
 
     public DbSet<Facility> Facilities => Set<Facility>();
+    public DbSet<AppSetting> Settings => Set<AppSetting>();
     public DbSet<Person> People => Set<Person>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<State> States => Set<State>();
@@ -299,6 +300,14 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.Property(f => f.Name).HasMaxLength(100);
             e.Property(f => f.Code).HasMaxLength(16);
             e.HasOne(f => f.District).WithMany(d => d.Facilities).HasForeignKey(f => f.DistrictId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<AppSetting>(e =>
+        {
+            e.ToTable("app_settings");
+            e.HasKey(s => s.Key);
+            e.Property(s => s.Key).HasMaxLength(64);
+            e.Property(s => s.Value).HasMaxLength(200);
         });
 
         FacilityFilters(b);
