@@ -4,7 +4,7 @@ import {
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconEdit, IconMailForward, IconSearch, IconUserPlus } from '@tabler/icons-react'
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { api, type Account, type AccountRole, type AdminPerson, type InviteResult } from '../../api'
 import { isMaster, useMe } from '../../auth'
 import { ErrorBox, Loading } from '../../components/common'
@@ -36,6 +36,11 @@ export function AccountsTab() {
   const inHospital = !!me?.facility
   const people = useQuery({ queryKey: ['admin', 'people'], queryFn: api.admin.people, enabled: inHospital })
   const [search, setSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  // Outside a hospital the list holds every hospital's accounts: start on the masters, pick a hospital to see its own.
+  const [hospital, setHospital] = useState<string | null>('masters')
+  const facilities = useQuery({ queryKey: ['facilities'], queryFn: api.facilities, enabled: !inHospital })
   const [editing, setEditing] = useState<Account | 'new' | null>(null)
   const [issued, setIssued] = useState<IssuedLogin[]>([])
   const [now] = useState(() => new Date().toISOString())
@@ -55,8 +60,21 @@ export function AccountsTab() {
 
   const rows = useMemo(() => {
     const s = search.trim().toLowerCase()
-    return (accounts.data ?? []).filter(a => !s || a.email.includes(s) || a.personName?.toLowerCase().includes(s))
-  }, [accounts.data, search])
+    return (accounts.data ?? []).filter(a =>
+      (!s || a.email.includes(s) || a.personName?.toLowerCase().includes(s))
+      && (!roleFilter || a.role === roleFilter)
+      && (!statusFilter || status(a).label === statusFilter)
+      && (inHospital || !hospital || (hospital === 'masters' ? a.facilityId === null : a.facilityId === hospital)))
+  }, [accounts.data, search, roleFilter, statusFilter, hospital, inHospital])
+
+  // Outside a hospital, accounts are grouped by hospital (masters first).
+  const groups = useMemo(() => {
+    if (inHospital) return [{ key: 'all', label: null as string | null, items: rows }]
+    const byKey = new Map<string, Account[]>()
+    for (const a of rows) byKey.set(a.facilityCode ?? '', [...(byKey.get(a.facilityCode ?? '') ?? []), a])
+    return [...byKey.entries()].sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)))
+      .map(([key, items]) => ({ key, label: key === '' ? 'Masters' : key, items }))
+  }, [rows, inHospital])
 
   if (accounts.isLoading || people.isLoading) return <Loading />
   if (accounts.error || people.error) return <ErrorBox error={accounts.error ?? people.error} />
@@ -71,6 +89,17 @@ export function AccountsTab() {
         <Group>
           <TextInput placeholder="Find email or name" leftSection={<IconSearch size={16} />} value={search}
             onChange={e => setSearch(e.currentTarget.value)} w={240} />
+          {!inHospital && (
+            <Select placeholder="All hospitals" clearable w={220} value={hospital} onChange={setHospital} searchable
+              data={[{ value: 'masters', label: 'Masters' },
+                ...(facilities.data ?? []).map(f => ({ value: f.id, label: `${f.code} · ${f.name}` }))]} />
+          )}
+          <Select placeholder="Any role" clearable w={160} value={roleFilter} onChange={setRoleFilter}
+            data={roles.concat(inHospital || hospital === 'masters' ? [] : ['Officer', 'Admin', 'Supervisor'] as AccountRole[])
+              .filter((r, i, all) => all.indexOf(r) === i).map(r => ({ value: r, label: ROLE_LABEL[r] }))} />
+          <Select placeholder="Any status" clearable w={140} value={statusFilter} onChange={setStatusFilter}
+            data={['Active', 'Invited', 'Disabled']} />
+          <Text size="sm" c="dimmed">{rows.length} of {accounts.data!.length}</Text>
           {withoutAccount > 0 && <Text size="sm" c="dimmed">{withoutAccount} officer(s) have no account yet</Text>}
         </Group>
         <Button leftSection={<IconUserPlus size={16} />} onClick={() => setEditing('new')}>Invite</Button>
@@ -90,7 +119,14 @@ export function AccountsTab() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {rows.map(a => {
+              {groups.map(g => (
+                <Fragment key={g.key}>
+                {g.label && (
+                  <Table.Tr bg="var(--mantine-color-gray-1)">
+                    <Table.Td colSpan={6}><Text fw={700} size="sm">{g.label} <Text span size="xs" c="dimmed">· {g.items.length}</Text></Text></Table.Td>
+                  </Table.Tr>
+                )}
+              {g.items.map(a => {
                 const st = status(a)
                 return (
                   <Table.Tr key={a.id} opacity={a.enabled ? 1 : 0.55}>
@@ -126,6 +162,11 @@ export function AccountsTab() {
                   </Table.Tr>
                 )
               })}
+                </Fragment>
+              ))}
+              {rows.length === 0 && (
+                <Table.Tr><Table.Td colSpan={6}><Text size="sm" c="dimmed" ta="center" py="lg">No accounts match.</Text></Table.Td></Table.Tr>
+              )}
             </Table.Tbody>
           </Table>
         </Table.ScrollContainer>

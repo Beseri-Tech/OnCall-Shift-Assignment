@@ -18,7 +18,8 @@ public static class AdminAccountEndpoints
         g.MapGet("/", async (RotaDbContext db, CancellationToken ct) =>
             await db.Accounts.OrderBy(a => a.Email)
                 .Select(a => new AccountDto(a.Id, a.Email, a.Role, a.PersonId, a.Person != null ? a.Person.Name : null, a.Enabled,
-                    a.MustChangePassword, a.TempPasswordExpiresAt, a.LastLoginAt))
+                    a.MustChangePassword, a.TempPasswordExpiresAt, a.LastLoginAt,
+                    a.FacilityId, db.Facilities.Where(f => f.Id == a.FacilityId).Select(f => f.Code).FirstOrDefault()))
                 .ToListAsync(ct));
 
         g.MapPost("/", async (InviteRequest req, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>

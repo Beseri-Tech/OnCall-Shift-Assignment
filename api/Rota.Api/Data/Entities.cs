@@ -464,6 +464,13 @@ public sealed class ChangeLog
     public string? UserAgent { get; set; }
 }
 
+/// <summary>An app-wide setting a master changes at runtime (overrides the config default once set).</summary>
+public sealed class AppSetting
+{
+    public string Key { get; set; } = "";
+    public string Value { get; set; } = "";
+}
+
 public enum FeedbackCategory { Bug, Suggestion, Other }
 
 /// <summary>Feedback about the app from a signed-in user; admins read it and mark it resolved.</summary>

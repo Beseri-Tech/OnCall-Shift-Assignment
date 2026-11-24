@@ -25,6 +25,23 @@ public static class AdminEndpoints
         admin.MapAuditEndpoints();
         admin.MapAdminFeedbackEndpoints();
         admin.MapLeaveApprovalEndpoints();
+        MapSettings(admin.MapGroup("/settings").WithTags("Admin settings").RequireAuthorization(Session.MasterPolicy));
+    }
+
+    // ---------------- app-wide settings (masters) ----------------
+
+    private static void MapSettings(RouteGroupBuilder g)
+    {
+        g.MapGet("/email", (RotaDbContext db, Mailer mailer) => new EmailSettingsDto(mailer.IsConfigured, mailer.IsEnabled(db)));
+
+        g.MapPut("/email", async (EmailSettingsRequest req, RotaDbContext db, Mailer mailer, HttpContext http, CancellationToken ct) =>
+        {
+            bool before = mailer.IsEnabled(db);
+            await mailer.SetEnabledAsync(db, req.Enabled, ct);
+            Mapping.Log(db, http, "settings.email", null, null, Mailer.EnabledSetting, new { Enabled = before }, new { req.Enabled });
+            await db.SaveChangesAsync(ct);
+            return new EmailSettingsDto(mailer.IsConfigured, req.Enabled);
+        });
     }
 
     // ---------------- people ----------------

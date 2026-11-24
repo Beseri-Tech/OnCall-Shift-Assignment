@@ -12,6 +12,18 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.1.0', date: '2026-11-24', title: 'Clinics page and email switch',
+    changes: [
+      { kind: 'improved', text: 'Clinics and districts now have their own page (Admin → Clinics) instead of a pop-up: pick a state or district on the left, search, and add, rename or remove clinics in a table. It opens on your hospital’s state.' },
+      { kind: 'improved', text: 'The accounts list can be filtered by role and status. Masters see accounts grouped by hospital and can filter by hospital.' },
+      { kind: 'new', text: 'Masters can switch email off or on for the whole app (All hospitals → Settings). While it is off, invites show the temporary password to the admin instead of emailing it. The choice is kept.' },
+      { kind: 'fixed', text: 'A hospital admin can no longer remove a clinic that another hospital’s officers work at.' },
+      { kind: 'improved', text: 'The user manual is the same for every hospital, so it is now uploaded by masters from All hospitals → Manual. Hospital admins no longer see a Manual tab; everyone still reads it from the Rules page.' },
+      { kind: 'improved', text: 'The audit log covers the whole app, so it moved to the masters’ All hospitals page, with a Hospital filter and column. Changes to hospitals, states, districts, clinics and settings show as app-wide.' },
+      { kind: 'new', text: 'Masters can download every hospital’s rota reports from All hospitals → Reports, filtered by hospital. Hospital admins still have their own Reports tab.' },
+    ],
+  },
+  {
     version: '3.0.0', date: '2026-11-24', title: 'More hospitals',
     changes: [
       { kind: 'new', text: 'The app can now run the on-call rota for more than one hospital. Each hospital has its own officers, rota periods, leave, swaps, reports and audit log, and nobody sees another hospital’s data. Everything so far belongs to Hospital Tuanku Fauziah (HTF).' },

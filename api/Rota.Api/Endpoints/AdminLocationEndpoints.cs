@@ -285,6 +285,10 @@ public static class AdminLocationEndpoints
         {
             var clinic = await db.Clinics.FindAsync([id], ct);
             if (clinic is null) return Results.NotFound();
+            // Clinics are shared: only a master may take one away from another hospital's officers.
+            if (!http.User.IsMaster() && await db.People.IgnoreQueryFilters()
+                    .AnyAsync(p => p.ClinicId == id && p.FacilityId != db.FacilityId, ct))
+                return Results.Problem($"Officers of another hospital work at {clinic.Name}.", statusCode: StatusCodes.Status409Conflict);
             db.Clinics.Remove(clinic);
             Mapping.Log(db, http, "clinic.delete", null, new { officers = await db.People.CountAsync(p => p.ClinicId == id, ct) }, id,
                 before: await Audit.ClinicAsync(db, clinic, ct));

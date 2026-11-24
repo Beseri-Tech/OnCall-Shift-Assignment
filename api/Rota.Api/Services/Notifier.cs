@@ -57,7 +57,7 @@ public sealed class Notifier
         foreach (var a in accounts)
         {
             _db.Notifications.Add(new Notification { AccountId = a.Id, Kind = kind, Title = title, Body = body, Link = link });
-            if (email && _mailer.IsConfigured && _http.HttpContext is { } http)
+            if (email && _mailer.CanSend(_db) && _http.HttpContext is { } http)
                 _mailer.Enqueue(_db, a.Email, new EmailContent(
                     Subject: title,
                     Heading: title,

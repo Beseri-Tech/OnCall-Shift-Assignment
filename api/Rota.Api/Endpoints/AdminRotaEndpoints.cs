@@ -260,7 +260,7 @@ public static class AdminRotaEndpoints
         });
 
         // The saved PDF reports (kept in R2) and the published rotas that don't have one yet.
-        g.MapGet("/reports", async (ReportArchive archive, CancellationToken ct) => await archive.ListAsync(ct));
+        g.MapGet("/reports", async (Guid? facilityId, ReportArchive archive, CancellationToken ct) => await archive.ListAsync(facilityId, ct));
 
         g.MapPost("/runs/{id:guid}/report/archive", async (Guid id, ReportArchive archive, RotaDbContext db, HttpContext http,
             ILogger<ReportArchive> log, CancellationToken ct) =>

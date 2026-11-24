@@ -58,8 +58,9 @@ export type DocumentKind = 'Manual' | 'LeaveDocument' | 'Other' | 'RotaReport'
 export interface ArchivedReport {
   documentId: string; runId: string; periodName: string; fileName: string; sizeBytes: number
   createdAt: string; createdBy: string | null; runIsPublished: boolean
+  facilityCode: string | null
 }
-export interface UnarchivedRun { runId: string; periodName: string; publishedAt: string | null }
+export interface UnarchivedRun { runId: string; periodName: string; publishedAt: string | null; facilityCode: string | null }
 export interface ReportArchive { storageEnabled: boolean; reports: ArchivedReport[]; unarchived: UnarchivedRun[] }
 export interface StoredDocument {
   id: string; kind: DocumentKind; fileName: string; contentType: string; sizeBytes: number
@@ -135,7 +136,11 @@ export interface UpsertFacility { name: string; code: string; districtId: string
 export interface Account {
   id: string; email: string; role: AccountRole; personId: string | null; personName: string | null; enabled: boolean
   mustChangePassword: boolean; tempPasswordExpiresAt: string | null; lastLoginAt: string | null
+  /** The hospital it belongs to; null for masters. */
+  facilityId: string | null; facilityCode: string | null
 }
+/** configured: SMTP is set up on the server; enabled: the masters' on/off switch. */
+export interface EmailSettings { configured: boolean; enabled: boolean }
 /** tempPassword only comes back when the email could not be sent. */
 export interface InviteResult { accountId: string; emailSent: boolean; tempPassword: string | null }
 export interface TallyRow {
@@ -202,10 +207,14 @@ export interface AuditEntry {
   id: number; at: string; accountId: string | null; actorEmail: string | null; actorName: string | null; action: string
   entity: string | null; entityId: string | null; personId: string | null; personName: string | null
   detail: unknown; before: unknown; after: unknown; ip: string | null; userAgent: string | null
+  /** The hospital it happened in; null for app-wide changes (hospitals, locations, masters, settings). */
+  facilityCode: string | null
 }
 export interface AuditPage { items: AuditEntry[]; total: number; page: number; pageSize: number }
 export interface AuditFilters { actors: { accountId: string; email: string; name: string | null }[]; actions: string[]; entities: string[] }
 export interface AuditQuery {
+  /** A hospital's id, or "none" for app-wide changes. */
+  facility?: string
   from?: IsoDate; to?: IsoDate; accountId?: string; action?: string; entity?: string; personId?: string; page?: number
   pageSize?: number
 }
@@ -360,6 +369,8 @@ export const api = {
     createFacility: (f: UpsertFacility) => post<string>('/api/admin/facilities', f),
     updateFacility: (id: string, f: UpsertFacility) => put<void>(`/api/admin/facilities/${id}`, f),
     deleteFacility: (id: string) => del<void>(`/api/admin/facilities/${id}`),
+    emailSettings: () => get<EmailSettings>('/api/admin/settings/email'),
+    setEmailEnabled: (enabled: boolean) => put<EmailSettings>('/api/admin/settings/email', { enabled }),
 
     clinics: () => get<Clinic[]>('/api/admin/clinics'),
     createClinic: (c: UpsertClinic) => post<string>('/api/admin/clinics', c),
@@ -418,7 +429,8 @@ export const api = {
       get<AuditPage>(`/api/admin/audit${q({ ...f, page: page?.toString(), pageSize: pageSize?.toString() })}`),
     auditFilters: () => get<AuditFilters>('/api/admin/audit/filters'),
 
-    reportArchive: () => get<ReportArchive>('/api/admin/reports'),
+    /** facilityId: one hospital's reports (masters outside a hospital); otherwise the current hospital's. */
+    reportArchive: (facilityId?: string) => get<ReportArchive>(`/api/admin/reports${q({ facilityId })}`),
     archiveReport: (runId: string) => post<ArchivedReport>(`/api/admin/runs/${runId}/report/archive`),
 
     feedback: ({ page, pageSize, ...f }: FeedbackQuery) =>

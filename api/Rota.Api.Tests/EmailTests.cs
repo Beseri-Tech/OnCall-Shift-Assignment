@@ -36,6 +36,45 @@ public class EmailTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     };
 
     [Fact]
+    public async Task A_master_can_switch_email_off_and_the_choice_is_kept()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "rota-mail-" + Guid.NewGuid().ToString("N"));
+        var settings = new Dictionary<string, string?> { ["Smtp:PickupDirectory"] = dir, ["Smtp:Enabled"] = "false" };
+        await using var app = fixture.CreateApp(settings);
+        var master = await ApiFixture.AdminClientAsync(app);
+
+        // Off by config (as on staging): invites fall back to showing the temporary password, nothing is queued.
+        Assert.Equal(new EmailSettingsDto(true, false), await master.GetFromJsonAsync<EmailSettingsDto>("/api/admin/settings/email"));
+        (await ForgotAsync(app)).EnsureSuccessStatusCode();
+        Assert.Empty(await OutboxAsync(app));
+        var person = await (await master.PostAsJsonAsync("/api/admin/people", new UpsertPersonRequest("Dr Mail", null), ApiFixture.Json))
+            .Content.ReadFromJsonAsync<SavePersonResult>(ApiFixture.Json);
+        var invite = await (await master.PostAsJsonAsync("/api/admin/accounts",
+            new InviteRequest("mail@test.local", AccountRole.Officer, person!.Id), ApiFixture.Json)).Content.ReadFromJsonAsync<InviteResult>(ApiFixture.Json);
+        Assert.False(invite!.EmailSent);
+        Assert.NotNull(invite.TempPassword);
+
+        // Switched on: email is queued again, and the choice outlives a restart (it's saved, not taken from config).
+        (await master.PutAsJsonAsync("/api/admin/settings/email", new EmailSettingsRequest(true))).EnsureSuccessStatusCode();
+        (await ForgotAsync(app)).EnsureSuccessStatusCode();
+        Assert.Single(await OutboxAsync(app));
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<RotaDbContext>();
+            Assert.Equal("True", (await db.Settings.SingleAsync(x => x.Key == "email.enabled")).Value);
+        }
+
+        // Officers and supervisors can't touch it.
+        var officer = app.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        (await officer.PostAsJsonAsync("/api/auth/login", new { email = "mail@test.local", password = invite.TempPassword })).EnsureSuccessStatusCode();
+        (await officer.PostAsJsonAsync("/api/auth/change-password", new ChangePasswordRequest(invite.TempPassword!, "officer-pass-123")))
+            .EnsureSuccessStatusCode();
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden,
+            (await officer.PutAsJsonAsync("/api/admin/settings/email", new EmailSettingsRequest(false))).StatusCode);
+        if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
     public async Task A_failed_send_is_retried_later_without_blocking_the_request()
     {
         await using var app = fixture.CreateApp(DeadSmtp);

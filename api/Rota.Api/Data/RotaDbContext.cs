@@ -17,6 +17,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
     public Guid? FacilityId => http?.HttpContext?.User.FacilityId();
 
     public DbSet<Facility> Facilities => Set<Facility>();
+    public DbSet<AppSetting> Settings => Set<AppSetting>();
     public DbSet<Person> People => Set<Person>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<State> States => Set<State>();
@@ -301,6 +302,14 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             e.HasOne(f => f.District).WithMany(d => d.Facilities).HasForeignKey(f => f.DistrictId).OnDelete(DeleteBehavior.Restrict);
         });
 
+        b.Entity<AppSetting>(e =>
+        {
+            e.ToTable("app_settings");
+            e.HasKey(s => s.Key);
+            e.Property(s => s.Key).HasMaxLength(64);
+            e.Property(s => s.Value).HasMaxLength(200);
+        });
+
         FacilityFilters(b);
 
         b.Entity<ChangeLog>(e =>
@@ -360,6 +369,9 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
             Set<Person>().Any(p => p.Id == x.FromPersonId && p.FacilityId == FacilityId));
     }
 
+    /// <summary>Audit entries about things shared by every hospital: logged outside any hospital.</summary>
+    private static readonly HashSet<string> AppLevelEntities = ["facility", "state", "district", "clinic", "settings"];
+
     /// <summary>New rows get the current hospital (and its state, for holidays) unless the code set one.</summary>
     public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
@@ -372,7 +384,7 @@ public sealed class RotaDbContext(DbContextOptions<RotaDbContext> options, IHttp
                 {
                     case Person p when p.FacilityId == Guid.Empty: p.FacilityId = fid; break;
                     case RotaPeriod p when p.FacilityId == Guid.Empty: p.FacilityId = fid; break;
-                    case ChangeLog c when c.FacilityId is null: c.FacilityId = fid; break;
+                    case ChangeLog c when c.FacilityId is null && !AppLevelEntities.Contains(c.Entity ?? ""): c.FacilityId = fid; break;
                     case DocumentRecord d when d.FacilityId is null && d.Kind != DocumentKind.Manual: d.FacilityId = fid; break;
                     case PublicHoliday h when h.StateId == Guid.Empty: h.StateId = stateId ??= await StateOfAsync(fid, ct); break;
                     case PeakDay h when h.StateId == Guid.Empty: h.StateId = stateId ??= await StateOfAsync(fid, ct); break;
