@@ -1,5 +1,6 @@
 import {
-  Alert, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, PasswordInput, SimpleGrid, Stack, Table, Text, TextInput, Textarea,
+  Alert, Badge, Button, Checkbox, Fieldset, Grid, Group, Modal, NumberInput, Paper, PasswordInput, SimpleGrid, Stack, Table, Text, TextInput,
+  Textarea,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -51,10 +52,13 @@ function ProfileForm({ profile }: { profile: EtapProfile }) {
     onError: e => notifyError(e, 'Could not save'),
   })
 
-  const field = (k: keyof ProfileInput, label: string, extra?: { required?: boolean; description?: string; max?: number }) => (
-    <TextInput label={label} required={extra?.required ?? true} description={extra?.description} maxLength={extra?.max ?? 200}
-      value={(v[k] as string | null) ?? ''} onChange={e => set(k, (e.currentTarget.value || null) as never)} />
+  // Everything is typed in capitals, as on the printed form.
+  const field = (k: keyof ProfileInput, label: string, extra?: { required?: boolean; placeholder?: string; max?: number }) => (
+    <TextInput label={label} required={extra?.required ?? true} placeholder={extra?.placeholder} maxLength={extra?.max ?? 200}
+      value={(v[k] as string | null) ?? ''} onChange={e => set(k, (e.currentTarget.value.toUpperCase() || null) as never)} />
   )
+  // The specialist date only applies to specialists: off (and empty) unless they tick the box.
+  const [pakar, setPakar] = useState(!!profile.tarikhPewartaanPakar)
 
   return (
     <Stack gap="md">
@@ -67,28 +71,59 @@ function ProfileForm({ profile }: { profile: EtapProfile }) {
           </Alert>}
       <Paper className="panel" p="lg">
         <form onSubmit={e => { e.preventDefault(); save.mutate() }}>
-          <Stack>
-            <SimpleGrid cols={{ base: 1, sm: 2 }}>
-              {field('fullName', 'Full name (as in IC)')}
-              {field('icNo', 'IC number', { max: 20 })}
-              {field('jawatan', 'Jawatan', { description: 'e.g. Pegawai Pergigian', max: 100 })}
-              {field('gred', 'Gred', { description: 'e.g. UD10', max: 20 })}
-              <DatePickerInput label="Tarikh pewartaan pakar" description="Only for specialists (specialist rates apply)" clearable
-                value={v.tarikhPewartaanPakar} valueFormat="D MMM YYYY" onChange={d => set('tarikhPewartaanPakar', (d as string) ?? null)} />
-              {field('unitTempatBertugas', 'Unit / tempat bertugas', { max: 300 })}
-            </SimpleGrid>
-            <Textarea label="Alamat rumah" required autosize minRows={2} maxLength={400} value={v.alamatRumah ?? ''}
-              onChange={e => set('alamatRumah', e.currentTarget.value || null)} />
-            <SimpleGrid cols={{ base: 1, sm: 3 }}>
-              <NumberInput label="Jarak (km)" required min={0} max={10000} decimalScale={1} value={v.jarakKm ?? ''}
-                onChange={x => set('jarakKm', typeof x === 'number' ? x : null)} />
-              {field('noGaji', 'No. gaji', { max: 30 })}
-              {field('noTelefonPejabat', 'No. telefon & samb. (office)', { required: false, max: 40 })}
-              {field('noTelefonBimbit', 'No. telefon bimbit', { max: 32 })}
-              {field('noAkaunBank', 'No. akaun bank', { max: 30 })}
-              {field('namaCawanganBank', 'Nama & cawangan bank', { description: 'e.g. Maybank Kangar', max: 150 })}
-            </SimpleGrid>
-            <Text size="xs" c="dimmed">E-mel on the form is your sign-in email ({profile.email}).</Text>
+          <Stack gap="md">
+            <Fieldset legend="Peribadi">
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                {field('fullName', 'Nama penuh (as in IC)')}
+                {field('icNo', 'No. kad pengenalan', { placeholder: '900101-09-1234', max: 20 })}
+              </SimpleGrid>
+            </Fieldset>
+
+            <Fieldset legend="Jawatan">
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                {field('jawatan', 'Jawatan', { placeholder: 'PEGAWAI PERGIGIAN', max: 100 })}
+                {field('gred', 'Gred jawatan', { placeholder: 'UD10', max: 20 })}
+                {field('unitTempatBertugas', 'Unit / tempat bertugas', { max: 300 })}
+                {field('noGaji', 'No. gaji', { max: 30 })}
+              </SimpleGrid>
+              <Stack gap={6} mt="md">
+                <Checkbox label="I am a specialist (pakar): specialist rates apply" checked={pakar}
+                  onChange={e => { const on = e.currentTarget.checked; setPakar(on); if (!on) set('tarikhPewartaanPakar', null) }} />
+                <DatePickerInput label="Tarikh pewartaan pakar" required={pakar} disabled={!pakar} maw={260} clearable
+                  placeholder={pakar ? 'Pick the date' : 'Not a specialist'} value={v.tarikhPewartaanPakar} valueFormat="D MMM YYYY"
+                  onChange={d => set('tarikhPewartaanPakar', (d as string) ?? null)} />
+              </Stack>
+            </Fieldset>
+
+            <Fieldset legend="Alamat">
+              <Grid gap="md">
+                <Grid.Col span={{ base: 12, sm: 9 }}>
+                  <Textarea label="Alamat rumah" required autosize minRows={2} maxLength={400} value={v.alamatRumah ?? ''}
+                    onChange={e => set('alamatRumah', e.currentTarget.value.toUpperCase() || null)} />
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 3 }}>
+                  <NumberInput label="Jarak (km)" description="Home to workplace" required min={0} max={10000} decimalScale={1}
+                    value={v.jarakKm ?? ''} onChange={x => set('jarakKm', typeof x === 'number' ? x : null)} />
+                </Grid.Col>
+              </Grid>
+            </Fieldset>
+
+            <Fieldset legend="Hubungan">
+              <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                {field('noTelefonPejabat', 'No. telefon & samb. (pejabat)', { required: false, max: 40 })}
+                {field('noTelefonBimbit', 'No. telefon bimbit', { max: 32 })}
+                <TextInput label="E-mel" value={profile.email ?? ''} readOnly variant="filled" description="Your sign-in email" />
+              </SimpleGrid>
+            </Fieldset>
+
+            <Fieldset legend="Bank">
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                {field('noAkaunBank', 'No. akaun bank', { max: 30 })}
+                {field('namaCawanganBank', 'Nama & cawangan bank', { placeholder: 'MAYBANK KANGAR', max: 150 })}
+              </SimpleGrid>
+            </Fieldset>
+
+
             <Group justify="space-between">
               <Group gap={6}><IconLock size={14} /><Text size="xs" c="dimmed">Only you can see these details.</Text></Group>
               <Group>
