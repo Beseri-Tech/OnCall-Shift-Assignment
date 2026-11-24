@@ -55,10 +55,6 @@ public static partial class CaseEndpoints
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Oncall cases {from:yyyy-MM}.xlsx");
         }).RequireRateLimiting(DownloadLimit);
 
-        // Whoever the rota has on call on a date: the default officer in charge on the form.
-        g.MapGet("/on-call-officer", async (DateOnly date, RotaDbContext db, CancellationToken ct) =>
-            await OnCallOfficerAsync(db, date, ct) is { } o ? Results.Ok(o) : Results.NoContent());
-
         g.MapPost("/", async (CaseInput input, RotaDbContext db, HttpContext http, CancellationToken ct) =>
         {
             if (http.User.AccountId() is not { } me || http.User.FacilityId() is null) return Results.Forbid();
@@ -136,19 +132,17 @@ public static partial class CaseEndpoints
                select new OnCallOfficerDto(p.Id, p.Name)).FirstOrDefaultAsync(ct);
 
     /// <summary>
-    /// The officer in charge: the one chosen on the form, else whoever the rota has on call that date, else the person typing
-    /// it in when they are on the rota. When editing (<paramref name="current"/>), an unchosen officer stays as it was. Must be
-    /// on this hospital's rota.
+    /// The officer in charge: the officer typing it in (when editing, <paramref name="current"/> stays as it was). An explicit
+    /// OfficerId is still accepted for admins. Must be on this hospital's rota.
     /// </summary>
     private static async Task<(Guid Officer, IResult? Problem)> OfficerAsync(RotaDbContext db, HttpContext http, CaseInput input,
         Guid? current, CancellationToken ct)
     {
-        var onCall = input.OnCallDate ?? DefaultOnCallDate(input.Date, input.TimeStart);
-        Guid? officer = input.OfficerId ?? current ?? (await OnCallOfficerAsync(db, onCall, ct))?.PersonId ?? http.User.PersonId();
+        Guid? officer = input.OfficerId ?? current ?? http.User.PersonId();
         if (officer is not { } id || !await db.Officers.AnyAsync(p => p.Id == id, ct))
             return (Guid.Empty, Results.ValidationProblem(new Dictionary<string, string[]>
             {
-                ["officerId"] = ["Pick the on-call officer in charge."],
+                ["officerId"] = ["Only officers on the rota record on-call cases."],
             }));
         return (id, null);
     }
