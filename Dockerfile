@@ -23,7 +23,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
 # krb5-libs: Npgsql/.NET probe for GSSAPI at startup; without it the log shows a harmless but noisy error.
 # fontconfig: the PDF report engine (QuestPDF) loads it for text rendering.
 # icu-libs + tzdata: full globalization and the Asia/Kuala_Lumpur time zone (leave deadlines use it).
-RUN apk add --no-cache krb5-libs fontconfig icu-libs tzdata
+# postgresql17-client: pg_dump for the nightly database backup. Its major version must be the same as, or newer
+# than, the server (postgres:17-alpine in docker-compose.yml): change both together.
+RUN apk add --no-cache krb5-libs fontconfig icu-libs tzdata postgresql17-client
 WORKDIR /app
 COPY --from=api /app ./
 COPY --from=web /web/dist ./wwwroot

@@ -12,6 +12,12 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.9.0', date: '2026-11-24', title: 'Nightly database backup',
+    changes: [
+      { kind: 'new', text: 'The rota database is now backed up every night to a private Cloudflare R2 bucket and kept for 30 days, so nothing is lost if the server fails.' },
+    ],
+  },
+  {
     version: '3.8.1', date: '2026-11-24', title: 'Manual from storage only',
     changes: [
       { kind: 'improved', text: 'The user manual is now only the copy a master uploads under All hospitals → Manual. The old copy built into the app is gone, which makes the app download smaller. Until a manual is uploaded, the Help page shows no manual button.' },

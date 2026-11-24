@@ -51,6 +51,7 @@ builder.Services.AddSingleton<Rota.Api.Storage.IDocumentStorage, Rota.Api.Storag
 builder.Services.AddScoped<Rota.Api.Storage.DocumentService>();
 builder.Services.AddScoped<Rota.Api.Reports.ReportArchive>();
 builder.Services.AddHostedService<DocumentCleanup>();
+builder.Services.AddHostedService<DatabaseBackup>();
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
