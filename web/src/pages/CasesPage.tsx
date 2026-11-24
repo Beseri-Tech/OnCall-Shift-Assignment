@@ -133,7 +133,7 @@ function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSave
             <Stack gap="sm">
               <TextInput label="Officer in charge" value={officer ?? ''} readOnly variant="filled" />
               <TextInput label="Taggers" placeholder="e.g. Dr Hafiz (HO)" value={v.taggers ?? ''} maxLength={200}
-                onChange={e => set('taggers', e.currentTarget.value || null)} />
+                onChange={e => set('taggers', e.currentTarget.value.toUpperCase() || null)} />
             </Stack>
           </Fieldset>
           <Fieldset legend="DSA">
@@ -162,7 +162,7 @@ function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSave
               </Input.Wrapper>
             </Grid.Col>
             <Grid.Col span={{ base: 12, sm: 6, md: 2 }}>
-              <TextInput label="Age" placeholder="e.g. 34, 8 months" value={v.age ?? ''} maxLength={20} onChange={e => set('age', e.currentTarget.value || null)} />
+              <TextInput label="Age" placeholder="e.g. 34, 8 months" value={v.age ?? ''} maxLength={20} onChange={e => set('age', e.currentTarget.value.toUpperCase() || null)} />
             </Grid.Col>
             <Grid.Col span={{ base: 12, sm: 6, md: 4 }}>
               <Autocomplete label="Race" placeholder={pickOrType} data={RACES} value={v.race ?? ''}
@@ -177,15 +177,15 @@ function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSave
                 onChange={x => set('referralSource', x.toUpperCase() || null)} />
             </Grid.Col>
             <Grid.Col span={{ base: 12, md: 8 }}>
-              <TextInput label="Diagnosis" value={v.diagnosis ?? ''} maxLength={500} onChange={e => set('diagnosis', e.currentTarget.value || null)} />
+              <TextInput label="Diagnosis" value={v.diagnosis ?? ''} maxLength={500} onChange={e => set('diagnosis', e.currentTarget.value.toUpperCase() || null)} />
             </Grid.Col>
             <Grid.Col span={{ base: 12, md: 6 }}>
               <Textarea label="Management" autosize minRows={2} maxLength={1000} value={v.management ?? ''}
-                onChange={e => set('management', e.currentTarget.value || null)} />
+                onChange={e => set('management', e.currentTarget.value.toUpperCase() || null)} />
             </Grid.Col>
             <Grid.Col span={{ base: 12, md: 6 }}>
               <Textarea label="Plan" autosize minRows={2} maxLength={1000} value={v.plan ?? ''}
-                onChange={e => set('plan', e.currentTarget.value || null)} />
+                onChange={e => set('plan', e.currentTarget.value.toUpperCase() || null)} />
             </Grid.Col>
           </Grid>
           <Checkbox mt="md" label="Confidential patient (the ETAP form leaves out the name and registration number)"
