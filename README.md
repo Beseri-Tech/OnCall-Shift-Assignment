@@ -34,7 +34,7 @@ docker compose pull && docker compose up -d
 
 CI publishes the image to GHCR: every push to `master` updates `:latest`, and a `v1.2.3` tag publishes `:1.2.3`. Set `APP_TAG` to pin a version. If the package is private, sign in on the server first with a token that has `read:packages`: `docker login ghcr.io -u <github-user>`. To build from source instead, use `docker compose up -d --build`.
 
-The app is at <http://localhost:8080> and the admin page at `/admin`. Database migrations run on startup; data lives in the `pgdata` volume, so back it up. Put a reverse proxy with HTTPS in front for anything beyond a trusted network.
+The app is at <http://localhost:8080> and the admin page at `/admin`. Database migrations run on startup; data lives in the `pgdata` volume; see [Database backups to R2](#database-backups-to-r2-optional). Put a reverse proxy with HTTPS in front for anything beyond a trusted network.
 
 | Variable | Purpose | Default |
 |---|---|---|
@@ -84,6 +84,26 @@ dotnet test api/Rota.sln         # tests
 
 Layout: `api/Rota.Core` (rota algorithm, Excel, leave parsing), `api/Rota.Api` (endpoints, EF/Postgres), `web/` (React + Mantine). CI runs tests, lint, build and the Docker image build.
 
+### Database backups to R2 (optional)
+
+Every night at 03:00 (clinic time) the API runs `pg_dump -Fc` and uploads the dump to a **separate private** R2 bucket, as `<prefix>/rota-<date>-<time>.dump`. It is off until the four `BACKUP_R2_*` values are set. A night is skipped if the container is restarting at that moment; there is no catch-up run. The dump holds patient details, password hashes and the audit log, so treat it as sensitive and delete downloaded copies after use.
+
+1. In R2 create a second private bucket (e.g. `rota-backups`) with its own API token: **Object Read & Write limited to that bucket only** (R2 has no write-only token, so the scoping is the safeguard). Tokens are per bucket, not per folder: use a **separate bucket (or token) for staging**, otherwise a compromised staging server could delete production backups. Consider an R2 bucket lock/retention rule too, and choose the bucket location with patient data in mind.
+2. Bucket → Settings → **Object lifecycle rules**: delete objects 30 days after upload.
+3. Set `BACKUP_R2_ACCOUNT_ID`, `BACKUP_R2_BUCKET_NAME`, `BACKUP_R2_ACCESS_KEY_ID`, `BACKUP_R2_SECRET_ACCESS_KEY` in `.env`. `BACKUP_PREFIX` is `production` by default; staging uses `staging`. Optional: `BACKUP_HOUR` (0-23), `BACKUP_ENABLED=false`.
+4. Check once: set `BACKUP_RUN_ON_STARTUP=true`, restart, and look for "Database backup uploaded" in `docker compose logs app` (and the object in R2). Then remove it.
+5. Optional: `BACKUP_PING_URL` (a healthchecks-style URL) is called after each good backup; set the service to alert when pings stop, since failures are otherwise only in the log.
+
+**Restore** (the dump must come from the same app version, because migrations run on startup). Download the dump from the R2 dashboard, then:
+
+```bash
+docker compose stop app
+docker compose exec -T db pg_restore --clean --if-exists --no-owner --single-transaction -U rota -d rota < rota-YYYY-MM-DD-HHMM.dump
+docker compose start app
+```
+
+Try a restore into a scratch database once before you need it. `pg_dump` in the image (`postgresql17-client`) must stay the same major version as, or newer than, the `postgres` image: change them together.
+
 ## Versioning and changelog
 
 The app has one semantic version in `web/package.json`, shown in the footer. Each change that users can see bumps it (MAJOR / MINOR / PATCH) and adds an entry to `web/src/changelog.ts`, which feeds the in-app Changelog page. See [AGENTS.md](AGENTS.md) for the rules.
@@ -109,4 +129,4 @@ The user manual and officers' uploaded documents (e.g. proof for a leave request
 
 Uploads are checked on the server before they become downloadable (size, file type and the file's real signature; PDF, PNG, JPG or DOCX, up to 20 MB), and a new manual replaces the old one. Housekeeping runs in the background every 6 hours (`R2__CleanupEveryHours`, off with `R2__CleanupEnabled=false`): uploads never confirmed within 24 hours (`R2__QuarantineHours`) are deleted, and so are the documents of rejected leave requests after 30 days (`R2__RejectedRetentionDays`). A withdrawn request's document is deleted straight away. Approved leave keeps its document.
 
-Back up the bucket separately: database backups don't include the files.
+**The documents bucket is not backed up** by the database backup below, and R2 keeps no old versions: a deleted or overwritten file is gone.

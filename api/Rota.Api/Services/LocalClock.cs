@@ -5,6 +5,9 @@ public sealed class LocalClock(TimeProvider time, IConfiguration config)
 {
     private readonly TimeZoneInfo _zone = TimeZoneInfo.FindSystemTimeZoneById(config["App:TimeZone"] ?? "Asia/Kuala_Lumpur");
 
+    /// <summary>The clinic's time zone (App:TimeZone).</summary>
+    public TimeZoneInfo Zone => _zone;
+
     public DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), _zone).DateTime);
 
     /// <summary>A moment as clinic-local text, e.g. "3 Dec 2026, 14:05".</summary>
