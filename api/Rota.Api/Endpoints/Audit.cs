@@ -19,7 +19,7 @@ internal static class Audit
 
     public static object Period(RotaPeriod p) => new
     {
-        p.Name, p.StartDate, p.EndDate, p.LeaveDeadline, p.PointsBudget, p.Status, p.SwapDeadline,
+        p.Name, p.StartDate, p.EndDate, p.LeaveDeadline, p.PointsBudget, p.Status, p.SwapDeadline, p.OpensAt,
     };
 
     public static async Task<object> AccountAsync(RotaDbContext db, Person a, CancellationToken ct) => new

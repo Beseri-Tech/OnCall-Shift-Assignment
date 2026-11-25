@@ -173,6 +173,7 @@ public static class PublicEndpoints
             await db.Entry(period).ReloadAsync(ct);
             if (!byAdmin && !period.IsEditable(clock.Today))
                 return Results.Problem(
+                    !period.HasOpened(DateTimeOffset.UtcNow) ? "This period is not open for leave yet." :
                     period.Status == PeriodStatus.Open ? "The leave deadline for this period has passed." : "This period was locked, so leave can no longer be changed. Ask the admin.",
                     statusCode: StatusCodes.Status409Conflict);
 

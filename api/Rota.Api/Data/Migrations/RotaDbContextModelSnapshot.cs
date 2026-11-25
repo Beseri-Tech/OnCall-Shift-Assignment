@@ -1049,11 +1049,17 @@ namespace Rota.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("DayReminderSentAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date");
 
                     b.Property<Guid>("FacilityId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("HourReminderSentAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateOnly?>("LeaveDeadline")
                         .HasColumnType("date");
@@ -1062,6 +1068,12 @@ namespace Rota.Api.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("OpenNoticeSentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("OpensAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("PointsBudget")
                         .HasColumnType("integer");

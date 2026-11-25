@@ -10,7 +10,7 @@ public sealed record TotalsDto(int Total, int Weekday, int WeekendHoliday);
 public sealed record PeriodDto(
     Guid Id, string Name, DateOnly StartDate, DateOnly EndDate, DateOnly? LeaveDeadline,
     PeriodStatus Status, bool IsEditable, int? PointsBudget, DateOnly? SwapDeadline,
-    IReadOnlyList<Guid>? ExcludedPersonIds = null);
+    IReadOnlyList<Guid>? ExcludedPersonIds = null, DateTimeOffset? OpensAt = null);
 
 public sealed record HolidayDto(DateOnly Date, string Name);
 
@@ -181,7 +181,7 @@ public sealed record IssuedPasswordDto(string Name, string Email, string TempPas
 public sealed record ReorderRequest(IReadOnlyList<Guid> Ids);
 
 public sealed record UpsertPeriodRequest(string Name, DateOnly StartDate, DateOnly EndDate, DateOnly? LeaveDeadline, int? PointsBudget = null,
-    IReadOnlyList<Guid>? ExcludedPersonIds = null);
+    IReadOnlyList<Guid>? ExcludedPersonIds = null, DateTimeOffset? OpensAt = null);
 
 /// <summary>Leave limits for one officer in one period. Budget excludes Extra (admin top-up).</summary>
 public sealed record LeaveRulesDto(

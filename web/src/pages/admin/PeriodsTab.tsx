@@ -2,7 +2,7 @@ import {
   ActionIcon, Badge, Button, Checkbox, Group, Menu, Modal, NumberInput, Paper, SegmentedControl, SimpleGrid, Stack, Table, Text, TextInput,
   Title,
 } from '@mantine/core'
-import { DatePickerInput } from '@mantine/dates'
+import { DatePickerInput, DateTimePicker } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -13,7 +13,7 @@ import { useState } from 'react'
 import { api, type IsoDate, type Period, type PeriodDay, type PeriodDayKind, type PointsRow, type UpsertPeriod } from '../../api'
 import { ErrorBox, Loading, StatusBadge } from '../../components/common'
 import { notifyError, notifyOk } from '../../lib'
-import { formatLong, formatWeekday, todayIso } from '../../dates'
+import { formatLong, formatMoment, formatWeekday, isFuture, todayIso } from '../../dates'
 
 export function PeriodsTab() {
   return (
@@ -83,7 +83,12 @@ function Periods() {
               <Table.Td c={p.leaveDeadline && p.leaveDeadline < todayIso() ? 'red' : undefined}>
                 {p.leaveDeadline ? formatLong(p.leaveDeadline) : '–'}
               </Table.Td>
-              <Table.Td><StatusBadge status={p.status} /></Table.Td>
+              <Table.Td>
+                <Group gap={6}>
+                  <StatusBadge status={p.status} />
+                  {isFuture(p.opensAt) && <Badge color="blue" variant="light">Opens {formatMoment(p.opensAt!)}</Badge>}
+                </Group>
+              </Table.Td>
               <Table.Td>
                 <Menu position="bottom-end" withinPortal>
                   <Menu.Target><ActionIcon variant="subtle" aria-label="Actions"><IconDots size={18} /></ActionIcon></Menu.Target>
@@ -134,7 +139,7 @@ function Periods() {
 }
 
 const toUpsert = (p: Period): UpsertPeriod =>
-  ({ name: p.name, startDate: p.startDate, endDate: p.endDate, leaveDeadline: p.leaveDeadline, pointsBudget: p.pointsBudget, excludedPersonIds: p.excludedPersonIds ?? [] })
+  ({ name: p.name, startDate: p.startDate, endDate: p.endDate, leaveDeadline: p.leaveDeadline, pointsBudget: p.pointsBudget, excludedPersonIds: p.excludedPersonIds ?? [], opensAt: isFuture(p.opensAt) ? p.opensAt : null })
 
 /** Who used how many leave points, with per-officer top-ups for this period. */
 function PointsModal({ period, onClose }: { period: Period; onClose: () => void }) {
@@ -210,6 +215,13 @@ function PointsRowEditor({ periodId, row }: { periodId: string; row: PointsRow }
   )
 }
 
+/** An ISO instant as the picker's local "YYYY-MM-DD HH:mm:ss" text. */
+function toPickerValue(iso: string) {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
+}
+
 /** Suggest the quarter after the latest period. */
 function nextPeriod(periods: Period[]): UpsertPeriod {
   const latest = [...periods].sort((a, b) => b.endDate.localeCompare(a.endDate))[0]
@@ -226,6 +238,7 @@ function PeriodModal({ editing, onClose, onSaved }: {
   editing: { id: string | null; value: UpsertPeriod }; onClose: () => void; onSaved: () => void
 }) {
   const [v, setV] = useState(editing.value)
+  const [minDate] = useState(() => new Date())
   // The picker's own range, which is half-done between the first and second click.
   // Filling the missing end with the start would make it a finished one-day range,
   // and the next click would start a new range instead of choosing the end date.
@@ -281,6 +294,20 @@ function PeriodModal({ editing, onClose, onSaved }: {
             valueFormat="D MMM YYYY"
             clearable
           />
+          {(!editing.id || isFuture(editing.value.opensAt)) && (
+            <DateTimePicker
+              label="Open to officers at"
+              description={editing.id
+                ? "Officers are told this time and can't enter leave until then. Clear it to open now. Uses your device's time."
+                : "Leave empty to open now. Or pick a time: officers are told (in the app and by email) when it opens, see a countdown, and can enter leave from then. Uses your device's time."}
+              placeholder="Open now"
+              value={v.opensAt ? toPickerValue(v.opensAt) : null}
+              onChange={x => setV({ ...v, opensAt: x ? new Date(String(x).replace(' ', 'T')).toISOString() : null })}
+              valueFormat="D MMM YYYY, h:mm A"
+              minDate={minDate}
+              clearable
+            />
+          )}
           <NumberInput
             label="Leave points per officer"
             description="Leave empty for automatic: 30% of the period's weekend, public holiday and peak days."
