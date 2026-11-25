@@ -50,6 +50,8 @@ builder.Services.Configure<Rota.Api.Storage.R2Options>(builder.Configuration.Get
 builder.Services.AddSingleton<Rota.Api.Storage.IDocumentStorage, Rota.Api.Storage.R2DocumentStorage>();
 builder.Services.AddScoped<Rota.Api.Storage.DocumentService>();
 builder.Services.AddScoped<Rota.Api.Reports.ReportArchive>();
+builder.Services.AddSingleton<PeriodOpener>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PeriodOpener>());   // opens scheduled periods and sends reminders
 builder.Services.AddHostedService<DocumentCleanup>();
 builder.Services.AddHostedService<DatabaseBackup>();
 builder.Services.AddProblemDetails();

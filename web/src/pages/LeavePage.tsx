@@ -15,8 +15,25 @@ import { isAdmin, useMe } from '../auth'
 import { ErrorBox, Legend, Loading, PageHeader, PeriodSelect, StatCard } from '../components/common'
 import { defaultPeriod, notifyError, notifyOk, pick } from '../lib'
 import { MonthGrid } from '../components/MonthGrid'
-import { dayOfWeek, diffDays, eachDay, formatLong, formatRange, monthsBetween, todayIso, toRanges } from '../dates'
+import { dayOfWeek, diffDays, eachDay, formatCountdown, formatLong, formatMoment, formatRange, isFuture, monthsBetween, todayIso, toRanges } from '../dates'
 import { dayCap, dayKind, usage } from '../leaveRules'
+
+/** Counts down to the moment leave opens, then refreshes the page's data so the editor unlocks by itself. */
+function OpensCountdown({ opensAt, name, onOpen }: { opensAt: string; name: string; onOpen: () => void }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const done = Date.parse(opensAt) <= now
+  useEffect(() => { if (done) onOpen() }, [done])   // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Alert color="blue" icon={<IconCalendarTime />} title={`${name} opens ${formatMoment(opensAt)}`}>
+      <Text size="sm">You can enter your leave from then. You'll also get a notification and an email when it opens.</Text>
+      <Text fw={700} size="xl" mt={4} aria-live="off">{done ? 'Opening…' : `Opens in ${formatCountdown(opensAt, now)}`}</Text>
+    </Alert>
+  )
+}
 
 /** Small badge for a points change: green "+3" for rewards/extra, red "−2" for costs. */
 function PointBadge({ value, unit = 'pt', tip }: { value: number; unit?: string; tip?: string }) {
@@ -186,6 +203,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
   // Left out of this period's rota by the admin: nothing to enter.
   const excluded = !!initial.excluded && !byAdmin
   const readOnly = (!period.isEditable && !byAdmin) || excluded
+  const notYetOpen = !byAdmin && !excluded && isFuture(period.opensAt)
   const effectiveNote = note === 'Other' ? (customNote.trim() || null) : note
 
   // Warn before closing the tab with unsaved changes.
@@ -304,6 +322,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
           <Text size="sm" c={readOnly ? 'red.8' : 'green.8'} fw={600}>
             {readOnly
               ? excluded ? 'Not included in this rota'
+                : notYetOpen ? `Opens ${formatMoment(period.opensAt!)}`
                 : period.status === 'Open' ? 'Deadline passed – leave is closed' : 'Locked – leave is closed'
               : period.leaveDeadline ? `Edit until ${formatLong(period.leaveDeadline)}` : 'Open for leave'}
           </Text>
@@ -347,7 +366,9 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
         </Alert>
       )}
 
-      {readOnly && !excluded && (
+      {notYetOpen && <OpensCountdown opensAt={period.opensAt!} name={period.name} onOpen={() => qc.invalidateQueries()} />}
+
+      {readOnly && !excluded && !notYetOpen && (
         <Alert color="orange" icon={<IconLock />} title="Read only">
           Leave for this period can no longer be changed here. Contact the admin if something is wrong.
         </Alert>

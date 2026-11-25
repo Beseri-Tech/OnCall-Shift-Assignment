@@ -12,6 +12,14 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.10.0', date: '2026-11-25', title: 'Scheduled rota release',
+    changes: [
+      { kind: 'new', text: 'The admin can set a time for a new rota period to open ("Open to officers at"). Officers are told straight away, in the app and by email, when it will open.' },
+      { kind: 'new', text: 'Until then officers see a countdown on the Leave page and cannot enter leave. They get a reminder a day and an hour before, and a notice the moment it opens, when the page unlocks by itself.' },
+      { kind: 'improved', text: 'The admin can move the opening time or open the period right away; officers are told either way. Admins can still enter leave for officers before it opens.' },
+    ],
+  },
+  {
     version: '3.9.1', date: '2026-11-25', title: 'Database backup upload fix',
     changes: [
       { kind: 'fixed', text: 'The nightly database backup now uploads to Cloudflare R2 correctly.' },

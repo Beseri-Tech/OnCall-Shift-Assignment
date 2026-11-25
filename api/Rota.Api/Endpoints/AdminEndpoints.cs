@@ -218,30 +218,41 @@ public static class AdminEndpoints
         g.MapPost("/", async (UpsertPeriodRequest req, RotaDbContext db, LocalClock clock, Notifier notify, HttpContext http,
             CancellationToken ct) =>
         {
-            if (await ValidatePeriodAsync(db, req, null, ct) is { } problem) return problem;
+            if (await ValidatePeriodAsync(db, req, null, clock, ct) is { } problem) return problem;
 
+            var now = DateTimeOffset.UtcNow;
             var period = new RotaPeriod
             {
                 Name = req.Name.Trim(), StartDate = req.StartDate, EndDate = req.EndDate, LeaveDeadline = req.LeaveDeadline,
-                PointsBudget = req.PointsBudget,
+                PointsBudget = req.PointsBudget, OpensAt = req.OpensAt?.ToUniversalTime() > now ? req.OpensAt?.ToUniversalTime() : null,
             };
             db.Periods.Add(period);
             var excluded = await SetExclusionsAsync(db, period.Id, req.ExcludedPersonIds, ct);
             await PeriodDays.CopyFromMasterAsync(db, period, period.StartDate, period.EndDate, ct);
             string deadline = req.LeaveDeadline is { } d ? $" until {SwapEndpoints.Day(d)}" : "";
-            await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"Enter your leave for {period.Name}",
-                $"Leave for {SwapEndpoints.Day(req.StartDate)} - {SwapEndpoints.Day(req.EndDate)} is open{deadline}.", "/", email: false, ct,
-                except: excluded);
+            if (period.OpensAt is { } opensAt)
+            {
+                // Scheduled: officers are told when it opens (in-app and email); PeriodOpener sends the reminders and the opening notice.
+                MarkRemindersSent(period, now);
+                await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"{period.Name} opens on {clock.Format(opensAt)}",
+                    $"Leave for {SwapEndpoints.Day(req.StartDate)} - {SwapEndpoints.Day(req.EndDate)} opens on {clock.Format(opensAt)}. " +
+                    $"You can't enter leave until then; you'll be notified when it opens{deadline}.", "/", email: true, ct, except: excluded);
+            }
+            else
+                await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"Enter your leave for {period.Name}",
+                    $"Leave for {SwapEndpoints.Day(req.StartDate)} - {SwapEndpoints.Day(req.EndDate)} is open{deadline}.", "/", email: false, ct,
+                    except: excluded);
             Mapping.Log(db, http, "period.create", null, null, period.Id, after: Audit.Period(period));
             await db.SaveChangesAsync(ct);
             return Results.Ok(period.ToDto(clock.Today) with { ExcludedPersonIds = excluded });
         });
 
-        g.MapPut("/{id:guid}", async (Guid id, UpsertPeriodRequest req, RotaDbContext db, LocalClock clock, HttpContext http, CancellationToken ct) =>
+        g.MapPut("/{id:guid}", async (Guid id, UpsertPeriodRequest req, RotaDbContext db, LocalClock clock, Notifier notify, HttpContext http,
+            CancellationToken ct) =>
         {
             var period = await db.Periods.FindAsync([id], ct);
             if (period is null) return Results.NotFound();
-            if (await ValidatePeriodAsync(db, req, id, ct) is { } problem) return problem;
+            if (await ValidatePeriodAsync(db, req, id, clock, ct) is { } problem) return problem;
 
             bool datesChanged = period.StartDate != req.StartDate || period.EndDate != req.EndDate;
             if (datesChanged && await db.Runs.AnyAsync(r => r.PeriodId == id, ct))
@@ -254,6 +265,7 @@ public static class AdminEndpoints
             period.EndDate = req.EndDate;
             period.LeaveDeadline = req.LeaveDeadline;
             period.PointsBudget = req.PointsBudget;
+            await RescheduleAsync(db, notify, clock, period, req.OpensAt, ct);
             if (datesChanged) await PeriodDays.MoveAsync(db, period, oldStart, oldEnd, ct);
             if (req.ExcludedPersonIds is not null) await SetExclusionsAsync(db, id, req.ExcludedPersonIds, ct);
             Mapping.Log(db, http, "period.update", null, null, id, before, Audit.Period(period));
@@ -424,13 +436,57 @@ public static class AdminEndpoints
         return valid;
     }
 
-    private static async Task<IResult?> ValidatePeriodAsync(RotaDbContext db, UpsertPeriodRequest req, Guid? id, CancellationToken ct)
+    /// <summary>A period scheduled less than a day (an hour) ahead skips the reminder that would already be late.</summary>
+    internal static void MarkRemindersSent(RotaPeriod period, DateTimeOffset now)
+    {
+        var left = (period.OpensAt ?? now) - now;
+        period.OpenNoticeSentAt = null;
+        period.DayReminderSentAt = left <= TimeSpan.FromHours(24) ? now : null;
+        period.HourReminderSentAt = left <= TimeSpan.FromHours(1) ? now : null;
+    }
+
+    /// <summary>
+    /// Changes when a still-scheduled period opens: a later or earlier time tells officers the new time; "open now" opens it
+    /// and says so. Once a period is open its opening time is history and is left alone.
+    /// </summary>
+    private static async Task RescheduleAsync(RotaDbContext db, Notifier notify, LocalClock clock, RotaPeriod period,
+        DateTimeOffset? requested, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (period.OpensAt is not { } current || current <= now) return;
+        DateTimeOffset? next = requested?.ToUniversalTime() > now ? requested?.ToUniversalTime() : null;
+        if (next == current) return;
+
+        var excluded = await db.PeriodExclusions.Where(x => x.PeriodId == period.Id).Select(x => x.PersonId).ToListAsync(ct);
+        string range = $"{SwapEndpoints.Day(period.StartDate)} - {SwapEndpoints.Day(period.EndDate)}";
+        if (next is { } at)
+        {
+            period.OpensAt = at;
+            MarkRemindersSent(period, now);
+            await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"{period.Name} now opens on {clock.Format(at)}",
+                $"The opening time for leave for {range} changed. It now opens on {clock.Format(at)}.", "/", email: true, ct,
+                except: excluded, facilityId: period.FacilityId);
+        }
+        else
+        {
+            period.OpensAt = null;
+            await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"Enter your leave for {period.Name}",
+                $"Leave for {range} is open now.", "/", email: true, ct, except: excluded, facilityId: period.FacilityId);
+        }
+    }
+
+    private static async Task<IResult?> ValidatePeriodAsync(RotaDbContext db, UpsertPeriodRequest req, Guid? id, LocalClock clock, CancellationToken ct)
     {
         var errors = new Dictionary<string, string[]>();
         if (string.IsNullOrWhiteSpace(req.Name)) errors["name"] = ["Name is required."];
         if (req.EndDate < req.StartDate) errors["endDate"] = ["End date is before the start date."];
         else if (req.EndDate.DayNumber - req.StartDate.DayNumber > 366) errors["endDate"] = ["A period can be at most a year."];
         if (req.LeaveDeadline > req.EndDate) errors["leaveDeadline"] = ["The deadline should be before the period ends."];
+        if (req.OpensAt is { } opens)
+        {
+            var opensDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(opens, clock.Zone).DateTime);
+            if (opensDay > (req.LeaveDeadline ?? req.EndDate)) errors["opensAt"] = ["It should open before the leave deadline."];
+        }
         if (req.PointsBudget is < 0 or > 100) errors["pointsBudget"] = ["Leave points must be 0-100."];
 
         var overlap = await db.Periods

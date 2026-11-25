@@ -13,6 +13,8 @@ export interface Period {
   status: PeriodStatus; isEditable: boolean; pointsBudget: number | null; swapDeadline: IsoDate | null
   /** Officers left out of this period's rota (admin list only). */
   excludedPersonIds?: string[]
+  /** When leave opens to officers (ISO instant); null means it is already open. */
+  opensAt?: string | null
 }
 export interface Holiday { date: IsoDate; name: string }
 /** A public holiday or peak day applied to one rota period. */
@@ -224,6 +226,8 @@ export interface ImportResult {
 export interface UpsertPeriod {
   name: string; startDate: IsoDate; endDate: IsoDate; leaveDeadline: IsoDate | null; pointsBudget: number | null
   excludedPersonIds?: string[]
+  /** ISO instant to open leave at; null = open now. */
+  opensAt?: string | null
 }
 /** Leave limits for one officer in one period; budget excludes the admin's extra points. */
 export interface LeaveRules {

@@ -61,7 +61,7 @@ public sealed class Mailer(IConfiguration config, IHostEnvironment env, IService
     /// Adds the email to <paramref name="db"/>; it goes out after the caller's SaveChanges. Returns false (and queues
     /// nothing) when email isn't configured, so callers can fall back, e.g. show the temporary password.
     /// </summary>
-    public bool Enqueue(RotaDbContext db, string to, EmailContent content, HttpContext http)
+    public bool Enqueue(RotaDbContext db, string to, EmailContent content, HttpContext? http)
     {
         string body = content.Text();
         if (!IsConfigured)
@@ -209,7 +209,10 @@ public sealed class Mailer(IConfiguration config, IHostEnvironment env, IService
         };
     }
 
-    /// <summary>Links in emails: App:BaseUrl, else the address the request came in on.</summary>
-    public string BaseUrl(HttpContext http) =>
-        (config["App:BaseUrl"] is { Length: > 0 } url ? url : $"{http.Request.Scheme}://{http.Request.Host}").TrimEnd('/');
+    /// <summary>
+    /// Links in emails: App:BaseUrl, else the address the request came in on. Background work has no request, so it needs
+    /// App:BaseUrl (without it the links are relative).
+    /// </summary>
+    public string BaseUrl(HttpContext? http) =>
+        (config["App:BaseUrl"] is { Length: > 0 } url ? url : http is null ? "" : $"{http.Request.Scheme}://{http.Request.Host}").TrimEnd('/');
 }

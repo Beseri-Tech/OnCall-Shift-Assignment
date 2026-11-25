@@ -31,9 +31,11 @@ public sealed class Notifier
     }
 
     public async Task ToOnCallOfficersAsync(string kind, string title, string? body, string? link, bool email, CancellationToken ct,
-        IReadOnlyCollection<Guid>? except = null)
+        IReadOnlyCollection<Guid>? except = null, Guid? facilityId = null)
     {
-        var accounts = await CanSignIn(_db.Officers).Where(a => a.Status == OfficerStatus.OnCall).ToListAsync(ct);
+        // facilityId is for background work, which has no signed-in hospital to scope the query by.
+        var accounts = await CanSignIn(_db.Officers).Where(a => a.Status == OfficerStatus.OnCall && (facilityId == null || a.FacilityId == facilityId))
+            .ToListAsync(ct);
         if (except is { Count: > 0 }) accounts = accounts.Where(a => !except.Contains(a.Id)).ToList();
         Add(accounts, kind, title, body, link, email);
     }
@@ -59,13 +61,14 @@ public sealed class Notifier
         foreach (var a in accounts)
         {
             _db.Notifications.Add(new Notification { AccountId = a.Id, Kind = kind, Title = title, Body = body, Link = link });
-            if (email && _mailer.CanSend(_db) && _http.HttpContext is { } http)
+            string baseUrl = _mailer.BaseUrl(_http.HttpContext);
+            if (email && _mailer.CanSend(_db))
                 _mailer.Enqueue(_db, a.Email!, new EmailContent(
                     Subject: title,
                     Heading: title,
                     Paragraphs: (body ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-                    ButtonText: "Open On-Call Rota",
-                    ButtonUrl: $"{_mailer.BaseUrl(http)}{link ?? "/"}"), http);
+                    ButtonText: baseUrl.Length > 0 ? "Open On-Call Rota" : null,
+                    ButtonUrl: baseUrl.Length > 0 ? $"{baseUrl}{link ?? "/"}" : null), _http.HttpContext);
         }
     }
 }

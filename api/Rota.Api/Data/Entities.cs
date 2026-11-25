@@ -205,6 +205,17 @@ public sealed class RotaPeriod
 
     public PeriodStatus Status { get; set; } = PeriodStatus.Open;
 
+    /// <summary>
+    /// When leave entry opens to officers (UTC). null, or a moment already past, means open now. Until then officers see a
+    /// countdown and can't save leave; the admin can still enter leave for them.
+    /// </summary>
+    public DateTimeOffset? OpensAt { get; set; }
+
+    /// <summary>Reminders and the "it's open" notice sent for <see cref="OpensAt"/>; cleared when OpensAt changes.</summary>
+    public DateTimeOffset? DayReminderSentAt { get; set; }
+    public DateTimeOffset? HourReminderSentAt { get; set; }
+    public DateTimeOffset? OpenNoticeSentAt { get; set; }
+
     /// <summary>Leave points per officer; null = automatic (share of weekend/public holiday days).</summary>
     public int? PointsBudget { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;

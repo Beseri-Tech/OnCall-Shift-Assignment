@@ -77,3 +77,23 @@ export function todayIso(): IsoDate {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
+
+const momentFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+
+/** A moment (ISO instant) in the viewer's own time, e.g. "15 Nov 2026, 8:00 pm". */
+export const formatMoment = (iso: string) => momentFmt.format(new Date(iso))
+
+/** True while an ISO instant is still ahead of now. */
+export const isFuture = (iso: string | null | undefined) => !!iso && Date.parse(iso) > Date.now()
+
+/** "2d 3h 14m", "3h 05m" or "42s": the time left until an instant (never negative). */
+export function formatCountdown(iso: string, now = Date.now()) {
+  let s = Math.max(0, Math.floor((Date.parse(iso) - now) / 1000))
+  const d = Math.floor(s / 86400); s -= d * 86400
+  const h = Math.floor(s / 3600); s -= h * 3600
+  const m = Math.floor(s / 60); s -= m * 60
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`
+  if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`
+  return `${s}s`
+}
