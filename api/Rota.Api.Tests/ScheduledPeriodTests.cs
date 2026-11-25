@@ -22,7 +22,7 @@ public class ScheduledPeriodTests(ApiFixture fixture) : IClassFixture<ApiFixture
     {
         await using var app = fixture.CreateApp();
         var admin = await ApiFixture.AdminClientAsync(app);
-        await ApiFixture.AddPeopleAsync(admin, "Dr One\nDr Two");
+        await ApiFixture.AddPeopleAsync(admin, "Dr One");
         var people = await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"));
         var officer = await ApiFixture.OfficerClientAsync(app, admin, people[0].Id);
 
