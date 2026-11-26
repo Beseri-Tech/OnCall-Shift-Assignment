@@ -12,9 +12,10 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { ApiError } from './api'
 import { EnvironmentBanner } from './components/EnvironmentBanner'
-import { AdminOnly, Home, RequireLogin } from './components/RouteGuards'
+import { AdminOnly, Home, OfficerOnly, RequireLogin } from './components/RouteGuards'
 import { Loading } from './components/common'
 import { ChangePasswordPage, ForgotPasswordPage, LoginPage, ResetPasswordPage } from './pages/AuthPages'
+import { LandingPage } from './pages/LandingPage'
 
 // Signed-in screens load after sign-in, so the landing and sign-in pages stay light.
 // oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
@@ -77,31 +78,37 @@ createRoot(document.getElementById('root')!).render(
       <ModalsProvider>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
+            {/* Who may open what: see components/RouteGuards.tsx. */}
             <Routes>
+              <Route index element={<LandingPage />} />
               <Route path="login" element={<LoginPage />} />
               <Route path="forgot-password" element={<ForgotPasswordPage />} />
               <Route path="reset-password" element={<ResetPasswordPage />} />
               <Route element={<RequireLogin />}>
                 <Route path="account/password" element={<ChangePasswordPage />} />
                 <Route element={<Suspense fallback={<Loading />}><Layout /></Suspense>}>
-                  <Route index element={<Home />} />
-                  <Route path="my-oncall" element={<Suspense fallback={<Loading />}><MyOnCallPage /></Suspense>} />
+                  <Route path="home" element={<Home />} />
+                  <Route path="hospitals" element={<Navigate to="/home" replace />} />
                   <Route path="overview" element={<Suspense fallback={<Loading />}><OverviewPage /></Suspense>} />
                   <Route path="rota" element={<Suspense fallback={<Loading />}><RotaPage /></Suspense>} />
                   <Route path="help" element={<Suspense fallback={<Loading />}><HelpPage /></Suspense>} />
                   <Route path="rules" element={<Navigate to="/help" replace />} />
                   <Route path="changelog" element={<Suspense fallback={<Loading />}><ChangelogPage /></Suspense>} />
-                  <Route path="leave-requests" element={<Suspense fallback={<Loading />}><LeaveRequestsPage /></Suspense>} />
                   <Route path="cases" element={<Suspense fallback={<Loading />}><CasesPage /></Suspense>} />
-                  <Route path="profile" element={<Suspense fallback={<Loading />}><ProfilePage /></Suspense>} />
-                  <Route path="etap" element={<Suspense fallback={<Loading />}><EtapPage /></Suspense>} />
+                  <Route element={<OfficerOnly />}>
+                    <Route path="my-leave" element={<Suspense fallback={<Loading />}><LeavePage /></Suspense>} />
+                    <Route path="leave-requests" element={<Suspense fallback={<Loading />}><LeaveRequestsPage /></Suspense>} />
+                    <Route path="my-oncall" element={<Suspense fallback={<Loading />}><MyOnCallPage /></Suspense>} />
+                    <Route path="profile" element={<Suspense fallback={<Loading />}><ProfilePage /></Suspense>} />
+                    <Route path="etap" element={<Suspense fallback={<Loading />}><EtapPage /></Suspense>} />
+                  </Route>
                   <Route element={<AdminOnly />}>
                     <Route path="leave" element={<Suspense fallback={<Loading />}><LeavePage /></Suspense>} />
                     <Route path="admin/*" element={<Suspense fallback={<Loading />}><AdminPage /></Suspense>} />
                   </Route>
-                  <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>
         </QueryClientProvider>

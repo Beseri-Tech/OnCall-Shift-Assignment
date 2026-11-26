@@ -22,6 +22,8 @@ export function useMe() {
 export const isMaster = (me: Me | null | undefined) => me?.role === 'Master'
 export const isAdmin = (me: Me | null | undefined) => me?.role === 'Admin' || me?.role === 'Supervisor' || isMaster(me)
 
+export { safeNext } from './safeNext'
+
 export const MIN_PASSWORD = 10
 
 /** Master only: work in another hospital (or none). Everything cached belonged to the old one, so the cache is dropped. */
@@ -30,7 +32,7 @@ export function useSwitchFacility() {
   const navigate = useNavigate()
   return useMutation({
     mutationFn: api.auth.setFacility,
-    onSuccess: me => { qc.clear(); qc.setQueryData(['me'], me); navigate('/') },
+    onSuccess: me => { qc.clear(); qc.setQueryData(['me'], me); navigate('/home') },
     onError: e => notifyError(e, 'Could not switch hospital'),
   })
 }

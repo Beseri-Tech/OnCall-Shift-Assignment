@@ -47,10 +47,10 @@ export function Layout() {
 
   // Officers get two short menus (their leave; their on call). Supervisors aren't on the rota: no leave or on call of their
   // own, so a plain Leave page (everyone's leave) and the case log.
-  const nav: Nav[] = allHospitals ? [{ to: '/', label: 'Hospitals', icon: IconBuildingHospital, end: true }] : [
+  const nav: Nav[] = allHospitals ? [{ to: '/hospitals', label: 'Hospitals', icon: IconBuildingHospital, end: true }] : [
     me?.personId
       ? { label: 'Leave', icon: IconCalendarUser, items: [
-          { to: '/', label: 'My leave', icon: IconCalendarUser, end: true },
+          { to: '/my-leave', label: 'My leave', icon: IconCalendarUser, end: true },
           { to: '/leave-requests', label: 'Request leave', icon: IconPlaneDeparture, end: false },
         ] }
       : { to: '/leave', label: 'Leave', icon: IconCalendarUser, end: false },
@@ -74,7 +74,7 @@ export function Layout() {
           <Group h="100%" justify="space-between" wrap="nowrap" gap="xs">
             <Group gap={8} wrap="nowrap" miw={0}>
               <Burger opened={drawer} onClick={toggle} hiddenFrom={DRAWER_BELOW} color="white" size="sm" aria-label="Menu" />
-              <Link to="/" className="brand-link">
+              <Link to="/home" className="brand-link">
                 <div className="brand-mark"><img src="/favicon.svg" width={26} height={26} alt="" /></div>
                 <div className="brand-text">
                   <Text fw={800} size="lg" c="white" lh={1.1} truncate>Rota-OC</Text>

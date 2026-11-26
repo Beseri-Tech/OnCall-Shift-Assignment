@@ -236,11 +236,11 @@ public static class AdminEndpoints
                 MarkRemindersSent(period, now);
                 await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"{period.Name} opens on {clock.Format(opensAt)}",
                     $"Leave for {SwapEndpoints.Day(req.StartDate)} - {SwapEndpoints.Day(req.EndDate)} opens on {clock.Format(opensAt)}. " +
-                    $"You can't enter leave until then; you'll be notified when it opens{deadline}.", "/", email: true, ct, except: excluded);
+                    $"You can't enter leave until then; you'll be notified when it opens{deadline}.", "/my-leave", email: true, ct, except: excluded);
             }
             else
                 await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"Enter your leave for {period.Name}",
-                    $"Leave for {SwapEndpoints.Day(req.StartDate)} - {SwapEndpoints.Day(req.EndDate)} is open{deadline}.", "/", email: false, ct,
+                    $"Leave for {SwapEndpoints.Day(req.StartDate)} - {SwapEndpoints.Day(req.EndDate)} is open{deadline}.", "/my-leave", email: false, ct,
                     except: excluded);
             Mapping.Log(db, http, "period.create", null, null, period.Id, after: Audit.Period(period));
             await db.SaveChangesAsync(ct);
@@ -340,7 +340,7 @@ public static class AdminEndpoints
 
             if (req.Points > (grant?.Points ?? 0))
                 await notify.ToPeopleAsync([personId], Notifier.Points, $"You have {req.Points} extra leave point(s)",
-                    reason is null ? "Added by the admin for this period." : $"Reason: {reason}", "/", email: false, ct);
+                    reason is null ? "Added by the admin for this period." : $"Reason: {reason}", "/my-leave", email: false, ct);
             Mapping.Log(db, http, "points.grant", personId, new { period = period.Name }, id, before,
                 req.Points == 0 ? null : new { req.Points, Reason = reason });
             await db.SaveChangesAsync(ct);
@@ -464,14 +464,14 @@ public static class AdminEndpoints
             period.OpensAt = at;
             MarkRemindersSent(period, now);
             await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"{period.Name} now opens on {clock.Format(at)}",
-                $"The opening time for leave for {range} changed. It now opens on {clock.Format(at)}.", "/", email: true, ct,
+                $"The opening time for leave for {range} changed. It now opens on {clock.Format(at)}.", "/my-leave", email: true, ct,
                 except: excluded, facilityId: period.FacilityId);
         }
         else
         {
             period.OpensAt = null;
             await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"Enter your leave for {period.Name}",
-                $"Leave for {range} is open now.", "/", email: true, ct, except: excluded, facilityId: period.FacilityId);
+                $"Leave for {range} is open now.", "/my-leave", email: true, ct, except: excluded, facilityId: period.FacilityId);
         }
     }
 

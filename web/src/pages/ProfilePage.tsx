@@ -33,7 +33,7 @@ const sectionA = (p: EtapProfile): [string, string | null][] => [
 export function ProfilePage() {
   const me = useMe().data
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile.get, enabled: !!me?.personId, gcTime: 0 })
-  if (!me?.personId) return <Navigate to="/" replace />
+  if (!me?.personId) return <Navigate to="/home" replace />
   if (profile.isLoading) return <Loading />
   if (profile.error) return <ErrorBox error={profile.error} />
   return <ProfileForm profile={profile.data!} />

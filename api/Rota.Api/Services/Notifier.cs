@@ -68,7 +68,7 @@ public sealed class Notifier
                     Heading: title,
                     Paragraphs: (body ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
                     ButtonText: baseUrl.Length > 0 ? "Open On-Call Rota" : null,
-                    ButtonUrl: baseUrl.Length > 0 ? $"{baseUrl}{link ?? "/"}" : null), _http.HttpContext);
+                    ButtonUrl: baseUrl.Length > 0 ? $"{baseUrl}{link ?? "/home"}" : null), _http.HttpContext);
         }
     }
 }
