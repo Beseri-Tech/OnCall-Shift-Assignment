@@ -12,6 +12,13 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.10.1', date: '2026-11-26', title: 'ETAP Claim page tidy-up',
+    changes: [
+      { kind: 'improved', text: 'The page is now called "ETAP Claim" everywhere.' },
+      { kind: 'fixed', text: 'Until your ETAP profile is verified, the ETAP Claim page is greyed out and can\'t be used. The notice and its link to your profile stay available.' },
+    ],
+  },
+  {
     version: '3.10.0', date: '2026-11-25', title: 'Scheduled rota release',
     changes: [
       { kind: 'new', text: 'The admin can set a time for a new rota period to open ("Open to officers at"). Officers are told straight away, in the app and by email, when it will open.' },
