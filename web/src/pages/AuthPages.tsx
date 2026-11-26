@@ -4,7 +4,7 @@ import { IconCircleCheck } from '@tabler/icons-react'
 import { useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { api } from '../api'
-import { MIN_PASSWORD, useMe } from '../auth'
+import { MIN_PASSWORD, safeNext, useMe } from '../auth'
 import { Loading } from '../components/common'
 import { notifyOk } from '../lib'
 import { Wordmark } from './LandingPage'
@@ -46,12 +46,12 @@ export function LoginPage() {
     onSuccess: data => {
       qc.clear()
       qc.setQueryData(['me'], data)
-      navigate(params.get('next') ?? '/', { replace: true })
+      navigate(safeNext(params.get('next')), { replace: true })
     },
   })
 
   if (me.isLoading) return <Loading />
-  if (me.data) return <Navigate to="/" replace />
+  if (me.data) return <Navigate to={safeNext(params.get('next'))} replace />
 
   return (
     <AuthCard title="Sign in" subtitle="Enter your leave, see the rota and swap shifts.">
@@ -70,8 +70,10 @@ export function LoginPage() {
 }
 
 export function ForgotPasswordPage() {
+  const me = useMe()
   const [email, setEmail] = useState('')
   const send = useMutation({ mutationFn: () => api.auth.forgot(email) })
+  if (me.data) return <Navigate to="/home" replace />
 
   return (
     <AuthCard title="Forgot password" subtitle="We'll email you a link to choose a new password.">
@@ -124,7 +126,7 @@ export function ChangePasswordPage({ forced }: { forced?: boolean }) {
   const [confirm, setConfirm] = useState('')
   const change = useMutation({
     mutationFn: () => api.auth.changePassword(current, password),
-    onSuccess: data => { qc.setQueryData(['me'], data); notifyOk('Password changed.'); navigate('/', { replace: true }) },
+    onSuccess: data => { qc.setQueryData(['me'], data); notifyOk('Password changed.'); navigate('/home', { replace: true }) },
   })
   const logout = useMutation({ mutationFn: api.auth.logout, onSuccess: () => { qc.clear(); navigate('/login') } })
 
@@ -141,7 +143,7 @@ export function ChangePasswordPage({ forced }: { forced?: boolean }) {
       </form>
       {forced
         ? <Anchor component="button" size="sm" ta="center" onClick={() => logout.mutate()}>Sign out</Anchor>
-        : <Anchor component={Link} to="/" size="sm" ta="center">Cancel</Anchor>}
+        : <Anchor component={Link} to="/home" size="sm" ta="center">Cancel</Anchor>}
     </AuthCard>
   )
 }

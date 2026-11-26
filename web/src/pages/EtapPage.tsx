@@ -35,7 +35,7 @@ export function EtapPage() {
   const [month, setMonth] = useState(todayIso().slice(0, 7) + '-01')
   const ym = month.slice(0, 7)
   const claim = useQuery({ queryKey: ['etap', ym], queryFn: () => api.etap.get(ym), enabled: !!me?.personId, gcTime: 0 })
-  if (!me?.personId) return <Navigate to="/" replace />
+  if (!me?.personId) return <Navigate to="/home" replace />
   const locked = claim.data ? !claim.data.profileVerified : false
 
   return (

@@ -28,7 +28,8 @@ export function NotificationBell() {
     onSuccess: (_, n) => {
       refresh()
       setOpened(false)
-      if (n.link) navigate(n.link)
+      // Notifications sent before 3.13.0 link to "/", which is now the welcome page.
+      if (n.link) navigate(n.link === '/' ? '/home' : n.link)
     },
   })
 

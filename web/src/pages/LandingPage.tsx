@@ -1,6 +1,7 @@
 import { IconArrowsExchange, IconBell, IconCalendarEvent, IconCheck, IconClipboardList, IconClock, IconLock, IconMail, IconPlayerPause, IconPlayerPlay, IconReceipt, IconX } from '@tabler/icons-react'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import { useMe } from '../auth'
 import { APP_VERSION } from '../changelog'
 import './landing.css'
 
@@ -53,7 +54,8 @@ function useMoment<T extends HTMLElement>() {
   useEffect(() => {
     const el = ref.current as (T & { __moment?: { destroy?: () => void } }) | null
     if (!el) return
-    const loader = '/assets/moments/moments.js'
+    // A full URL: the dev server refuses imports of /public files by path, and the build leaves this alone either way.
+    const loader = new URL('/assets/moments/moments.js', location.origin).href
     // The loader mounts once per element; the headline stays plain type if it cannot load.
     import(/* @vite-ignore */ loader).then(m => m.mount(el)).catch(() => {})
     // Destroy only once the headline has left the page (StrictMode re-runs effects on the same element).
@@ -313,6 +315,8 @@ const FAQ = [
 ]
 
 export function LandingPage() {
+  const signedIn = !!useMe().data
+  const action = signedIn ? { to: '/home', label: 'Open Rota-OC' } : { to: '/login', label: 'Sign in to your rota' }
   const closeRef = useMoment<HTMLHeadingElement>()
   const [rotaRef, rotaSeen] = useInView<HTMLDivElement>()
   return (
@@ -326,7 +330,7 @@ export function LandingPage() {
             <a href="#features">Features</a>
             <a href="#faq">Questions</a>
           </nav>
-          <Link to="/login" className="lp-btn lp-btn-sm">Sign in to your rota</Link>
+          <Link to={action.to} className="lp-btn lp-btn-sm">{action.label}</Link>
         </div>
       </header>
 
@@ -406,7 +410,7 @@ export function LandingPage() {
                 <span className="lp-piece lp-toast"><IconBell size={18} /><span>January leave opens tomorrow at 09:00.</span></span>
                 <span className="lp-piece lp-toast"><IconArrowsExchange size={18} /><span>Farid accepted your swap for 12 Dec.</span></span>
               </div>
-              <Link to="/login" className="lp-btn lp-btn-lg">Sign in to your rota</Link>
+              <Link to={action.to} className="lp-btn lp-btn-lg">{action.label}</Link>
             </div>
             <dl>
               {FAQ.map(f => (
@@ -425,7 +429,7 @@ export function LandingPage() {
           <div className="lp-close">
             <h2 id="close-h" ref={closeRef} data-moment="liquid-type">Fair rotas, fewer arguments</h2>
             <p>One admin plans the month in minutes, and every officer sees it the moment it is published.</p>
-            <Link to="/login" className="lp-btn lp-btn-lg lp-btn-inv">Sign in to your rota</Link>
+            <Link to={action.to} className="lp-btn lp-btn-lg lp-btn-inv">{action.label}</Link>
           </div>
           <div className="lp-footer">
             <div className="lp-footer-cols">

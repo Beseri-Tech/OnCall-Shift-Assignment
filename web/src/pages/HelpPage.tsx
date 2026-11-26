@@ -118,7 +118,7 @@ export function HelpPage() {
       body: (
         <>
           <Text size="sm">
-            Leave means days you <b>can't be on call</b>. Mark them on <Anchor inherit component={Link} to="/">My leave</Anchor> with a short note
+            Leave means days you <b>can't be on call</b>. Mark them on <Anchor inherit component={Link} to="/my-leave">My leave</Anchor> with a short note
             (for example "annual" or "course").
           </Text>
           <Table withTableBorder verticalSpacing={6} fz="sm">

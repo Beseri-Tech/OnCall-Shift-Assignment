@@ -12,6 +12,14 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.13.0', date: '2026-11-26', title: 'The app now starts at /home',
+    changes: [
+      { kind: 'improved', text: 'The main Rota-OC address always shows the welcome page. After you sign in, the app opens at /home, which takes you to your leave (officers) or the overview (supervisors). On the welcome page, Open Rota-OC takes you back into the app.' },
+      { kind: 'improved', text: 'Your leave page has its own address, /my-leave. Links in older notifications and emails still work.' },
+      { kind: 'fixed', text: 'Pages you are not allowed to open now take you to your start page, and addresses that do not exist go to the welcome page. Notices about your confirmed leave now open your own leave page.' },
+    ],
+  },
+  {
     version: '3.12.0', date: '2026-11-26', title: 'Video tour, one name and a faster start',
     changes: [
       { kind: 'new', text: 'The welcome page has a one-minute video tour, and links to the site now show a Rota-OC preview card when shared.' },

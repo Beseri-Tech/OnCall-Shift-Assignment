@@ -49,20 +49,20 @@ public sealed class PeriodOpener(IServiceScopeFactory scopes, TimeProvider time,
             if (left <= TimeSpan.Zero)
             {
                 await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"Enter your leave for {p.Name}",
-                    $"Leave for {range} is open now{deadline}.", "/", email: true, ct, excluded, p.FacilityId);
+                    $"Leave for {range} is open now{deadline}.", "/my-leave", email: true, ct, excluded, p.FacilityId);
                 p.OpenNoticeSentAt = now;
                 opened++;
             }
             else if (left <= TimeSpan.FromHours(1) && p.HourReminderSentAt is null)
             {
                 await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"{p.Name} opens in about an hour",
-                    $"Leave for {range} opens on {clock.Format(p.OpensAt.Value)}.", "/", email: false, ct, excluded, p.FacilityId);
+                    $"Leave for {range} opens on {clock.Format(p.OpensAt.Value)}.", "/my-leave", email: false, ct, excluded, p.FacilityId);
                 p.HourReminderSentAt = p.DayReminderSentAt = now;
             }
             else if (left <= TimeSpan.FromHours(24) && p.DayReminderSentAt is null)
             {
                 await notify.ToOnCallOfficersAsync(Notifier.PeriodOpen, $"{p.Name} opens tomorrow",
-                    $"Leave for {range} opens on {clock.Format(p.OpensAt.Value)}.", "/", email: true, ct, excluded, p.FacilityId);
+                    $"Leave for {range} opens on {clock.Format(p.OpensAt.Value)}.", "/my-leave", email: true, ct, excluded, p.FacilityId);
                 p.DayReminderSentAt = now;
             }
         }
