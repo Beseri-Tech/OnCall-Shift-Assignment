@@ -6,13 +6,13 @@ import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconBeach, IconBriefcase, IconCalendarPlus, IconCalendarTime, IconCoins, IconDeviceFloppy, IconEraser, IconInfoCircle, IconKeyboard,
-  IconLock, IconPlaneDeparture, IconStar, IconSum, IconTrash,
+  IconBeach, IconCalendarPlus, IconCalendarTime, IconDeviceFloppy, IconEraser, IconInfoCircle, IconKeyboard,
+  IconLock, IconPlaneDeparture, IconStar, IconTrash,
 } from '@tabler/icons-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError, type ConfirmedLeave, type Entries, type IsoDate, type Period } from '../api'
 import { isAdmin, useMe } from '../auth'
-import { ErrorBox, Legend, Loading, PageHeader, PeriodSelect, StatCard } from '../components/common'
+import { ErrorBox, Legend, Loading, PageHeader, PeriodSelect, StatCard, StatusBadge } from '../components/common'
 import { defaultPeriod, notifyError, notifyOk, pick } from '../lib'
 import { MonthGrid } from '../components/MonthGrid'
 import { dayOfWeek, diffDays, eachDay, formatCountdown, formatLong, formatMoment, formatRange, isFuture, monthsBetween, todayIso, toRanges } from '../dates'
@@ -30,7 +30,7 @@ function OpensCountdown({ opensAt, name, onOpen }: { opensAt: string; name: stri
   return (
     <Alert color="blue" icon={<IconCalendarTime />} title={`${name} opens ${formatMoment(opensAt)}`}>
       <Text size="sm">You can enter your leave from then. You'll also get a notification and an email when it opens.</Text>
-      <Text fw={700} size="xl" mt={4} aria-live="off">{done ? 'Opening…' : `Opens in ${formatCountdown(opensAt, now)}`}</Text>
+      <Text fw={500} size="xl" mt={4} aria-live="off" style={{ fontVariantNumeric: 'tabular-nums' }}>{done ? 'Opening…' : `Opens in ${formatCountdown(opensAt, now)}`}</Text>
     </Alert>
   )
 }
@@ -105,7 +105,7 @@ export function LeavePage() {
 
   return (
     <Stack gap="lg">
-      <PageHeader icon={IconBeach} title={editingOther || !me?.personId ? 'Leave' : 'My leave'}
+      <PageHeader title={editingOther || !me?.personId ? 'Leave' : 'My leave'}
         description="Mark leave and preferred on-call days on the calendar.">
           {admin && (
             <Select
@@ -123,7 +123,7 @@ export function LeavePage() {
       </PageHeader>
 
       {editingOther && (
-        <Alert color="violet" icon={<IconInfoCircle />} title="Editing on someone's behalf">
+        <Alert color="blue" icon={<IconInfoCircle />} title="Editing on someone's behalf">
           As an admin, the leave limits and the deadline don't apply to changes you make here.
         </Alert>
       )}
@@ -317,19 +317,22 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
         </Alert>
       )}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: showBudget ? 4 : 2 }} spacing="md">
-        <StatCard icon={readOnly ? IconLock : IconCalendarTime} color={readOnly ? 'red' : 'green'} label={period.name}>
-          <Text fw={700} mt={2}>{formatLong(period.startDate)} – {formatLong(period.endDate)}</Text>
-          <Text size="sm" c={readOnly ? 'red.8' : 'green.8'} fw={600}>
+        <StatCard label={period.name}>
+          <Text fw={500} mt={2} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatLong(period.startDate)} – {formatLong(period.endDate)}</Text>
+          <Group gap={8} mt={4} wrap="wrap">
+            <StatusBadge status={period.status} />
+          <Text size="sm" c={readOnly ? 'red.8' : 'var(--text-2)'}>
             {readOnly
               ? excluded ? 'Not included in this rota'
                 : notYetOpen ? `Opens ${formatMoment(period.opensAt!)}`
                 : period.status === 'Open' ? 'Deadline passed – leave is closed' : 'Locked – leave is closed'
               : period.leaveDeadline ? `Edit until ${formatLong(period.leaveDeadline)}` : 'Open for leave'}
           </Text>
+          </Group>
         </StatCard>
         {showBudget && r && used && (
           <>
-            <StatCard icon={IconCoins} color={overPoints ? 'red' : 'brand'} label="Leave points" value={`${used.points} / ${budget}`}
+            <StatCard color={overPoints ? 'red' : undefined} label="Leave points" value={`${used.points} / ${budget}`}
               hint="Weekend, PH and peak days">
               <Group gap={4} mt={6} mih={22}>
                 <PointBadge value={-r.pointsDeducted} unit="CL" tip="Confirmed leave: points taken off for it" />
@@ -338,18 +341,18 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
               </Group>
               <Progress mt={8} size="sm" radius="xl" color={overPoints ? 'red' : 'brand'} value={budget ? Math.min(100, (used.points / budget) * 100) : 100} />
             </StatCard>
-            <StatCard icon={IconBriefcase} color={overWeekdays ? 'red' : 'indigo'} label="Weekdays" value={`${used.weekdays} / ${allowance}`}
+            <StatCard color={overWeekdays ? 'red' : undefined} label="Weekdays" value={`${used.weekdays} / ${allowance}`}
               hint="Free, no points">
               <Group gap={4} mt={6} mih={22}>
                 <PointBadge value={-r.weekdaysDeducted} unit="CL" tip="Confirmed leave: weekdays taken off for it" />
               </Group>
-              <Progress mt={8} size="sm" radius="xl" color={overWeekdays ? 'red' : 'indigo'}
+              <Progress mt={8} size="sm" radius="xl" color={overWeekdays ? 'red' : 'brand'}
                 value={allowance ? Math.min(100, (used.weekdays / allowance) * 100) : 100} />
             </StatCard>
           </>
         )}
-        <StatCard icon={IconSum} color="orange" label="On-call shifts done" value={totals?.total ?? '–'}
-          hint={totals ? `${totals.weekday} weekday · ${totals.weekendHoliday} weekend + PH` : 'No history yet – counted from the first published rota.'} />
+        <StatCard label="On-call shifts done" value={totals?.total ?? '–'}
+          hint={totals ? `${totals.weekday} weekday, ${totals.weekendHoliday} weekend and PH` : 'No history yet – counted from the first published rota.'} />
       </SimpleGrid>
       {showBudget && r && used && (
         <Group gap="md" wrap="wrap" mt={-8}>
@@ -375,7 +378,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
       )}
 
       {confirmedRanges.length > 0 && (
-        <Alert color="grape" icon={<IconPlaneDeparture />} title="Confirmed leave">
+        <Alert color="gray" icon={<IconPlaneDeparture color="var(--confirmed-text)" />} title="Confirmed leave">
           <Stack gap={4}>
             {confirmedRanges.map(c => (
               <Text key={c.id} size="sm">
@@ -429,7 +432,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
 
               {mode === 'leave' && (
                 <Group gap="xs" wrap="wrap">
-                  <Text size="sm" fw={700}>Note for new leave:</Text>
+                  <Text size="sm" fw={500}>Note for new leave</Text>
                   <Chip.Group value={note ?? ''} onChange={v => setNote(typeof v === 'string' && v ? v : null)}>
                     <Group gap={6}>
                       {[...NOTE_PRESETS, 'Other'].map(n => <Chip key={n} value={n} size="sm" color="pink">{n}</Chip>)}
@@ -443,7 +446,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
                 </Group>
               )}
               <Group gap={6} wrap="nowrap" align="flex-start">
-                <IconInfoCircle size={16} color="var(--brand)" style={{ flexShrink: 0, marginTop: 2 }} />
+                <IconInfoCircle size={16} stroke={1.5} color="var(--text-2)" style={{ flexShrink: 0, marginTop: 2 }} />
                 <Text size="xs" c="dimmed">
                   Click a day to toggle it, or press and drag across days. <b>{mode === 'leave' ? 'Leave' : 'Preferred'}</b> mode is on.
                   {showBudget && r && <> Leave on a weekend costs <PointBadge value={-r.weekendCost} />, a public holiday <PointBadge value={-r.holidayCost} />, a peak day <PointBadge value={-r.peakCost} />.
@@ -483,8 +486,8 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
           <Legend bg="var(--pref-bg)" border="var(--pref-border)" label="Preferred on-call" />
           {confirmed.size > 0 && <Legend bg="var(--confirmed-bg)" border="var(--confirmed-border)" label="Confirmed leave (admin)" />}
           <Legend bg="var(--weekend-bg)" border="#cbd5e1" label="Weekend" />
-          <Text size="xs" c="var(--holiday-text)" fw={700}>PH = public holiday</Text>
-          <Text size="xs" c="var(--peak-text)" fw={700}>PEAK = peak day</Text>
+          <Text size="xs" c="var(--holiday-text)" fw={500}>PH = public holiday</Text>
+          <Text size="xs" c="var(--peak-text)" fw={500}>PEAK = peak day</Text>
         </Group>
       </Paper>
 
@@ -494,7 +497,7 @@ function LeaveEditor({ personId, period, initial, byAdmin }: { personId: string;
         <Paper shadow="xl" p="sm" px="md" withBorder pos="fixed" bottom={16} left="50%" radius="xl"
           style={{ transform: 'translateX(-50%)', zIndex: 200, borderColor: limitError ? 'var(--leave-border)' : 'var(--shift-border)' }}>
           <Group gap="sm" wrap="nowrap">
-            <Text fw={600} size="sm" c={limitError ? 'red' : undefined}>
+            <Text fw={500} size="sm" c={limitError ? 'red' : undefined}>
               {limitError ?? (rulesMissing ? 'Your leave limits could not be loaded, so you can’t save yet. Reload the page.' : 'You have unsaved changes')}
             </Text>
             <Button variant="default" onClick={() => setDraft(saved)}>Discard</Button>
@@ -605,16 +608,16 @@ function Summary({ draft, readOnly, onChange }: { draft: Draft; readOnly: boolea
 
   return (
     <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-      <Paper className="panel" p="md" style={{ borderTop: '4px solid var(--leave-border)' }}>
+      <Paper className="panel" p="md">
         <Group justify="space-between" mb="xs">
-          <Group gap={6}><IconBeach size={18} color="var(--leave-text)" /><Title order={5}>Leave</Title></Group>
-          <Badge color="pink" variant="light">{draft.leave.size} day(s)</Badge>
+          <Group gap={8}><span className="legend-swatch" style={{ background: 'var(--leave-bg)', borderColor: 'var(--leave-border)' }} /><Title order={5}>Leave</Title></Group>
+          <Text size="sm" c="var(--text-2)" style={{ fontVariantNumeric: 'tabular-nums' }}>{draft.leave.size} day(s)</Text>
         </Group>
         {leaveRanges.length === 0 && <Text size="sm" c="dimmed">No leave marked.</Text>}
         <Stack gap={6}>
           {leaveRanges.map(r => (
             <Group key={r.from} justify="space-between" wrap="nowrap" gap="xs">
-              <Text size="sm" fw={600} miw={130}>{formatRange([r.from, r.to])}</Text>
+              <Text size="sm" fw={500} miw={130} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatRange([r.from, r.to])}</Text>
               <Select
                 size="xs"
                 placeholder="No note"
@@ -635,10 +638,10 @@ function Summary({ draft, readOnly, onChange }: { draft: Draft; readOnly: boolea
           ))}
         </Stack>
       </Paper>
-      <Paper className="panel" p="md" style={{ borderTop: '4px solid var(--pref-border)' }}>
+      <Paper className="panel" p="md">
         <Group justify="space-between" mb="xs">
-          <Group gap={6}><IconStar size={18} color="var(--pref-text)" /><Title order={5}>Preferred on-call days</Title></Group>
-          <Badge color="indigo" variant="light">{draft.preferred.size} day(s)</Badge>
+          <Group gap={8}><span className="legend-swatch" style={{ background: 'var(--pref-bg)', borderColor: 'var(--pref-border)' }} /><Title order={5}>Preferred on-call days</Title></Group>
+          <Text size="sm" c="var(--text-2)" style={{ fontVariantNumeric: 'tabular-nums' }}>{draft.preferred.size} day(s)</Text>
         </Group>
         {preferredRanges.length === 0 && (
           <Text size="sm" c="dimmed">None. Switch to “Preferred on-call” mode to mark days you'd like to work.</Text>
@@ -646,7 +649,7 @@ function Summary({ draft, readOnly, onChange }: { draft: Draft; readOnly: boolea
         <Stack gap={6}>
           {preferredRanges.map(r => (
             <Group key={r[0]} justify="space-between" wrap="nowrap">
-              <Text size="sm" fw={600}>{formatRange(r)}</Text>
+              <Text size="sm" fw={500} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatRange(r)}</Text>
               {!readOnly && (
                 <ActionIcon variant="subtle" color="red" aria-label="Remove" onClick={() => removePreferred(r[0], r[1])}>
                   <IconTrash size={16} />

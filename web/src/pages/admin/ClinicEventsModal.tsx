@@ -62,7 +62,7 @@ export function ClinicEventsModal({ opened, clinics, onClose }: { opened: boolea
                   <Table.Td>{d.clinicName}</Table.Td>
                   <Table.Td>{d.reason ?? '–'}</Table.Td>
                   <Table.Td>
-                    <ActionIcon variant="subtle" color="red" aria-label={`Unblock ${formatLong(d.date)} for ${d.clinicName}`}
+                    <ActionIcon variant="subtle" color="gray" aria-label={`Unblock ${formatLong(d.date)} for ${d.clinicName}`}
                       onClick={() => remove.mutate({ clinicId: d.clinicId, date: d.date })}><IconTrash size={16} /></ActionIcon>
                   </Table.Td>
                 </Table.Tr>

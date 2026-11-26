@@ -28,7 +28,7 @@ const VERBS: Record<string, string> = {
   decline: 'declined', 'block-days': 'days blocked', 'unblock-day': 'day unblocked', cancel: 'withdrawn', resolve: 'resolved', reopen: 'reopened',
 }
 
-const COLORS: Record<string, string> = { resolve: 'teal', create: 'green', delete: 'red', publish: 'brand', accept: 'teal', decline: 'orange' }
+const COLORS: Record<string, string> = { resolve: 'green', create: 'green', delete: 'red', publish: 'green', accept: 'green', decline: 'yellow' }
 
 const entityLabel = (e: string) => ENTITIES[e] ?? e
 function actionLabel(action: string) {
@@ -87,12 +87,12 @@ function Details({ e }: { e: AuditEntry }) {
       {c.length > 0 && (
         <Table withTableBorder withColumnBorders fz="sm" verticalSpacing={4}>
           <Table.Thead>
-            <Table.Tr><Table.Th w={180}>Field</Table.Th><Table.Th>Before</Table.Th><Table.Th>After</Table.Th></Table.Tr>
+            <Table.Tr><Table.Th w={180} fw={500} c="var(--text-2)">Field</Table.Th><Table.Th fw={500} c="var(--text-2)">Before</Table.Th><Table.Th fw={500} c="var(--text-2)">After</Table.Th></Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {c.map(x => (
               <Table.Tr key={x.field}>
-                <Table.Td fw={600}>{fieldLabel(x.field)}</Table.Td>
+                <Table.Td fw={500}>{fieldLabel(x.field)}</Table.Td>
                 <Table.Td c={e.before === null ? 'dimmed' : 'red.8'}>{e.before === null ? '(new)' : show(x.before)}</Table.Td>
                 <Table.Td c={e.after === null ? 'dimmed' : 'green.8'}>{e.after === null ? '(deleted)' : show(x.after)}</Table.Td>
               </Table.Tr>
@@ -103,14 +103,14 @@ function Details({ e }: { e: AuditEntry }) {
       {detail.length > 0 && (
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={4}>
           {detail.map(([k, v]) => (
-            <Text key={k} size="sm"><Text span fw={600}>{fieldLabel(k)}:</Text> {show(v)}</Text>
+            <Text key={k} size="sm"><Text span fw={500}>{fieldLabel(k)}:</Text> {show(v)}</Text>
           ))}
         </SimpleGrid>
       )}
       {c.length === 0 && detail.length === 0 && <Text size="sm" c="dimmed">No further details were recorded.</Text>}
       <Text size="xs" c="dimmed">
-        {e.entityId && <>Id <Code fz="xs">{e.entityId}</Code> · </>}
-        {e.ip ?? 'unknown address'}{e.userAgent && ` · ${e.userAgent}`}
+        {e.entityId && <>Id <Code fz="xs">{e.entityId}</Code>, </>}
+        {e.ip ?? 'unknown address'}{e.userAgent && `, ${e.userAgent}`}
       </Text>
     </Stack>
   )
@@ -153,7 +153,7 @@ export function AuditTab() {
       <Group wrap="wrap" align="flex-end">
         <Select label="Hospital" placeholder="All" clearable searchable w={220} value={facility} onChange={set(setFacility)}
           data={[{ value: 'none', label: 'App-wide (no hospital)' },
-            ...(facilities.data ?? []).map(f => ({ value: f.id, label: `${f.code} · ${f.name}` }))]} />
+            ...(facilities.data ?? []).map(f => ({ value: f.id, label: `${f.code}, ${f.name}` }))]} />
         <DatePickerInput type="range" allowSingleDateInRange label="Dates" placeholder="Any time" clearable w={240}
           valueFormat="D MMM YYYY" value={range}
           onChange={set((r: unknown) => setRange(r as [IsoDate | null, IsoDate | null]))} />
@@ -175,17 +175,17 @@ export function AuditTab() {
       </Text>
 
       {log.isLoading ? <Loading /> : (
-        <Paper withBorder>
+        <Paper className="panel">
           <Table.ScrollContainer minWidth={900}>
-            <Table highlightOnHover verticalSpacing={6} opacity={log.isPlaceholderData ? 0.6 : 1}>
+            <Table highlightOnHover verticalSpacing={6} style={{ fontVariantNumeric: 'tabular-nums' }} opacity={log.isPlaceholderData ? 0.6 : 1}>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th w={28} />
-                  <Table.Th w={170}>When</Table.Th>
-                  <Table.Th w={90}>Hospital</Table.Th>
-                  <Table.Th w={200}>Who</Table.Th>
-                  <Table.Th w={230}>Action</Table.Th>
-                  <Table.Th>Change</Table.Th>
+                  <Table.Th w={170} fw={500} c="var(--text-2)">When</Table.Th>
+                  <Table.Th w={90} fw={500} c="var(--text-2)">Hospital</Table.Th>
+                  <Table.Th w={200} fw={500} c="var(--text-2)">Who</Table.Th>
+                  <Table.Th w={230} fw={500} c="var(--text-2)">Action</Table.Th>
+                  <Table.Th fw={500} c="var(--text-2)">Change</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -205,22 +205,22 @@ export function AuditTab() {
                         </Table.Td>
                         <Table.Td><Text size="sm">{whenFmt.format(new Date(e.at))}</Text></Table.Td>
                         <Table.Td>{e.facilityCode
-                          ? <Badge variant="light" size="sm">{e.facilityCode}</Badge>
+                          ? <Badge variant="light" color="gray" size="sm">{e.facilityCode}</Badge>
                           : <Text size="xs" c="dimmed">App-wide</Text>}</Table.Td>
                         <Table.Td>
-                          <Text size="sm" fw={600}>{e.actorName ?? e.actorEmail ?? 'Not signed in'}</Text>
+                          <Text size="sm" fw={500}>{e.actorName ?? e.actorEmail ?? 'Not signed in'}</Text>
                           {e.actorName && <Text size="xs" c="dimmed">{e.actorEmail}</Text>}
                         </Table.Td>
                         <Table.Td><Badge variant="light" color={actionColor(e.action)} tt="none" h="auto" py={2}
                           styles={{ label: { whiteSpace: 'normal' } }}>{actionLabel(e.action)}</Badge></Table.Td>
                         <Table.Td>
-                          {e.personName && <Text size="sm" fw={600}>{e.personName}</Text>}
+                          {e.personName && <Text size="sm" fw={500}>{e.personName}</Text>}
                           {summary(e) !== e.personName && <Text size="sm" c="dimmed" lineClamp={2}>{summary(e)}</Text>}
                         </Table.Td>
                       </Table.Tr>
                       {isOpen && (
                         <Table.Tr>
-                          <Table.Td colSpan={6} bg="gray.0"><Details e={e} /></Table.Td>
+                          <Table.Td colSpan={6} bg="var(--surface)"><Details e={e} /></Table.Td>
                         </Table.Tr>
                       )}
                     </Fragment>

@@ -95,8 +95,8 @@ export function LocationsTab() {
 
       <Grid gap="md">
         <Grid.Col span={{ base: 12, md: 4 }}>
-          <Paper withBorder p="xs">
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase" px="xs" py={4}>States &amp; districts</Text>
+          <Paper className="panel" p="xs">
+            <Text size="sm" fw={500} c="var(--text-2)" px="xs" py={4}>States and districts</Text>
             <ScrollArea.Autosize mah={600}>
               <NavLink label="All states" active={scope.kind === 'all'} onClick={() => setPicked({ kind: 'all' })}
                 rightSection={<Badge size="sm" variant="light" color="gray">{allClinics.length}</Badge>} />
@@ -110,32 +110,32 @@ export function LocationsTab() {
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, md: 8 }}>
-          <Paper withBorder>
+          <Paper className="panel">
             <Group justify="space-between" px="md" py="sm">
-              <Group gap="xs"><IconMapPin size={18} /><Text fw={700}>{scopeName}</Text></Group>
+              <Group gap="xs"><IconMapPin size={18} stroke={1.5} /><Text fw={500}>{scopeName}</Text></Group>
               <Text size="sm" c="dimmed">{plural(rows.length, 'clinic')}</Text>
             </Group>
             <Table.ScrollContainer minWidth={560}>
-              <Table striped highlightOnHover verticalSpacing={6}>
+              <Table highlightOnHover verticalSpacing={6} style={{ fontVariantNumeric: 'tabular-nums' }}>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th>Clinic</Table.Th>
-                    <Table.Th>District</Table.Th>
-                    <Table.Th ta="right">Officers here</Table.Th>
+                    <Table.Th fw={500} c="var(--text-2)">Clinic</Table.Th>
+                    <Table.Th fw={500} c="var(--text-2)">District</Table.Th>
+                    <Table.Th ta="right" fw={500} c="var(--text-2)">Officers here</Table.Th>
                     <Table.Th />
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
                   {rows.map(c => (
                     <Table.Tr key={c.id}>
-                      <Table.Td fw={600}>{c.name}</Table.Td>
-                      <Table.Td><Text size="sm">{c.district}<Text span size="xs" c="dimmed"> · {c.state}</Text></Text></Table.Td>
+                      <Table.Td fw={500}>{c.name}</Table.Td>
+                      <Table.Td><Text size="sm">{c.district}<Text span size="xs" c="dimmed">, {c.state}</Text></Text></Table.Td>
                       <Table.Td ta="right">{c.people || <Text span c="dimmed">0</Text>}</Table.Td>
                       <Table.Td>
                         <Group gap={4} justify="flex-end" wrap="nowrap">
                           <ActionIcon variant="subtle" aria-label={`Edit ${c.name}`}
                             onClick={() => setForm({ level: 'clinic', id: c.id, name: c.name, parentId: c.districtId })}><IconEdit size={18} /></ActionIcon>
-                          <ActionIcon variant="subtle" color="red" aria-label={`Remove ${c.name}`}
+                          <ActionIcon variant="subtle" color="gray" aria-label={`Remove ${c.name}`}
                             onClick={() => confirmRemove('clinic', c.id, c.name, c.people
                               ? `${plural(c.people, 'officer')} will be left without a clinic.` : 'No officers here use it.')}>
                             <IconTrash size={18} />
@@ -170,7 +170,7 @@ function StateBranch({ state: s, clinics, scope, master, onPick, onEdit, onRemov
   const total = s.districts.reduce((n, d) => n + count(d.id), 0)
   const inState = scope.kind === 'state' ? scope.id === s.id : scope.kind === 'district' && s.districts.some(d => d.id === scope.id)
   return (
-    <NavLink label={s.name} fw={600} active={scope.kind === 'state' && scope.id === s.id} defaultOpened={inState}
+    <NavLink label={s.name} fw={500} active={scope.kind === 'state' && scope.id === s.id} defaultOpened={inState}
       onClick={() => onPick({ kind: 'state', id: s.id })} childrenOffset={16} disableRightSectionRotation
       rightSection={<Group gap={2} wrap="nowrap">
         <Badge size="sm" variant="light" color="gray">{total}</Badge>
@@ -196,7 +196,7 @@ function RowActions({ label, onEdit, onRemove }: { label: string; onEdit: () => 
   return (
     <Group gap={0} wrap="nowrap" onClick={e => e.stopPropagation()}>
       <ActionIcon component="span" variant="subtle" size="sm" aria-label={`Edit ${label}`} onClick={onEdit}><IconEdit size={15} /></ActionIcon>
-      <ActionIcon component="span" variant="subtle" size="sm" color="red" aria-label={`Remove ${label}`} onClick={onRemove}><IconTrash size={15} /></ActionIcon>
+      <ActionIcon component="span" variant="subtle" size="sm" color="gray" aria-label={`Remove ${label}`} onClick={onRemove}><IconTrash size={15} /></ActionIcon>
     </Group>
   )
 }

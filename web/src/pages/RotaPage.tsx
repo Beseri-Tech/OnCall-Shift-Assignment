@@ -1,6 +1,6 @@
-import { Alert, Badge, Group, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Group, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
-import { IconCalendarEvent, IconInfoCircle, IconSearch, IconUserCheck } from '@tabler/icons-react'
+import { IconInfoCircle, IconSearch, IconUserCheck } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api } from '../api'
 import { useMe } from '../auth'
@@ -45,7 +45,7 @@ export function RotaPage() {
 
   return (
     <Stack gap="md">
-      <PageHeader icon={IconCalendarEvent} title="On-call rota" description="Who is on call each day. Your shifts are highlighted.">
+      <PageHeader title="On-call rota" description="Who is on call each day. Your shifts are highlighted.">
         <Select
           label="Period"
           data={periods.data.map(p => ({ value: p.id, label: p.status === 'Review' ? `${p.name} (in review)` : p.name }))}
@@ -60,7 +60,7 @@ export function RotaPage() {
       {rota.error && <ErrorBox error={rota.error} />}
 
       {rota.data?.inReview && (
-        <Alert color="violet" icon={<IconInfoCircle />} title="Draft for review – not final">
+        <Alert color="gray" icon={<IconInfoCircle />} title="Draft for review – not final">
           This rota can still change: officers are swapping dates and the admin may adjust it before publishing.
           {rota.data.period.swapDeadline ? ` Swaps close after ${formatLong(rota.data.period.swapDeadline)}.` : ''}
         </Alert>
@@ -71,16 +71,14 @@ export function RotaPage() {
           {myId && (
             <Paper className="panel" p="md" bg="var(--brand-soft)">
               <Group gap="xs" mb={8}>
-                <IconUserCheck size={20} color="var(--brand)" />
-                <Text fw={700} c="brand.9">Your shifts{mine.length ? ` · ${mine.length}` : ''}</Text>
+                <IconUserCheck size={18} stroke={1.5} color="var(--shift-text)" />
+                <Text fw={500} c="var(--shift-text)">Your shifts</Text>
+                {mine.length > 0 && <Text size="sm" c="var(--shift-text)">({mine.length})</Text>}
               </Group>
               {mine.length === 0
                 ? <Text size="sm" c="dimmed">You have no shifts in this rota.</Text>
                 : <Group gap={6}>{mine.map(d => (
-                    <Badge key={d.date} color={d.isWeekendHoliday ? 'orange' : 'brand'} variant={d.isWeekendHoliday ? 'light' : 'white'} size="lg"
-                      style={{ border: '1px solid var(--shift-border)' }}>
-                      {formatWeekday(d.date)}
-                    </Badge>
+                    <span key={d.date} className="shift-chip">{formatWeekday(d.date)}</span>
                   ))}</Group>}
             </Paper>
           )}
@@ -89,7 +87,7 @@ export function RotaPage() {
             <RotaCalendar days={rota.data.days} highlightPersonId={myId} />
             <Group gap="lg" mt="md">
               {myId && <Legend bg="var(--shift-bg)" border="var(--shift-border)" label="Your shift" />}
-              <Legend bg="var(--weekend-bg)" border="#cbd5e1" label="Weekend / public holiday" />
+              <Legend bg="var(--weekend-bg)" border="var(--line)" label="Weekend / public holiday" />
               <Legend bg="var(--leave-bg)" border="var(--leave-border)" label="Unassigned" />
               <Legend bg="white" border="var(--warn-border)" label="Changed by the admin" />
             </Group>
@@ -98,11 +96,11 @@ export function RotaPage() {
           <Paper className="panel" p="md">
             <Group justify="space-between" mb="sm">
               <Title order={4}>By person</Title>
-              <TextInput placeholder="Find a name" leftSection={<IconSearch size={16} />} value={search}
+              <TextInput placeholder="Find a name" leftSection={<IconSearch size={16} stroke={1.5} />} value={search}
                 onChange={e => setSearch(e.currentTarget.value)} w={240} />
             </Group>
             <SimpleGrid cols={1}>
-              <Table striped highlightOnHover>
+              <Table highlightOnHover className="rota-table">
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Name</Table.Th>
@@ -114,7 +112,7 @@ export function RotaPage() {
                 <Table.Tbody>
                   {perPerson.map(([id, e]) => (
                     <Table.Tr key={id} bg={id === myId ? 'brand.0' : undefined}>
-                      <Table.Td fw={600}>{e.name}</Table.Td>
+                      <Table.Td fw={500}>{e.name}</Table.Td>
                       <Table.Td>{e.dates.length}</Table.Td>
                       <Table.Td>{e.weekend}</Table.Td>
                       <Table.Td>{e.dates.map(formatLong).join(', ')}</Table.Td>

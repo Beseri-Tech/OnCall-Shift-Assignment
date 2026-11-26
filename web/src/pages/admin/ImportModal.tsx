@@ -94,8 +94,8 @@ export function ImportModal({ clinics, onClose, onSaved, onIssued }: {
             <Stack gap={6}>
               {errors.map((e, i) => (
                 <div key={i}>
-                  <Text size="sm" fw={600}>
-                    Row {e.line}, column {e.letter} ({e.column}){e.name && <Text span size="sm" c="dimmed" fw={400}> · {e.name}</Text>}
+                  <Text size="sm" fw={500}>
+                    Row {e.line}, column {e.letter} ({e.column}){e.name && <Text span size="sm" c="dimmed" fw={400}>, {e.name}</Text>}
                   </Text>
                   <Text size="sm">{e.message}</Text>
                 </div>
@@ -105,23 +105,23 @@ export function ImportModal({ clinics, onClose, onSaved, onIssued }: {
         )}
         {result && result.rows.length > 0 && (
           <>
-            <Text size="sm" fw={600} c={problems ? 'red' : 'green'}>
+            <Text size="sm" fw={500} c={problems ? 'red' : 'green'}>
               {result.rows.length} officer(s){problems ? `, ${problems} with problems (listed above, and at the top of the table)` : ', all ready'}
             </Text>
-            <Paper withBorder>
+            <Paper className="panel">
               <Table.ScrollContainer minWidth={760} mah={360}>
-                <Table striped verticalSpacing={4} stickyHeader>
+                <Table verticalSpacing={4} stickyHeader style={{ fontVariantNumeric: 'tabular-nums' }}>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Row</Table.Th><Table.Th>Name</Table.Th><Table.Th>Problems</Table.Th><Table.Th>Sign-in</Table.Th>
-                      <Table.Th>Clinic</Table.Th>
+                      <Table.Th fw={500} c="var(--text-2)">Row</Table.Th><Table.Th fw={500} c="var(--text-2)">Name</Table.Th><Table.Th fw={500} c="var(--text-2)">Problems</Table.Th><Table.Th fw={500} c="var(--text-2)">Sign-in</Table.Th>
+                      <Table.Th fw={500} c="var(--text-2)">Clinic</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
                     {[...result.rows].sort((a, b) => Number(!a.errors.length) - Number(!b.errors.length) || a.line - b.line).map(r => (
                       <Table.Tr key={r.line} bg={r.errors.length ? 'var(--mantine-color-red-light)' : undefined}>
                         <Table.Td>{r.line}</Table.Td>
-                        <Table.Td fw={600}>{r.name || '–'}{r.code && <Text size="xs" c="dimmed">{r.code}</Text>}</Table.Td>
+                        <Table.Td fw={500}>{r.name || '–'}{r.code && <Text size="xs" c="dimmed">{r.code}</Text>}</Table.Td>
                         <Table.Td>
                           {r.errors.length
                             ? <List size="xs" c="red">{r.errors.map((e, i) => <List.Item key={i}><b>{e.column}:</b> {e.message}</List.Item>)}</List>
@@ -129,7 +129,7 @@ export function ImportModal({ clinics, onClose, onSaved, onIssued }: {
                         </Table.Td>
                         <Table.Td>
                           {r.email
-                            ? <><Text size="sm">{r.email}</Text>{r.role === 'Admin' && <Badge size="xs" color="violet" variant="light">Admin</Badge>}</>
+                            ? <><Text size="sm">{r.email}</Text>{r.role === 'Admin' && <Badge size="xs" color="gray" variant="light">Admin</Badge>}</>
                             : <Text size="sm" c="dimmed">No invite</Text>}
                         </Table.Td>
                         <Table.Td>

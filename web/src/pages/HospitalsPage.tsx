@@ -19,11 +19,10 @@ export function HospitalsPage() {
   const [tab, setTab] = useState<string | null>('hospitals')
   return (
     <Stack gap="md">
-      <PageHeader icon={IconBuildingHospital} title="All hospitals"
+      <PageHeader title="All hospitals"
         description="Each hospital runs its own rota. Open one to work in it, add hospitals, read feedback about the app, download reports, manage accounts and the user manual, see the audit log and change app settings." />
-      <Tabs value={tab} onChange={setTab} keepMounted={false} variant="pills" radius="xl">
-        <Paper className="panel" p={6} mb="md" radius="xl">
-          <Tabs.List className="tabs-scroll">
+      <Tabs value={tab} onChange={setTab} keepMounted={false}>
+          <Tabs.List className="tabs-scroll" mb="md">
             <Tabs.Tab value="hospitals" leftSection={<IconBuildingHospital size={16} />}>Hospitals</Tabs.Tab>
             <Tabs.Tab value="locations" leftSection={<IconMapPin size={16} />}>Clinics &amp; districts</Tabs.Tab>
             <Tabs.Tab value="feedback" leftSection={<IconMessage2 size={16} />}>Feedback</Tabs.Tab>
@@ -33,7 +32,6 @@ export function HospitalsPage() {
             <Tabs.Tab value="log" leftSection={<IconHistory size={16} />}>Audit log</Tabs.Tab>
             <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>Settings</Tabs.Tab>
           </Tabs.List>
-        </Paper>
         <Tabs.Panel value="hospitals"><HospitalsTab /></Tabs.Panel>
         <Tabs.Panel value="locations"><LocationsTab /></Tabs.Panel>
         <Tabs.Panel value="feedback"><FeedbackTab /></Tabs.Panel>
@@ -69,9 +67,9 @@ function HospitalsTab() {
       <Group justify="flex-end">
         <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing('new')}>Add hospital</Button>
       </Group>
-      <Paper withBorder>
+      <Paper className="panel" style={{ overflow: 'hidden' }}>
         <Table.ScrollContainer minWidth={760}>
-          <Table striped highlightOnHover verticalSpacing={6}>
+          <Table highlightOnHover verticalSpacing={8} className="rota-table">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Hospital</Table.Th>
@@ -85,7 +83,7 @@ function HospitalsTab() {
             <Table.Tbody>
               {facilities.data!.map(f => (
                 <Table.Tr key={f.id}>
-                  <Table.Td><Text fw={600} size="sm">{f.name}</Text><Badge size="xs" variant="light">{f.code}</Badge></Table.Td>
+                  <Table.Td><Text fw={500} size="sm">{f.name}</Text><Badge size="xs" variant="light" color="gray" tt="none">{f.code}</Badge></Table.Td>
                   <Table.Td><Text size="sm">{f.district}, {f.state}</Text></Table.Td>
                   <Table.Td ta="right">{f.officers}</Table.Td>
                   <Table.Td ta="right">{f.accounts}</Table.Td>
@@ -97,14 +95,14 @@ function HospitalsTab() {
                   <Table.Td>
                     <Group gap={4} justify="flex-end" wrap="nowrap">
                       <Button size="compact-sm" loading={switchTo.isPending && switchTo.variables === f.id} onClick={() => switchTo.mutate(f.id)}>Open</Button>
-                      <ActionIcon variant="subtle" aria-label="Edit" onClick={() => setEditing(f)}><IconEdit size={18} /></ActionIcon>
+                      <ActionIcon variant="subtle" aria-label="Edit" onClick={() => setEditing(f)}><IconEdit size={16} stroke={1.5} /></ActionIcon>
                       <ActionIcon variant="subtle" color="red" aria-label="Remove" onClick={() => modals.openConfirmModal({
                         title: `Remove ${f.name}?`,
                         children: <Text size="sm">Only a hospital with no officers, periods or accounts can be removed.</Text>,
                         labels: { confirm: 'Remove', cancel: 'Cancel' },
                         confirmProps: { color: 'red' },
                         onConfirm: () => remove.mutate(f),
-                      })}><IconTrash size={18} /></ActionIcon>
+                      })}><IconTrash size={16} stroke={1.5} /></ActionIcon>
                     </Group>
                   </Table.Td>
                 </Table.Tr>
@@ -175,9 +173,9 @@ function SettingsTab() {
   const { configured, enabled } = email.data!
 
   return (
-    <Paper withBorder p="lg" maw={720}>
+    <Paper className="panel" p="lg" maw={720}>
       <Stack gap="md">
-        <Group gap="sm"><IconMail size={20} /><Text fw={700}>Email</Text></Group>
+        <Group gap="sm"><IconMail size={18} stroke={1.5} /><Text fw={500}>Email</Text></Group>
         <Switch size="md" checked={enabled} disabled={save.isPending} onChange={e => save.mutate(e.currentTarget.checked)}
           label={enabled ? 'Email is on' : 'Email is off'}
           description="Invites, password resets and rota notifications. When off, nothing is emailed: invites and password resets show the temporary password to the admin instead, and in-app notifications still arrive." />

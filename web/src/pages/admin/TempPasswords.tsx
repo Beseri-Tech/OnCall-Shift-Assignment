@@ -23,7 +23,7 @@ export function TempPasswordsModal({ logins, onClose }: { logins: IssuedLogin[];
           </Group>
         ) : (
           <>
-            <Table striped verticalSpacing={4}>
+            <Table verticalSpacing={4}>
               <Table.Thead><Table.Tr><Table.Th>Officer</Table.Th><Table.Th>Email</Table.Th><Table.Th>Temporary password</Table.Th></Table.Tr></Table.Thead>
               <Table.Tbody>
                 {logins.map(l => (

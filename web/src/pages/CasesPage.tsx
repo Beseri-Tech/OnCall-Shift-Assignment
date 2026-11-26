@@ -6,8 +6,8 @@ import { DatePickerInput, MonthPickerInput, TimeInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconBrandWhatsapp, IconCheck, IconChevronDown, IconCopy, IconDownload, IconEdit, IconFileImport, IconLock, IconPlus, IconSearch,
-  IconStethoscope, IconTrash,
+  IconBrandWhatsapp, IconCheck, IconChevronDown, IconCopy, IconDownload, IconEdit, IconFileImport, IconLock, IconSearch,
+  IconTrash,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api, type CaseImportResult, type CaseInput, type IsoDate, type OnCallCase } from '../api'
@@ -21,7 +21,7 @@ const REFERRALS = ['ED', 'WARD', 'OT', 'OSCC', 'FORENSIC/MORTUARY']
 const DSA_STATUSES = ['CALLED AND ATTENDED', 'CALLED BUT FTA', 'CALLED BUT NO ANSWER', 'NOT BEEN CALLED']
 /** The colour of each choice's filled indicator, so the selection stands out at a glance. */
 const CHOICE_COLOR: Record<string, string> = {
-  OMFS: 'blue', PAEDS: 'grape', GREEN: 'green', YELLOW: 'yellow', RED: 'red', MALE: 'blue', FEMALE: 'pink', TRAUMA: 'red', 'NON-TRAUMA': 'teal',
+  OMFS: 'blue', PAEDS: 'orange', GREEN: 'green', YELLOW: 'yellow', RED: 'red', MALE: 'blue', FEMALE: 'pink', TRAUMA: 'red', 'NON-TRAUMA': 'teal',
 }
 const choice = (value: string | null | undefined) => ({ color: (value && CHOICE_COLOR[value]) || 'teal', autoContrast: true })
 const INVESTIGATIONS = ['X-RAY', 'OPG', 'PA SKULL', 'CT', 'FBC', 'RBS', 'RP', 'COAGULATION PROFILE']
@@ -58,33 +58,52 @@ const pickOrType = 'Choose, or type if not listed'
 /** The on-call case log ("Buku Oncall"): replaces the Google Form. Everyone in the hospital reads it. */
 export function CasesPage() {
   const [tab, setTab] = useState<string | null>('new')
+  // After a new case is saved the form starts again from scratch (a new key), keeping only the shift, taggers and DSA.
+  const [formKey, setFormKey] = useState(0)
+  const [carry, setCarry] = useState<CaseInput | undefined>()
+  const [shareId, setShareId] = useState<string | null>(null)
+
+  const added = (id: string, next: CaseInput, department: string | null) => {
+    setCarry(next)
+    setFormKey(k => k + 1)
+    window.scrollTo({ top: 0 })
+    modals.openConfirmModal({
+      title: 'Case recorded', centered: true,
+      children: <Text size="sm">Would you like to generate the WhatsApp passover for the {department} group? The shift, officer and DSA are kept for your next patient.</Text>,
+      labels: { confirm: 'Generate passover', cancel: 'Not now' },
+      confirmProps: { color: 'green', leftSection: <IconBrandWhatsapp size={16} /> },
+      onConfirm: () => setShareId(id),
+    })
+  }
+
   return (
     <Stack gap="md">
-      <PageHeader icon={IconStethoscope} title="On-call cases"
+      <PageHeader title="On-call cases"
         description="Record every patient you see on call, and browse or download the hospital's case log. Patient details stay inside the hospital." />
-      <Tabs value={tab} onChange={setTab} keepMounted={false} variant="pills" radius="xl">
-        <Paper className="panel" p={6} mb="md" radius="xl">
-          <Tabs.List>
-            <Tabs.Tab value="new" leftSection={<IconPlus size={16} />}>New case</Tabs.Tab>
-            <Tabs.Tab value="log" leftSection={<IconStethoscope size={16} />}>Case log</Tabs.Tab>
-          </Tabs.List>
-        </Paper>
-        <Tabs.Panel value="new"><Paper className="panel" p="lg"><CaseForm onSaved={() => {}} /></Paper></Tabs.Panel>
+      <Tabs value={tab} onChange={setTab} keepMounted={false}>
+        <Tabs.List className="tabs-scroll" mb="md">
+          <Tabs.Tab value="new">New case</Tabs.Tab>
+          <Tabs.Tab value="log">Case log</Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="new"><Paper className="panel" p="lg"><CaseForm key={formKey} initial={carry} onAdded={added} /></Paper></Tabs.Panel>
         <Tabs.Panel value="log"><CaseLog /></Tabs.Panel>
       </Tabs>
+      {shareId && <WhatsAppModal caseId={shareId} onClose={() => setShareId(null)} />}
     </Stack>
   )
 }
 
 /**
- * Add (no `editing`) or edit a case. The officer in charge is the officer recording it. After adding, the shift, officer and
- * DSA details stay for the next patient of the same shift.
+ * Add (no `editing`) or edit a case. The officer in charge is the officer recording it. After adding, the page starts a fresh
+ * form (onAdded) that keeps the shift, officer and DSA details for the next patient of the same shift.
  */
-function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSaved: () => void; onCancel?: () => void }) {
+function CaseForm({ editing, initial, onAdded, onSaved, onCancel }: {
+  editing?: OnCallCase; initial?: CaseInput
+  onAdded?: (id: string, next: CaseInput, department: string | null) => void; onSaved?: () => void; onCancel?: () => void
+}) {
   const qc = useQueryClient()
-  const [shareId, setShareId] = useState<string | null>(null)
   const me = useMe().data
-  const [v, setV] = useState<CaseInput>(() => (editing ? toInput(editing) : blank(currentShift())))
+  const [v, setV] = useState<CaseInput>(() => (editing ? toInput(editing) : initial ?? blank(currentShift())))
   const set = <K extends keyof CaseInput>(k: K, value: CaseInput[K]) => setV(s => ({ ...s, [k]: value }))
   const shift = v.onCallDate ?? v.date
   const nextDay = v.date !== shift
@@ -103,16 +122,8 @@ function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSave
     },
     onSuccess: id => {
       qc.invalidateQueries({ queryKey: ['cases'] })
-      if (editing) notifyOk('Case saved.')
-      if (!editing) setV(s => ({ ...blank(shift), taggers: s.taggers, dsaName: s.dsaName, dsaStatus: s.dsaStatus }))
-      if (id) modals.openConfirmModal({
-        title: 'Case recorded', centered: true,
-        children: <Text size="sm">Would you like to generate the WhatsApp passover for the {v.department} group? The shift, officer and DSA are kept for your next patient.</Text>,
-        labels: { confirm: 'Generate passover', cancel: 'Not now' },
-        confirmProps: { color: 'green', leftSection: <IconBrandWhatsapp size={16} /> },
-        onConfirm: () => setShareId(id),
-      })
-      onSaved()
+      if (editing) { notifyOk('Case saved.'); onSaved?.(); return }
+      if (id) onAdded?.(id, { ...blank(shift), taggers: v.taggers, dsaName: v.dsaName, dsaStatus: v.dsaStatus }, v.department)
     },
     onError: e => notifyError(e, 'Could not save the case'),
   })
@@ -278,7 +289,6 @@ function CaseForm({ editing, onSaved, onCancel }: { editing?: OnCallCase; onSave
           <Button type="submit" loading={save.isPending} disabled={!ready}>{editing ? 'Save' : 'Record case'}</Button>
         </Group>
       </Stack>
-      {shareId && <WhatsAppModal caseId={shareId} onClose={() => setShareId(null)} />}
     </form>
   )
 }
@@ -368,16 +378,17 @@ function CaseLog() {
       </Alert>
 
       {cases.isLoading ? <Loading /> : cases.error ? <ErrorBox error={cases.error} /> : (
-        <Paper withBorder>
+        <Paper className="panel">
           <Group justify="space-between" px="md" py="xs">
-            <Text size="sm" c="dimmed">{rows.length} case{rows.length === 1 ? '' : 's'} · {duration(total)} in total</Text>
+            <Text size="sm" c="var(--text-2)" style={{ fontVariantNumeric: 'tabular-nums' }}>{rows.length} case{rows.length === 1 ? '' : 's'}, {duration(total)} in total</Text>
           </Group>
           <Table.ScrollContainer minWidth={phone ? 700 : 980}>
-            <Table striped highlightOnHover verticalSpacing={6}>
+            <Table highlightOnHover verticalSpacing={6}>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>On call</Table.Th><Table.Th>Time</Table.Th><Table.Th>Patient</Table.Th><Table.Th>Diagnosis</Table.Th>
-                  <Table.Th>Officer</Table.Th><Table.Th>DSA</Table.Th><Table.Th />
+                  <Table.Th fw={500} c="var(--text-2)">On call</Table.Th><Table.Th fw={500} c="var(--text-2)">Time</Table.Th>
+                  <Table.Th fw={500} c="var(--text-2)">Patient</Table.Th><Table.Th fw={500} c="var(--text-2)">Diagnosis</Table.Th>
+                  <Table.Th fw={500} c="var(--text-2)">Officer</Table.Th><Table.Th fw={500} c="var(--text-2)">DSA</Table.Th><Table.Th />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -386,12 +397,12 @@ function CaseLog() {
                 )}
                 {rows.map(c => (
                   <Table.Tr key={c.id}>
-                    <Table.Td><Text size="sm" fw={600}>{formatLong(c.onCallDate)}</Text>
+                    <Table.Td><Text size="sm" fw={500} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatLong(c.onCallDate)}</Text>
                       {c.date !== c.onCallDate && <Text size="xs" c="dimmed">seen {formatLong(c.date)}</Text>}</Table.Td>
                     <Table.Td><Text size="sm">{hm(c.timeStart)}–{hm(c.timeFinish)}</Text><Text size="xs" c="dimmed">{duration(c.minutes)}</Text></Table.Td>
                     <Table.Td>
-                      <Text size="sm" fw={600}>{c.patientName} {c.confidential && <Badge size="xs" color="red" variant="light">Confidential</Badge>}</Text>
-                      <Text size="xs" c="dimmed">{c.patientIdNo} · {c.gender}{c.age && `, ${c.age}`}{c.department && ` · ${c.department}`}</Text>
+                      <Text size="sm" fw={500}>{c.patientName} {c.confidential && <Badge size="xs" color="red" variant="light">Confidential</Badge>}</Text>
+                      <Text size="xs" c="dimmed">{c.patientIdNo}, {c.gender}{c.age && `, ${c.age}`}{c.department && `, ${c.department}`}</Text>
                     </Table.Td>
                     <Table.Td><Text size="sm" lineClamp={2}>{c.diagnosis ?? '–'}</Text></Table.Td>
                     <Table.Td><Text size="sm">{c.officer}</Text>{c.taggers && <Text size="xs" c="dimmed">{c.taggers}</Text>}</Table.Td>

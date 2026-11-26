@@ -54,12 +54,12 @@ export function RotaTab() {
 
   return (
     <Stack gap="md">
-      <Paper withBorder p="md">
+      <Paper className="panel" p="md">
         <Group justify="space-between" align="flex-end" wrap="wrap">
           <Group align="flex-end" wrap="wrap">
             <Select
               label="Rota period"
-              data={periods.data.map(p => ({ value: p.id, label: `${p.name} · ${p.status}` }))}
+              data={periods.data.map(p => ({ value: p.id, label: `${p.name} (${p.status})` }))}
               value={periodId}
               onChange={v => { setPeriodId(v); setRunId(null) }}
               allowDeselect={false}
@@ -75,7 +75,7 @@ export function RotaTab() {
           {period && (
             <Group align="flex-end" wrap="wrap">
               {period.status === 'Open' ? (
-                <Button color="orange" leftSection={<IconLock size={16} />} loading={lock.isPending} onClick={() => modals.openConfirmModal({
+                <Button variant="default" leftSection={<IconLock size={16} />} loading={lock.isPending} onClick={() => modals.openConfirmModal({
                   title: `Lock leave for ${period.name}?`,
                   children: <Text size="sm">People won't be able to change their leave. You can reopen it later from “Periods & holidays”.</Text>,
                   labels: { confirm: 'Lock', cancel: 'Cancel' },
@@ -87,7 +87,7 @@ export function RotaTab() {
                 <>
                   <NumberInput label="Seed (optional)" description="Same seed = same rota" value={seed}
                     onChange={v => setSeed(v === '' ? '' : Number(v))} w={150} allowDecimal={false} />
-                  <Button size="md" leftSection={<IconWand size={18} />} loading={generate.isPending} onClick={() => generate.mutate()}>
+                  <Button leftSection={<IconWand size={16} />} loading={generate.isPending} onClick={() => generate.mutate()}>
                     Generate draft
                   </Button>
                 </>
@@ -99,16 +99,16 @@ export function RotaTab() {
 
       {runs.data && runs.data.length > 0 && (
         <Group gap="xs" wrap="wrap">
-          <Text size="sm" fw={600}>Drafts:</Text>
+          <Text size="sm" fw={500}>Drafts</Text>
           {runs.data.map((r, i) => (
             <Button
               key={r.id}
               size="xs"
-              variant={r.id === runId ? 'filled' : 'default'}
-              color={r.isPublished ? 'green' : r.isInReview ? 'violet' : 'gray'}
+              variant={r.id === runId ? 'light' : 'default'}
+              color={r.id === runId ? 'brand' : 'gray'}
               onClick={() => setRunId(r.id)}
             >
-              #{runs.data.length - i} {r.isPublished ? '· published' : r.isInReview ? '· in review' : ''} ({r.unassigned} gaps, {r.consecutivePairs} back-to-back)
+              #{runs.data.length - i}{r.isPublished ? ' published' : r.isInReview ? ' in review' : ''} ({r.unassigned} gaps, {r.consecutivePairs} back-to-back)
             </Button>
           ))}
         </Group>
@@ -152,16 +152,15 @@ function RunView({ runId, period, onChanged, onDeleted }: {
 
   return (
     <Stack gap="md">
-      <Paper withBorder p="md">
+      <Paper className="panel" p="md">
         <Group justify="space-between" wrap="wrap">
           <Group gap="xs" wrap="wrap">
-            <Badge size="lg" color={run.isPublished ? 'green' : run.isInReview ? 'violet' : 'gray'}>
-              {run.isPublished ? 'Published' : run.isInReview ? 'In review' : 'Draft'}
-            </Badge>
-            <Badge size="lg" color={run.unassigned ? 'red' : 'green'} variant="light">{run.unassigned} unassigned</Badge>
-            <Badge size="lg" color={run.consecutivePairs ? 'orange' : 'green'} variant="light">{run.consecutivePairs} back-to-back</Badge>
-            <Badge size="lg" color="yellow" variant="light">{run.manualChanges} manual</Badge>
-            <Text size="xs" c="dimmed">seed {run.seed} · {new Date(run.createdAt).toLocaleString()}</Text>
+            {run.isPublished ? <StatusBadge status="Published" /> : run.isInReview ? <StatusBadge status="Review" />
+              : <Badge variant="light" color="gray">Draft</Badge>}
+            <Badge color={run.unassigned ? 'red' : 'gray'} variant="light">{run.unassigned} unassigned</Badge>
+            <Badge color={run.consecutivePairs ? 'yellow' : 'gray'} variant="light">{run.consecutivePairs} back-to-back</Badge>
+            <Badge color="gray" variant="light">{run.manualChanges} manual</Badge>
+            <Text size="xs" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>Seed {run.seed}, {new Date(run.createdAt).toLocaleString()}</Text>
           </Group>
           <Group gap="xs">
             <Button variant="default" leftSection={<IconDownload size={16} />} component="a" href={api.admin.exports.timetable(run.id)}>
@@ -173,21 +172,21 @@ function RunView({ runId, period, onChanged, onDeleted }: {
               </Button>
             )}
             {run.isPublished ? (
-              <Button color="orange" variant="light" leftSection={<IconEyeOff size={16} />} loading={act.isPending}
+              <Button variant="default" leftSection={<IconEyeOff size={16} />} loading={act.isPending}
                 onClick={() => act.mutate('unpublish')}>Unpublish</Button>
             ) : (
               <>
                 {run.isInReview ? (
-                  <Button color="gray" variant="light" loading={act.isPending} onClick={() => act.mutate('withdraw')}>Back to draft</Button>
+                  <Button variant="default" loading={act.isPending} onClick={() => act.mutate('withdraw')}>Back to draft</Button>
                 ) : (
                   <>
-                    <Button color="red" variant="subtle" leftSection={<IconTrash size={16} />} onClick={() => act.mutate('delete')}>Delete draft</Button>
-                    <Button color="violet" variant="light" leftSection={<IconArrowsExchange size={16} />} onClick={() => setReviewOpen(true)}>
+                    <Button color="gray" variant="subtle" leftSection={<IconTrash size={16} />} onClick={() => act.mutate('delete')}>Delete draft</Button>
+                    <Button variant="default" leftSection={<IconArrowsExchange size={16} />} onClick={() => setReviewOpen(true)}>
                       Send for review
                     </Button>
                   </>
                 )}
-                <Button color="green" leftSection={<IconEye size={16} />} loading={act.isPending} onClick={() => modals.openConfirmModal({
+                <Button leftSection={<IconEye size={16} />} loading={act.isPending} onClick={() => modals.openConfirmModal({
                   title: `Publish this rota for ${period.name}?`,
                   children: (
                     <Text size="sm">
@@ -197,7 +196,6 @@ function RunView({ runId, period, onChanged, onDeleted }: {
                     </Text>
                   ),
                   labels: { confirm: 'Publish', cancel: 'Cancel' },
-                  confirmProps: { color: 'green' },
                   onConfirm: () => act.mutate('publish'),
                 })}>Publish</Button>
               </>
@@ -208,7 +206,7 @@ function RunView({ runId, period, onChanged, onDeleted }: {
       </Paper>
 
       <Stack gap="md">
-        <Paper withBorder p="md">
+        <Paper className="panel" p="md">
           <Group justify="space-between" mb="sm">
             <Title order={5}>Calendar</Title>
             <Text size="xs" c="dimmed">
@@ -237,10 +235,10 @@ function RunView({ runId, period, onChanged, onDeleted }: {
 function GeneratorNotes({ warnings, attention }: { warnings: string[]; attention: boolean }) {
   const [open, setOpen] = useState(false)
   return (
-    <Alert mt="md" py="xs" color={attention ? 'orange' : 'brand'} icon={<IconAlertTriangle />}
+    <Alert mt="md" py="xs" color={attention ? 'yellow' : 'gray'} icon={<IconAlertTriangle size={18} />}
       title={
         <Group gap="xs" justify="space-between" wrap="nowrap">
-          <Text fw={600} size="sm">Notes from the generator ({warnings.length})</Text>
+          <Text fw={500} size="sm">Notes from the generator ({warnings.length})</Text>
           <Button size="compact-xs" variant="subtle" color="gray" onClick={() => setOpen(o => !o)}
             rightSection={open ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}>
             {open ? 'Hide' : 'Show all'}
@@ -274,37 +272,37 @@ function Stats({ detail }: { detail: RunDetail }) {
   }, [detail.stats, sort])
 
   const th = (k: typeof sort, label: string) => (
-    <Table.Th style={{ cursor: 'pointer' }} onClick={() => setSort(k)} c={sort === k ? 'brand' : undefined}>{label}</Table.Th>
+    <Table.Th style={{ cursor: 'pointer', textAlign: k === 'name' ? undefined : 'right', fontWeight: 500 }} onClick={() => setSort(k)} c={sort === k ? 'brand' : 'var(--text-2)'}>{label}</Table.Th>
   )
 
   return (
-    <Paper withBorder p="md">
+    <Paper className="panel" p="md">
       <Title order={5} mb="sm">Per person</Title>
       <Table.ScrollContainer minWidth={520} mah={640}>
-        <Table stickyHeader striped verticalSpacing={3} fz="sm">
+        <Table stickyHeader verticalSpacing={4} fz="sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
           <Table.Thead>
             <Table.Tr>
               {th('name', 'Name')}
               {th('total', 'Shifts')}
-              <Table.Th>Wkday</Table.Th>
-              {th('weekend', 'Wkend+PH')}
-              {th('prior', 'Prior wkend → after')}
-              <Table.Th>Leave</Table.Th>
+              <Table.Th ta="right" fw={500} c="var(--text-2)">Weekday</Table.Th>
+              {th('weekend', 'Weekend and PH')}
+              {th('prior', 'Prior weekend to after')}
+              <Table.Th ta="right" fw={500} c="var(--text-2)">Leave</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {rows.map(s => (
               <Table.Tr key={s.personId}>
-                <Table.Td><Text size="sm" fw={600} lineClamp={1}>{s.name}</Text></Table.Td>
-                <Table.Td>{s.total}</Table.Td>
-                <Table.Td>{s.weekday}</Table.Td>
-                <Table.Td>{s.weekendHoliday}</Table.Td>
-                <Table.Td>
+                <Table.Td><Text size="sm" fw={500} lineClamp={1}>{s.name}</Text></Table.Td>
+                <Table.Td ta="right">{s.total}</Table.Td>
+                <Table.Td ta="right">{s.weekday}</Table.Td>
+                <Table.Td ta="right">{s.weekendHoliday}</Table.Td>
+                <Table.Td ta="right">
                   {s.priorWeekendHoliday === null
                     ? <Tooltip label="No history – the group average was used"><Text span c="dimmed">? → {s.weekendHoliday}</Text></Tooltip>
                     : `${s.priorWeekendHoliday} → ${s.priorWeekendHoliday + s.weekendHoliday}`}
                 </Table.Td>
-                <Table.Td c="dimmed">{s.leaveDays}</Table.Td>
+                <Table.Td ta="right" c="dimmed">{s.leaveDays}</Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
@@ -339,13 +337,13 @@ function OverrideModal({ day, detail, onClose, onSaved }: {
   const current = day.personId ? counts.get(day.personId) : undefined
 
   return (
-    <Modal opened onClose={onClose} title={`${formatWeekday(day.date)}${day.holidayName ? ` · ${day.holidayName}` : ''}`}>
+    <Modal opened onClose={onClose} title={`${formatWeekday(day.date)}${day.holidayName ? `, ${day.holidayName}` : ''}`}>
       <Stack>
         <Text size="sm">Currently: <b>{current?.name ?? 'Unassigned'}</b>{day.isManual ? ' (changed manually)' : ''}</Text>
         <Select label="On call" searchable clearable placeholder="Unassigned" data={options} value={personId}
           onChange={v => { setPersonId(v); setWarnings([]) }} />
         {warnings.length > 0 && (
-          <Alert color="orange" icon={<IconAlertTriangle />} title="Saved, but check this">
+          <Alert color="yellow" icon={<IconAlertTriangle size={18} />} title="Saved, but check this">
             <List size="sm">{warnings.map((w, i) => <List.Item key={i}>{w}</List.Item>)}</List>
           </Alert>
         )}
@@ -379,7 +377,7 @@ function ReviewModal({ runId, period, onClose, onDone }: { runId: string; period
         {send.error && <Text c="red" size="sm">{send.error.message}</Text>}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>Cancel</Button>
-          <Button color="violet" loading={send.isPending} onClick={() => send.mutate()}>Send for review</Button>
+          <Button loading={send.isPending} onClick={() => send.mutate()}>Send for review</Button>
         </Group>
       </Stack>
     </Modal>

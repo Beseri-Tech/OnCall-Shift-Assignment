@@ -41,13 +41,13 @@ export function NotificationBell() {
       <Popover.Target>
         <Indicator label={unread > 9 ? '9+' : unread} size={16} color="red" disabled={unread === 0} offset={4}>
           <UnstyledButton className="nav-link" aria-label={`Notifications (${unread} unread)`} onClick={() => setOpened(o => !o)}>
-            <IconBell size={20} stroke={1.8} />
+            <IconBell size={20} stroke={1.75} />
           </UnstyledButton>
         </Indicator>
       </Popover.Target>
       <Popover.Dropdown p={0}>
         <Group justify="space-between" px="md" py="xs">
-          <Text fw={700}>Notifications</Text>
+          <Text fw={600}>Notifications</Text>
           <Button variant="subtle" size="compact-xs" leftSection={<IconChecks size={14} />} disabled={unread === 0}
             loading={readAll.isPending} onClick={() => readAll.mutate()}>Mark all read</Button>
         </Group>
@@ -61,7 +61,7 @@ export function NotificationBell() {
                   <UnstyledButton key={n.id} onClick={() => open.mutate(n)} px="md" py="sm"
                     style={{ borderBottom: '1px solid var(--grid-line)', background: n.read ? undefined : 'var(--brand-soft)' }}>
                     <Group justify="space-between" gap="xs" wrap="nowrap" align="flex-start">
-                      <Text size="sm" fw={n.read ? 500 : 700}>{n.title}</Text>
+                      <Text size="sm" fw={n.read ? 400 : 600}>{n.title}</Text>
                       <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>{ago(n.createdAt, data.dataUpdatedAt)}</Text>
                     </Group>
                     {n.body && <Text size="xs" c="dimmed" mt={2} style={{ whiteSpace: 'pre-line' }}>{n.body}</Text>}

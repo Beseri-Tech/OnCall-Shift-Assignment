@@ -23,9 +23,9 @@ const Items = ({ children }: { children: ReactNode }) => <List spacing={6} size=
 
 const POINTS = [
   { day: 'Normal weekday', cost: '0', note: 'uses the weekday allowance', color: 'gray' },
-  { day: 'Weekend day', cost: '1', note: 'your state\'s rest days: Saturday and Sunday, or Friday and Saturday in Kedah, Kelantan and Terengganu', color: 'brand' },
-  { day: 'Public holiday', cost: '2', note: 'also when it falls on a weekend', color: 'teal' },
-  { day: 'Peak day', cost: '1', note: 'a busy weekday, e.g. the eve of Raya', color: 'orange' },
+  { day: 'Weekend day', cost: '1', note: 'your state\'s rest days: Saturday and Sunday, or Friday and Saturday in Kedah, Kelantan and Terengganu', color: 'gray' },
+  { day: 'Public holiday', cost: '2', note: 'also when it falls on a weekend', color: 'gray' },
+  { day: 'Peak day', cost: '1', note: 'a busy weekday, e.g. the eve of Raya', color: 'gray' },
 ]
 
 /** The manual from private storage, once a master has uploaded one. Nothing is shown until then. */
@@ -33,7 +33,7 @@ function ManualButton() {
   const manual = useQuery({ queryKey: ['manual'], queryFn: () => api.documents.manual(), retry: false })
   if (!manual.data) return null
   return (
-    <Button variant="light" leftSection={<IconDownload size={18} />} onClick={() => openDocument(manual.data!.id).catch(notifyError)}>
+    <Button variant="light" leftSection={<IconDownload size={16} />} onClick={() => openDocument(manual.data!.id).catch(notifyError)}>
       Open user manual (PDF)
     </Button>
   )
@@ -42,10 +42,10 @@ function ManualButton() {
 interface Entry { id: string; chapter: string; title: string; blurb: string; icon: Icon; keywords: string; body: ReactNode; plain?: boolean; show?: boolean }
 
 const CHAPTERS = [
-  { id: 'rota', title: 'Rota and leave', blurb: 'How the rota is built, leave, points and swaps', icon: IconCalendarTime, color: 'brand' },
-  { id: 'oncall', title: 'On-call work', blurb: 'Case log, WhatsApp passover and the ETAP claim', icon: IconStethoscope, color: 'teal' },
-  { id: 'account', title: 'Your account', blurb: 'Signing in, notifications and feedback', icon: IconUserCircle, color: 'violet' },
-  { id: 'admin', title: 'For admins', blurb: 'Running periods, officers, clinics, reports', icon: IconShieldLock, color: 'orange' },
+  { id: 'rota', title: 'Rota and leave', blurb: 'How the rota is built, leave, points and swaps', icon: IconCalendarTime, color: 'gray' },
+  { id: 'oncall', title: 'On-call work', blurb: 'Case log, WhatsApp passover and the ETAP claim', icon: IconStethoscope, color: 'gray' },
+  { id: 'account', title: 'Your account', blurb: 'Signing in, notifications and feedback', icon: IconUserCircle, color: 'gray' },
+  { id: 'admin', title: 'For admins', blurb: 'Running periods, officers, clinics, reports', icon: IconShieldLock, color: 'gray' },
 ]
 
 function EntryCard({ e }: { e: Entry }) {
@@ -55,7 +55,7 @@ function EntryCard({ e }: { e: Entry }) {
     <Paper id={e.id} className="panel" p="lg" style={{ scrollMarginTop: 80 }}>
       <Stack gap="sm">
         <Title order={3} size="h4" c="brand.9" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <ThemeIcon size={34} radius="md" variant="light"><I size={20} stroke={1.8} /></ThemeIcon>
+          <ThemeIcon size={32} radius="md" variant="light" color="gray"><I size={18} stroke={1.6} /></ThemeIcon>
           {e.title}
         </Title>
         {e.body}
@@ -102,7 +102,7 @@ export function HelpPage() {
             <List.Item><b>No shift on a day you're on leave.</b></List.Item>
             <List.Item><b>Long leave lowers your share</b> when there aren't enough free days for a full share without back-to-back shifts.</List.Item>
           </Items>
-          <Text size="sm" fw={700} mt="xs">Settings the admin can give an officer</Text>
+          <Text size="sm" fw={600} mt="xs">Settings the admin can give an officer</Text>
           <Items>
             <List.Item><b>Extra shift:</b> first in line for the extra shift when days don't divide evenly.</List.Item>
             <List.Item><b>Prefers weekends/PH:</b> about twice the normal share of weekend/PH shifts, with fewer weekdays so the total stays equal.</List.Item>
@@ -126,8 +126,8 @@ export function HelpPage() {
             <Table.Tbody>
               {POINTS.map(p => (
                 <Table.Tr key={p.day}>
-                  <Table.Td>{p.day}{p.note && <Text span c="dimmed" size="xs"> · {p.note}</Text>}</Table.Td>
-                  <Table.Td><Badge color={p.color} variant="light" size="lg">{p.cost}</Badge></Table.Td>
+                  <Table.Td>{p.day}{p.note && <Text c="dimmed" size="xs">{p.note}</Text>}</Table.Td>
+                  <Table.Td><Badge color={p.color} variant="light" size="lg" fw={500}>{p.cost}</Badge></Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -158,14 +158,14 @@ export function HelpPage() {
       keywords: 'reward points RW public holiday weekend peak next rota',
       body: (
         <Alert color="teal" variant="light" radius="md" icon={<IconGift />} title="Reward points: work a busy day, earn leave points"
-          styles={{ root: { borderWidth: 2, borderStyle: 'solid', borderColor: 'var(--mantine-color-teal-5)' }, title: { fontSize: 'var(--mantine-font-size-lg)', fontWeight: 700 } }}>
+          styles={{ root: { borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--line)' }, title: { fontSize: 'var(--mantine-font-size-lg)', fontWeight: 500 } }}>
           <Text size="sm">
             Work a busy day in a published rota and you get <b>extra leave points in the next rota</b>:
           </Text>
           <Group gap="sm" my="sm">
-            <Badge size="xl" color="teal" variant="filled">Public holiday +3</Badge>
-            <Badge size="xl" color="brand" variant="filled">Weekend day +2</Badge>
-            <Badge size="xl" color="orange" variant="filled">Peak day +1</Badge>
+            <Badge size="xl" color="teal" variant="light">Public holiday +3</Badge>
+            <Badge size="xl" color="gray" variant="light">Weekend day +2</Badge>
+            <Badge size="xl" color="gray" variant="light">Peak day +1</Badge>
           </Group>
           <List size="sm" spacing={4}>
             <List.Item>They are added automatically and show on My leave.</List.Item>
@@ -549,16 +549,16 @@ export function HelpPage() {
               {chapters.map(c => (
                 <Card key={c.id} withBorder radius="md" p="md" className="rules-chapter">
                   <Group gap="sm" wrap="nowrap" mb="xs">
-                    <ThemeIcon size={38} radius="md" variant="light" color={c.color}><c.icon size={22} stroke={1.8} /></ThemeIcon>
+                    <ThemeIcon size={32} radius="md" variant="light" color="gray"><c.icon size={18} stroke={1.6} /></ThemeIcon>
                     <div>
-                      <Text fw={700} lh={1.2}>{c.title}</Text>
+                      <Text fw={500} lh={1.2}>{c.title}</Text>
                       <Text size="xs" c="dimmed" lh={1.3}>{c.blurb}</Text>
                     </div>
                   </Group>
                   <Stack gap={2}>
                     {shown.filter(e => e.chapter === c.id).map(e => (
                       <UnstyledButton key={e.id} className="rules-link" onClick={() => go(e.id)}>
-                        <Group gap={8} wrap="nowrap"><e.icon size={15} stroke={1.8} /><Text size="sm">{e.title}</Text></Group>
+                        <Group gap={8} wrap="nowrap"><e.icon size={16} stroke={1.6} /><Text size="sm">{e.title}</Text></Group>
                       </UnstyledButton>
                     ))}
                   </Stack>
@@ -570,11 +570,11 @@ export function HelpPage() {
       </Paper>
 
       <Group align="flex-start" gap="lg" wrap="nowrap">
-        <Box visibleFrom="md" w={230} style={{ position: 'sticky', top: 76, flexShrink: 0, maxHeight: 'calc(100vh - 96px)', overflowY: 'auto' }}>
+        <Box visibleFrom="md" w={230} style={{ position: 'sticky', top: 'calc(var(--app-shell-header-offset, 56px) + 16px)', flexShrink: 0, maxHeight: 'calc(100vh - var(--app-shell-header-offset, 56px) - 36px)', overflowY: 'auto' }}>
           <Stack gap="md">
             {chapters.map(c => (
               <div key={c.id}>
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed" mb={4}>{c.title}</Text>
+                <Text size="sm" fw={500} c="dimmed" mb={4}>{c.title}</Text>
                 <Stack gap={0}>
                   {shown.filter(e => e.chapter === c.id).map(e => (
                     <UnstyledButton key={e.id} className={`rules-side${active === e.id ? ' active' : ''}`} onClick={() => go(e.id)}>
@@ -591,7 +591,7 @@ export function HelpPage() {
           {chapters.map(c => (
             <Stack key={c.id} gap="md">
               <Group gap="sm" mt="sm">
-                <ThemeIcon size={30} radius="xl" color={c.color}><c.icon size={18} stroke={1.8} /></ThemeIcon>
+                <ThemeIcon size={32} radius="md" variant="light" color="gray"><c.icon size={18} stroke={1.6} /></ThemeIcon>
                 <Title order={2} size="h3" c="brand.9">{c.title}</Title>
               </Group>
               {shown.filter(e => e.chapter === c.id).map(e => <EntryCard key={e.id} e={e} />)}

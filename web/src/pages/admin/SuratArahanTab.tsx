@@ -58,20 +58,20 @@ export function SuratArahanTab() {
           </Group>
         </Stack>
       </Paper>
-      <Paper withBorder>
+      <Paper className="panel">
         {letters.data!.length === 0 ? <Alert color="gray" variant="light">No surat arahan yet.</Alert> : (
-          <Table verticalSpacing={6}>
-            <Table.Thead><Table.Tr><Table.Th>In effect from</Table.Th><Table.Th>Reference</Table.Th><Table.Th>File</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+          <Table verticalSpacing={6} style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <Table.Thead><Table.Tr><Table.Th fw={500} c="var(--text-2)">In effect from</Table.Th><Table.Th fw={500} c="var(--text-2)">Reference</Table.Th><Table.Th fw={500} c="var(--text-2)">File</Table.Th><Table.Th /></Table.Tr></Table.Thead>
             <Table.Tbody>
               {letters.data!.map((l, i) => (
                 <Table.Tr key={l.id}>
-                  <Table.Td><Text size="sm" fw={i === 0 ? 700 : 400}>{formatLong(l.effectiveFrom)}{i === 0 && ' (latest)'}</Text></Table.Td>
+                  <Table.Td><Text size="sm" fw={i === 0 ? 500 : 400}>{formatLong(l.effectiveFrom)}{i === 0 && ' (latest)'}</Text></Table.Td>
                   <Table.Td><Text size="sm">{l.reference ?? '–'}</Text></Table.Td>
                   <Table.Td><Text size="sm">{l.fileName}</Text></Table.Td>
                   <Table.Td>
                     <Group gap={4} justify="flex-end">
                       <ActionIcon variant="subtle" aria-label="Download" onClick={() => downloadDocument(l.documentId).catch(notifyError)}><IconDownload size={18} /></ActionIcon>
-                      <ActionIcon variant="subtle" color="red" aria-label="Remove" onClick={() => modals.openConfirmModal({
+                      <ActionIcon variant="subtle" color="gray" aria-label="Remove" onClick={() => modals.openConfirmModal({
                         title: 'Remove this surat arahan?', children: <Text size="sm">Claims will use the previous letter instead.</Text>,
                         labels: { confirm: 'Remove', cancel: 'Cancel' }, confirmProps: { color: 'red' }, onConfirm: () => remove.mutate(l.id),
                       })}><IconTrash size={18} /></ActionIcon>

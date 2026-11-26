@@ -42,19 +42,19 @@ export function MastersTab() {
         <Text size="sm" c="dimmed">Masters see and run every hospital. Hospital admins, supervisors and officers are added on each hospital’s Officers tab.</Text>
         <Button leftSection={<IconUserPlus size={16} />} onClick={() => setEditing('new')}>Add master</Button>
       </Group>
-      <Paper withBorder>
+      <Paper className="panel">
         <Table.ScrollContainer minWidth={640}>
-          <Table striped highlightOnHover verticalSpacing={6}>
+          <Table highlightOnHover verticalSpacing={6}>
             <Table.Thead>
               <Table.Tr><Table.Th>Name</Table.Th><Table.Th>Email</Table.Th><Table.Th>Status</Table.Th><Table.Th>Last sign-in</Table.Th><Table.Th /></Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {masters.data!.map(a => (
                 <Table.Tr key={a.id} opacity={a.enabled ? 1 : 0.55}>
-                  <Table.Td fw={600}>{a.personName}{a.id === me?.accountId && <Text span size="xs" c="dimmed"> (you)</Text>}</Table.Td>
+                  <Table.Td fw={500}>{a.personName}{a.id === me?.accountId && <Text span size="xs" c="dimmed"> (you)</Text>}</Table.Td>
                   <Table.Td>{a.email}</Table.Td>
                   <Table.Td>
-                    <Badge variant="light" color={!a.enabled ? 'gray' : a.mustChangePassword ? 'orange' : 'green'}>
+                    <Badge variant="light" color={!a.enabled ? 'gray' : a.mustChangePassword ? 'yellow' : 'green'}>
                       {!a.enabled ? 'Disabled' : a.mustChangePassword ? 'Invited' : 'Active'}
                     </Badge>
                   </Table.Td>
