@@ -3,7 +3,7 @@ import {
 } from '@mantine/core'
 import { useWindowScroll } from '@mantine/hooks'
 import {
-  IconArrowUp, IconArrowsExchange, IconBeach, IconBell, IconBook, IconBuildingHospital, IconCalendarStar, IconCalendarTime, IconDownload, IconFileCertificate,
+  IconArrowUp, IconArrowsExchange, IconBeach, IconBell, IconBook, IconBuildingHospital, IconCalendarStar, IconCalendarTime, IconCompass, IconDownload, IconFileCertificate,
   IconGift, IconId, IconListCheck, IconPlaneDeparture, IconReceipt2, IconScale, IconSearch, IconShieldLock, IconStar, IconStethoscope, IconSum, IconUserCircle,
   IconUserOff, IconUsers, IconWand, IconBrandWhatsapp, IconX, type Icon,
 } from '@tabler/icons-react'
@@ -44,7 +44,7 @@ interface Entry { id: string; chapter: string; title: string; blurb: string; ico
 const CHAPTERS = [
   { id: 'rota', title: 'Rota and leave', blurb: 'How the rota is built, leave, points and swaps', icon: IconCalendarTime, color: 'gray' },
   { id: 'oncall', title: 'On-call work', blurb: 'Case log, WhatsApp passover and the ETAP claim', icon: IconStethoscope, color: 'gray' },
-  { id: 'account', title: 'Your account', blurb: 'Signing in, notifications and feedback', icon: IconUserCircle, color: 'gray' },
+  { id: 'account', title: 'Your account', blurb: 'Signing in, finding your way, notifications and feedback', icon: IconUserCircle, color: 'gray' },
   { id: 'admin', title: 'For admins', blurb: 'Running periods, officers, clinics, reports', icon: IconShieldLock, color: 'gray' },
 ]
 
@@ -78,7 +78,7 @@ export function HelpPage() {
       keywords: 'stages deadline lock draft publish review period',
       body: (
         <List type="ordered" spacing={6} size="sm">
-          <List.Item><b>Open for leave.</b> Mark your leave and preferred on-call days. Change them as often as you like until the leave deadline.</List.Item>
+          <List.Item><b>Open for leave.</b> Mark your leave and preferred on-call days. Change them as often as you like until the leave deadline. The admin may set a <b>time</b> for the period to open: until then you see a countdown on the Leave page and can't enter leave, and you're told in the app and by email, with a reminder a day and an hour before. When it opens, the page unlocks by itself.</List.Item>
           <List.Item><b>Locked.</b> After the deadline the admin locks the period and generates the rota. You can no longer change your own entries.</List.Item>
           <List.Item><b>In review (draft).</b> Check your dates and ask other officers to swap. Draft dates can still change.</List.Item>
           <List.Item><b>Published.</b> The final rota is out. You get a notification and an email, and the shifts are added to your tally.</List.Item>
@@ -358,7 +358,7 @@ export function HelpPage() {
         <>
           <Text size="sm">
             <Anchor inherit component={Link} to="/etap">ETAP Claim</Anchor> (under <b>On call</b>) builds your claim for a month and fills in the official form.
-            You need a <b>verified ETAP profile</b> first (next section).
+            You need a <b>verified ETAP profile</b> first (next section): until it is verified, the page is greyed out and can't be used, and the notice at the top links to your profile.
           </Text>
           <List type="ordered" spacing={6} size="sm">
             <List.Item>Pick the month. Add your on-call dates with one button (it says which rota it adds from), or add a day and type it yourself.</List.Item>
@@ -403,11 +403,24 @@ export function HelpPage() {
       ),
     },
     {
+      id: 'navigate', chapter: 'account', icon: IconCompass, title: 'Finding your way around', blurb: 'Welcome page, side menu and phone menu',
+      keywords: 'menu side nav navigation welcome page home collapse phone drawer today calendar',
+      body: (
+        <Items>
+          <List.Item>Opening the site while signed out shows the <b>welcome page</b>, which explains what Rota-OC does and has a video tour. Press <b>Sign in</b> (or <b>Open Rota-OC</b> when you are already signed in). After signing in the app opens at <b>/home</b>, which takes you to your leave (officers) or the overview (supervisors).</List.Item>
+          <List.Item>Every page is listed in the <b>menu down the left side</b>, grouped under <b>Leave</b>, <b>On call</b>, <b>Rota</b> and, for admins, <b>Admin</b>, plus <b>Help</b>. The button at the bottom collapses it to icons, and the app remembers your choice. On a phone the same menu opens from the menu button at the top left.</List.Item>
+          <List.Item>Your <b>account menu</b> (top right; in the side menu on a phone) has My ETAP profile, Change password, the Changelog and Sign out.</List.Item>
+          <List.Item>On the month calendars today is marked in teal, and weekends and public holidays are easy to spot.</List.Item>
+          <List.Item>A page you are not allowed to open takes you back to your start page.</List.Item>
+        </Items>
+      ),
+    },
+    {
       id: 'notify', chapter: 'account', icon: IconBell, title: 'Notifications and feedback', blurb: 'The bell, emails and Send feedback',
       keywords: 'notifications bell email feedback problem idea',
       body: (
         <Items>
-          <List.Item>The <b>bell</b> shows rota, swap and leave updates.</List.Item>
+          <List.Item>The <b>bell</b> shows rota, swap and leave updates, including when a rota period will open and when it has.</List.Item>
           <List.Item>You get an email for swap requests, confirmed leave and when the final rota is published.</List.Item>
           <List.Item>Report a problem or share an idea with <b>Send feedback</b>: the speech-bubble icon in the header, or <b>Send feedback</b> in the side menu on a phone. You can choose whether your hospital's admins or the app team read it.</List.Item>
         </Items>
@@ -453,7 +466,7 @@ export function HelpPage() {
       show: admin,
       body: (
         <Items>
-          <List.Item><b>Periods & holidays:</b> create a period (dates, leave deadline, points budget), edit its public holidays and peak days, give officers <b>extra points</b> with a reason, leave an officer out of the period, lock or reopen it. Holidays are kept per state.</List.Item>
+          <List.Item><b>Periods & holidays:</b> create a period (dates, leave deadline, points budget, and optionally <b>Open to officers at</b>, a time for it to open: officers are told straight away and get reminders, see a countdown and can't enter leave until then; you can move the time or open it now, and you can still enter leave for officers before it opens), edit its public holidays and peak days, give officers <b>extra points</b> with a reason, leave an officer out of the period, lock or reopen it. Holidays are kept per state.</List.Item>
           <List.Item><b>Confirmed leave:</b> approve or reject officers' requests range by range (a rejection needs a reason), or add confirmed leave yourself. Remember the 33% deduction and the officer's CR days.</List.Item>
           <List.Item><b>Tally:</b> shows each officer's weekday and weekend/PH shifts; edit it to enter history from before the app. Excel exports it.</List.Item>
           <List.Item>You can edit any officer's leave after the deadline from the Confirmed leave and leave pages.</List.Item>
@@ -482,6 +495,7 @@ export function HelpPage() {
           <List.Item>A <b>Master</b> looks after the whole app: add hospitals, states and districts, and switch between hospitals from the header.</List.Item>
           <List.Item><b>All hospitals → Settings</b> switches email off or on for the whole app. While it is off, invites show the temporary password instead of emailing it.</List.Item>
           <List.Item>The <b>user manual</b> is the same for every hospital, so masters upload it from All hospitals → Manual. The <b>audit log</b> and every hospital's <b>rota reports</b> are also there, with a Hospital filter.</List.Item>
+          <List.Item>The database is <b>backed up every night</b> to a private storage bucket and kept for 30 days. Restoring one is done on the server (see the README), not in the app.</List.Item>
         </Items>
       ),
     },

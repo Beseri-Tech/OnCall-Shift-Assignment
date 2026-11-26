@@ -12,6 +12,12 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.14.1', date: '2026-11-26', title: 'Help page brought up to date',
+    changes: [
+      { kind: 'improved', text: 'The Help page now covers the welcome page and side menu, scheduled rota opening with the countdown, the ETAP Claim page being greyed out until your profile is verified, and nightly database backups.' },
+    ],
+  },
+  {
     version: '3.14.0', date: '2026-11-26', title: 'A calmer, clearer look',
     changes: [
       { kind: 'improved', text: 'The whole app has a new look that matches the welcome and sign-in pages: the same typeface, slightly larger text, a plain dark header, and quieter colours so the rota colours stand out.' },
