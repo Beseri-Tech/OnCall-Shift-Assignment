@@ -1,3 +1,4 @@
+using Rota.Core;
 namespace Rota.Core.Generation;
 
 /// <summary>A person as the generator sees them for one rota.</summary>
@@ -17,7 +18,8 @@ public sealed record RotaInput(
     DateOnly Start,
     DateOnly End,
     IReadOnlyCollection<DateOnly> Holidays,
-    int? Seed = null);
+    int? Seed = null,
+    int WeekendDays = Weekends.SaturdaySunday);
 
 /// <param name="PersonId">null = nobody could be assigned (everyone on leave).</param>
 public sealed record ShiftAssignment(DateOnly Date, Guid? PersonId, bool IsWeekendHoliday);

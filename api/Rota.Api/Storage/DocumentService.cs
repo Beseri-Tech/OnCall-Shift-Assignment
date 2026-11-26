@@ -50,17 +50,18 @@ public sealed class DocumentService(RotaDbContext db, IDocumentStorage storage, 
 
     public static bool CanUpload(ClaimsPrincipal user, DocumentKind kind) => kind switch
     {
-        DocumentKind.Manual => user.IsAdmin(),
+        DocumentKind.Manual => user.IsMaster(),   // one manual for every hospital
         DocumentKind.LeaveDocument => user.PersonId() is not null || user.IsAdmin(),
         DocumentKind.RotaReport => false,   // only the server saves these, never an upload
+        DocumentKind.SuratArahan => user.IsAdmin(),
         _ => true,
     };
 
     public static bool CanRead(ClaimsPrincipal user, DocumentRecord d) =>
-        user.IsAdmin() || (d.Kind != DocumentKind.RotaReport && (d.Kind == DocumentKind.Manual || IsOwner(user, d)));
+        user.IsAdmin() || (d.Kind != DocumentKind.RotaReport && (d.Kind is DocumentKind.Manual or DocumentKind.SuratArahan || IsOwner(user, d)));
 
     public static bool CanDelete(ClaimsPrincipal user, DocumentRecord d) =>
-        user.IsAdmin() || (d.Kind is not (DocumentKind.Manual or DocumentKind.RotaReport) && IsOwner(user, d));
+        user.IsAdmin() || (d.Kind is not (DocumentKind.Manual or DocumentKind.RotaReport or DocumentKind.SuratArahan) && IsOwner(user, d));
 
     private static bool IsOwner(ClaimsPrincipal user, DocumentRecord d) =>
         (user.AccountId() is { } a && d.UploadedByAccountId == a) ||

@@ -20,7 +20,7 @@ public class FeedbackTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         await using var app = fixture.CreateApp();
         var admin = await ApiFixture.AdminClientAsync(app);
         var created = await Read<SavePersonResult>(await admin.PostAsJsonAsync("/api/admin/people",
-            new UpsertPersonRequest("Dr Aminah", null), ApiFixture.Json));
+            new UpsertPersonRequest("Dr Aminah", null, Email: ApiFixture.EmailFor("Dr Aminah")), ApiFixture.Json));
         var officer = await ApiFixture.OfficerClientAsync(app, admin, created.Id);
 
         (await officer.PostAsJsonAsync("/api/feedback",
@@ -33,6 +33,8 @@ public class FeedbackTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         // Officers can't read the list.
         Assert.Equal(HttpStatusCode.Forbidden, (await officer.GetAsync("/api/admin/feedback")).StatusCode);
 
+        // Feedback about the app goes to the masters, who read it outside any one hospital.
+        (await admin.PostAsJsonAsync("/api/auth/facility", new SetFacilityRequest(null))).EnsureSuccessStatusCode();
         var all = await Read<FeedbackPageDto>(await admin.GetAsync("/api/admin/feedback"));
         Assert.Equal((2, 2), (all.Total, all.Open));
         var bug = all.Items.Single(i => i.Category == FeedbackCategory.Bug);

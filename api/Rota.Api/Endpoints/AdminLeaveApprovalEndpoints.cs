@@ -64,7 +64,7 @@ public static class AdminLeaveApprovalEndpoints
 
             await notify.ToPeopleAsync([approval.PersonId], Notifier.ConfirmedLeave,
                 $"Confirmed leave removed: {Range(approval.StartDate, approval.EndDate)}",
-                "The admin removed this confirmed leave. You may be put on call on these days.", "/leave", email: true, ct);
+                "The admin removed this confirmed leave. You may be put on call on these days.", "/my-leave", email: true, ct);
             Mapping.Log(db, http, "confirmed-leave.delete", approval.PersonId, null, id, before: AuditOf(approval));
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -84,6 +84,7 @@ public static class AdminLeaveApprovalEndpoints
             return Problem("dates", $"At most {MaxDays} days at a time. For a long absence, mark the officer as excluded.");
 
         var person = await db.People.FindAsync([req.PersonId], ct);
+        if (person is { OnRota: false }) person = null;   // supervisors are never on the rota
         if (person is null) return Results.NotFound();
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -103,7 +104,7 @@ public static class AdminLeaveApprovalEndpoints
         string body = isNew
             ? $"Reason: {reason}\nYou won't be put on call on these days. It reduces your leave points and weekday allowance by the share of the rota it covers."
             : $"It was {oldRange}. Reason: {reason}";
-        await notify.ToPeopleAsync([req.PersonId], Notifier.ConfirmedLeave, title, body, "/leave", email: true, ct);
+        await notify.ToPeopleAsync([req.PersonId], Notifier.ConfirmedLeave, title, body, "/my-leave", email: true, ct);
         Mapping.Log(db, http, isNew ? "confirmed-leave.create" : "confirmed-leave.update", req.PersonId,
             new { officer = person.Name }, approval.Id, before, AuditOf(approval));
         await db.SaveChangesAsync(ct);
@@ -181,6 +182,7 @@ public static class AdminLeaveApprovalEndpoints
                                         $"{Range(ranges[i].StartDate, ranges[i].EndDate)} overlap. Merge them into one range.");
 
         var person = await db.People.FindAsync([req.PersonId], ct);
+        if (person is { OnRota: false }) person = null;   // supervisors are never on the rota
         if (person is null) return Results.NotFound();
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -200,7 +202,7 @@ public static class AdminLeaveApprovalEndpoints
         string list = string.Join(", ", created.Select(a => Range(a.StartDate, a.EndDate)));
         string title = $"Confirmed leave added: {list}";
         string body = $"Reason: {reason}\nYou won't be put on call on these days. It reduces your leave points and weekday allowance by 33% of what these days would have cost as ordinary leave.";
-        await notify.ToPeopleAsync([req.PersonId], Notifier.ConfirmedLeave, title, body, "/leave", email: true, ct);
+        await notify.ToPeopleAsync([req.PersonId], Notifier.ConfirmedLeave, title, body, "/my-leave", email: true, ct);
         foreach (var a in created)
             Mapping.Log(db, http, "confirmed-leave.create", req.PersonId, new { officer = person.Name }, a.Id, null, AuditOf(a));
         await db.SaveChangesAsync(ct);
@@ -269,10 +271,8 @@ public static class AdminLeaveApprovalEndpoints
         var people = await db.People.AsNoTracking().ToListAsync(ct);
         var byId = people.ToDictionary(p => p.Id);
         var accountIds = approvals.Select(a => a.CreatedByAccountId).OfType<Guid>().Distinct().ToList();
-        var creators = await db.Accounts.Where(a => accountIds.Contains(a.Id))
-            .Select(a => new { a.Id, a.Email, a.PersonId }).ToListAsync(ct);
-        var creatorName = creators.ToDictionary(c => c.Id,
-            c => c.PersonId is { } pid && byId.TryGetValue(pid, out var p) ? p.Name : c.Email);
+        var creatorName = await db.People.IgnoreQueryFilters().Where(a => accountIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, a => a.Name, ct);
 
         // Shifts in published or in-review rotas on confirmed-leave days.
         var clashes = await (

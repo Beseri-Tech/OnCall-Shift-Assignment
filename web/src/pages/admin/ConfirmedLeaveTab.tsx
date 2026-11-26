@@ -67,9 +67,9 @@ export function ConfirmedLeaveTab() {
   return (
     <Stack gap="md">
       <RequestsPanel onDecided={refresh} />
-      <Paper withBorder p="md">
+      <Paper className="panel" p="md">
         <Group justify="space-between" mb="xs" wrap="wrap">
-          <Group gap={8}><IconPlaneDeparture size={20} /><Title order={4}>Confirmed leave</Title></Group>
+          <Group gap={8}><IconPlaneDeparture size={18} stroke={1.5} /><Title order={4}>Confirmed leave</Title></Group>
           <Group gap="xs">
             <Button leftSection={<IconPlus size={16} />} onClick={() => { setResult(null); setEditing({ id: null, value: {} }) }}>
               Add confirmed leave
@@ -100,29 +100,29 @@ export function ConfirmedLeaveTab() {
           {filtered && <Button size="xs" variant="subtle" onClick={() => setF(NO_FILTERS)}>Clear filters</Button>}
         </Group>
         <Text size="xs" c="dimmed" mb={6}>
-          {rows.length} {rows.length === 1 ? 'entry' : 'entries'} · {new Set(rows.map(r => r.personId)).size} officer(s)
+          {rows.length} {rows.length === 1 ? 'entry' : 'entries'}, {new Set(rows.map(r => r.personId)).size} officer(s)
         </Text>
 
         {rows.length === 0 ? (
           <Text size="sm" c="dimmed">{all.length === 0 ? 'No confirmed leave yet.' : 'Nothing matches these filters.'}</Text>
         ) : (
           <Table.ScrollContainer minWidth={760}>
-            <Table highlightOnHover verticalSpacing={6} stickyHeader>
+            <Table highlightOnHover verticalSpacing={6} stickyHeader style={{ fontVariantNumeric: 'tabular-nums' }}>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Dates</Table.Th><Table.Th>Days</Table.Th><Table.Th>Type</Table.Th><Table.Th>Reason</Table.Th>
-                  <Table.Th>Document</Table.Th><Table.Th>Status</Table.Th><Table.Th />
+                  <Table.Th fw={500} c="var(--text-2)">Dates</Table.Th><Table.Th ta="right" fw={500} c="var(--text-2)">Days</Table.Th><Table.Th fw={500} c="var(--text-2)">Type</Table.Th><Table.Th fw={500} c="var(--text-2)">Reason</Table.Th>
+                  <Table.Th fw={500} c="var(--text-2)">Document</Table.Th><Table.Th fw={500} c="var(--text-2)">Status</Table.Th><Table.Th />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {groups.map(g => (
                   <Fragment key={g.personId}>
-                    <Table.Tr bg="var(--mantine-color-gray-1)">
+                    <Table.Tr bg="var(--surface)">
                       <Table.Td colSpan={7}>
                         <Group gap="xs" align="baseline">
-                          <Text fw={700}>{g.name}</Text>
-                          <Text size="xs" c="dimmed">{g.code}{clinicOf.get(g.personId)?.name ? ` · ${clinicOf.get(g.personId)!.name}` : ''}</Text>
-                          <Badge variant="light" size="sm">{g.items.length} {g.items.length === 1 ? 'entry' : 'entries'}</Badge>
+                          <Text fw={500}>{g.name}</Text>
+                          <Text size="xs" c="dimmed">{g.code}{clinicOf.get(g.personId)?.name ? `, ${clinicOf.get(g.personId)!.name}` : ''}</Text>
+                          <Badge variant="light" color="gray" size="sm">{g.items.length} {g.items.length === 1 ? 'entry' : 'entries'}</Badge>
                           <Text size="xs" c="dimmed">{g.items.reduce((n, a) => n + diffDays(a.startDate, a.endDate) + 1, 0)} days</Text>
                         </Group>
                       </Table.Td>
@@ -186,16 +186,16 @@ function LeaveRow({ a, today, onEdit, onDelete }: {
   a: LeaveApproval; today: string; onEdit: () => void; onDelete: () => void
 }) {
   const days = diffDays(a.startDate, a.endDate) + 1
-  const status = a.endDate < today ? { label: 'Past', color: 'gray' } : a.startDate <= today ? { label: 'Away now', color: 'teal' } : { label: 'Upcoming', color: 'blue' }
+  const status = a.endDate < today ? { label: 'Past', color: 'gray' } : a.startDate <= today ? { label: 'Away now', color: 'green' } : { label: 'Upcoming', color: 'gray' }
   return (
     <>
       <Table.Tr style={a.conflicts.length ? { background: 'var(--mantine-color-red-0)' } : undefined}>
-        <Table.Td style={{ whiteSpace: 'nowrap' }}><Text size="sm" fw={600}>{formatRange([a.startDate, a.endDate])}</Text></Table.Td>
-        <Table.Td>{days}</Table.Td>
-        <Table.Td><Badge variant="light" size="sm">{kindLabel(a.kind)}</Badge></Table.Td>
+        <Table.Td style={{ whiteSpace: 'nowrap' }}><Text size="sm" fw={500}>{formatRange([a.startDate, a.endDate])}</Text></Table.Td>
+        <Table.Td ta="right">{days}</Table.Td>
+        <Table.Td><Badge variant="light" color="gray" size="sm">{kindLabel(a.kind)}</Badge></Table.Td>
         <Table.Td maw={280}>
           <Text size="sm">{a.reason}</Text>
-          <Text size="xs" c="dimmed">{a.reference ? `Ref. ${a.reference} · ` : ''}Entered by {a.createdBy ?? 'unknown'}, {formatLong(a.createdAt.slice(0, 10))}</Text>
+          <Text size="xs" c="dimmed">{a.reference ? `Ref. ${a.reference}. ` : ''}Entered by {a.createdBy ?? 'unknown'}, {formatLong(a.createdAt.slice(0, 10))}</Text>
         </Table.Td>
         <Table.Td>
           {a.documentId ? (
@@ -207,12 +207,12 @@ function LeaveRow({ a, today, onEdit, onDelete }: {
         </Table.Td>
         <Table.Td>
           <Badge color={status.color} size="sm" variant="light">{status.label}</Badge>
-          {a.conflicts.length > 0 && <Badge color="red" size="sm" ml={4} leftSection={<IconAlertTriangle size={10} />}>On call</Badge>}
+          {a.conflicts.length > 0 && <Badge color="red" variant="light" size="sm" ml={4} leftSection={<IconAlertTriangle size={10} />}>On call</Badge>}
         </Table.Td>
         <Table.Td>
           <Group gap={4} wrap="nowrap" justify="flex-end">
             <Tooltip label="Edit"><ActionIcon variant="subtle" aria-label="Edit" onClick={onEdit}><IconEdit size={16} /></ActionIcon></Tooltip>
-            <Tooltip label="Remove"><ActionIcon variant="subtle" color="red" aria-label="Remove" onClick={onDelete}><IconTrash size={16} /></ActionIcon></Tooltip>
+            <Tooltip label="Remove"><ActionIcon variant="subtle" color="gray" aria-label="Remove" onClick={onDelete}><IconTrash size={16} /></ActionIcon></Tooltip>
           </Group>
         </Table.Td>
       </Table.Tr>
@@ -222,7 +222,7 @@ function LeaveRow({ a, today, onEdit, onDelete }: {
             <Stack gap="xs" pb="xs">
               <Group gap={6} wrap="nowrap" align="flex-start">
                 <IconAlertTriangle size={18} color="var(--mantine-color-red-7)" style={{ flexShrink: 0 }} />
-                <Text size="sm" fw={600}>
+                <Text size="sm" fw={500}>
                   {a.personName} is on call on {a.conflicts.length} day{a.conflicts.length === 1 ? '' : 's'} of this leave. Give
                   {a.conflicts.length === 1 ? ' that shift' : ' those shifts'} to someone else:
                 </Text>
@@ -253,8 +253,8 @@ function ConflictRow({ c }: { c: ApprovalConflict }) {
   const options = c.candidates.map(p => ({ value: p.personId, label: `${p.name} (${p.shifts} shift${p.shifts === 1 ? '' : 's'} this rota)` }))
   return (
     <Group gap="sm" wrap="wrap">
-      <Text size="sm" fw={600} miw={150}>{formatLong(c.date)}</Text>
-      <Badge variant="light" color={c.isPublished ? 'brand' : 'yellow'}>{c.periodName} · {c.isPublished ? 'published' : 'in review'}</Badge>
+      <Text size="sm" fw={500} miw={150}>{formatLong(c.date)}</Text>
+      <Badge variant="light" color={c.isPublished ? 'green' : 'yellow'}>{c.periodName}, {c.isPublished ? 'published' : 'in review'}</Badge>
       {c.isPublished ? (
         <Text size="sm" c="dimmed">
           Unpublish the rota on the Generate rota tab to change this day.
@@ -277,8 +277,8 @@ function ConflictRow({ c }: { c: ApprovalConflict }) {
 function ResultAlert({ result, onClose }: { result: LeaveApprovalBatchResult; onClose: () => void }) {
   const first = result.approvals[0]
   return (
-    <Alert mb="md" withCloseButton onClose={onClose} color={result.warnings.length ? 'yellow' : 'teal'}
-      icon={result.warnings.length ? <IconAlertTriangle /> : <IconPlaneDeparture />}
+    <Alert mb="md" withCloseButton onClose={onClose} color={result.warnings.length ? 'yellow' : 'green'}
+      icon={result.warnings.length ? <IconAlertTriangle size={18} /> : <IconPlaneDeparture size={18} />}
       title={`Saved: ${first.personName}, ${result.approvals.map(a => formatRange([a.startDate, a.endDate])).join('; ')}`}>
       <Text size="sm">The officer has been told by one notification and email.</Text>
       {result.warnings.length > 0 && (
@@ -319,7 +319,7 @@ function ApprovalModal({ editing, onClose, onSaved }: {
     ? !!v.startDate && !!v.endDate
     : ranges.every(([s, e]) => s && e)
   const ready = !!v.personId && datesReady && !!v.reason?.trim()
-  const officers = (people.data ?? []).filter(p => p.status !== 'Left' || p.id === v.personId)
+  const officers = (people.data ?? []).filter(p => (p.role !== 'Supervisor' && p.status !== 'Left') || p.id === v.personId)
     .map(p => ({ value: p.id, label: `${p.name} (${p.code})${p.status === 'Excluded' ? ' – excluded' : ''}` }))
 
   return (
@@ -342,7 +342,7 @@ function ApprovalModal({ editing, onClose, onSaved }: {
                   onChange={val => setRanges(ranges.map((x, j) => (j === i ? (val as [string | null, string | null]) : x)))} />
                 {ranges.length > 1 && (
                   <Tooltip label="Remove this range">
-                    <ActionIcon variant="subtle" color="red" mb={4} aria-label="Remove this range"
+                    <ActionIcon variant="subtle" color="gray" mb={4} aria-label="Remove this range"
                       onClick={() => setRanges(ranges.filter((_, j) => j !== i))}><IconTrash size={16} /></ActionIcon>
                   </Tooltip>
                 )}
@@ -405,14 +405,14 @@ function RequestsPanel({ onDecided }: { onDecided: () => void }) {
   const decided = all.filter(r => r.status !== 'Pending')
 
   return (
-    <Paper withBorder p="md">
+    <Paper className="panel" p="md">
       <Group justify="space-between" mb="xs">
-        <Group gap={8}><IconUserCheck size={20} /><Title order={4}>Leave requests</Title>
-          {pending.length > 0 && <Badge color="yellow">{pending.length} waiting</Badge>}</Group>
+        <Group gap={8}><IconUserCheck size={18} stroke={1.5} /><Title order={4}>Leave requests</Title>
+          {pending.length > 0 && <Badge color="yellow" variant="light">{pending.length} waiting</Badge>}</Group>
         {decided.length > 0 && <Button size="xs" variant="subtle" onClick={() => setShowAll(!showAll)}>{showAll ? 'Hide decided' : `Show decided (${decided.length})`}</Button>}
       </Group>
       {warnings.length > 0 && (
-        <Alert color="yellow" icon={<IconAlertTriangle />} mb="sm" withCloseButton onClose={() => setWarnings([])}>
+        <Alert color="yellow" icon={<IconAlertTriangle size={18} />} mb="sm" withCloseButton onClose={() => setWarnings([])}>
           <List size="sm" spacing={4}>{warnings.map(w => <List.Item key={w}>{w}</List.Item>)}</List>
         </Alert>
       )}
@@ -420,9 +420,9 @@ function RequestsPanel({ onDecided }: { onDecided: () => void }) {
         <Stack gap="xs">
           {pending.map(r => (
             <RequestRow key={r.id} r={r}>
-              <Button size="xs" color="teal" leftSection={<IconCheck size={14} />} loading={approve.isPending && approve.variables === r.id}
+              <Button size="xs" leftSection={<IconCheck size={14} />} loading={approve.isPending && approve.variables === r.id}
                 onClick={() => approve.mutate(r.id)}>Approve</Button>
-              <Button size="xs" color="red" variant="light" leftSection={<IconX size={14} />} onClick={() => { setNote(''); setRejecting(r) }}>Reject</Button>
+              <Button size="xs" variant="default" leftSection={<IconX size={14} />} onClick={() => { setNote(''); setRejecting(r) }}>Reject</Button>
             </RequestRow>
           ))}
         </Stack>
@@ -448,27 +448,27 @@ function RequestsPanel({ onDecided }: { onDecided: () => void }) {
 
 function RequestRow({ r, children }: { r: LeaveRequestRange; children?: React.ReactNode }) {
   const days = diffDays(r.startDate, r.endDate) + 1
-  const color = { Pending: 'yellow', Approved: 'teal', Rejected: 'red', Cancelled: 'gray', Removed: 'gray' }[r.status]
+  const color = { Pending: 'yellow', Approved: 'green', Rejected: 'red', Cancelled: 'gray', Removed: 'gray' }[r.status]
   return (
-    <Paper withBorder p="sm" radius="md">
+    <Paper className="panel" p="sm" radius="md">
       <Group justify="space-between" align="flex-start" gap="sm">
         <Stack gap={2} style={{ flex: 1, minWidth: 200 }}>
           <Group gap="xs">
-            <Text size="sm" fw={700}>{r.personName}</Text>
-            <Text size="sm" fw={600}>{formatRange([r.startDate, r.endDate])}</Text>
+            <Text size="sm" fw={500}>{r.personName}</Text>
+            <Text size="sm" fw={500}>{formatRange([r.startDate, r.endDate])}</Text>
             <Text size="xs" c="dimmed">{days} day{days === 1 ? '' : 's'}</Text>
-            <Badge variant="light" size="sm">{kindLabel(r.kind)}</Badge>
-            {r.status !== 'Pending' && <Badge color={color} size="sm">{r.status}</Badge>}
+            <Badge variant="light" color="gray" size="sm">{kindLabel(r.kind)}</Badge>
+            {r.status !== 'Pending' && <Badge color={color} variant="light" size="sm">{r.status}</Badge>}
           </Group>
           <Text size="sm">{r.reason}</Text>
           {r.documentId && r.documentName && (
-            <Text size="xs" c="blue" style={{ cursor: 'pointer' }} onClick={() => openDocument(r.documentId!).catch(e => notifyError(e))}>
+            <Text size="xs" c="var(--brand)" style={{ cursor: 'pointer' }} onClick={() => openDocument(r.documentId!).catch(e => notifyError(e))}>
               <IconFileText size={12} style={{ verticalAlign: -1 }} /> {r.documentName}
             </Text>
           )}
           <Text size="xs" c="dimmed">
             Sent {formatLong(r.submittedAt.slice(0, 10))}
-            {r.decidedAt && <> · {r.status.toLowerCase()} {formatLong(r.decidedAt.slice(0, 10))}{r.decidedBy ? ` by ${r.decidedBy}` : ''}{r.decisionNote ? `: ${r.decisionNote}` : ''}</>}
+            {r.decidedAt && <>, {r.status.toLowerCase()} {formatLong(r.decidedAt.slice(0, 10))}{r.decidedBy ? ` by ${r.decidedBy}` : ''}{r.decisionNote ? `: ${r.decisionNote}` : ''}</>}
           </Text>
           {r.overlaps.map(o => <Text key={o} size="xs" c="red">{o} Approving will fail until you change that one.</Text>)}
         </Stack>

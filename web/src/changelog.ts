@@ -12,6 +12,161 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.14.0', date: '2026-11-26', title: 'A calmer, clearer look',
+    changes: [
+      { kind: 'improved', text: 'The whole app has a new look that matches the welcome and sign-in pages: the same typeface, slightly larger text, a plain dark header, and quieter colours so the rota colours stand out.' },
+      { kind: 'improved', text: 'All pages are now listed in a menu down the left side, grouped by Leave, On call, Rota and Admin, instead of hidden in drop-down menus. Collapse it to icons with the button at its bottom; it stays the way you left it. On phones the same menu opens from the menu button.' },
+      { kind: 'improved', text: 'The month calendar is easier to read: clearer day numbers, today marked in teal, and public holidays and weekends visible at a glance.' },
+      { kind: 'improved', text: 'My On-Call shows your next shift with the date set large, and period status (open, locked, in review, published) looks the same on every page.' },
+      { kind: 'improved', text: 'After you record a case, the New case form starts fresh for the next patient. The shift, taggers and DSA are still filled in.' },
+    ],
+  },
+  {
+    version: '3.13.0', date: '2026-11-26', title: 'The app now starts at /home',
+    changes: [
+      { kind: 'improved', text: 'The main Rota-OC address always shows the welcome page. After you sign in, the app opens at /home, which takes you to your leave (officers) or the overview (supervisors). On the welcome page, Open Rota-OC takes you back into the app.' },
+      { kind: 'improved', text: 'Your leave page has its own address, /my-leave. Links in older notifications and emails still work.' },
+      { kind: 'fixed', text: 'Pages you are not allowed to open now take you to your start page, and addresses that do not exist go to the welcome page. Notices about your confirmed leave now open your own leave page.' },
+    ],
+  },
+  {
+    version: '3.12.0', date: '2026-11-26', title: 'Video tour, one name and a faster start',
+    changes: [
+      { kind: 'new', text: 'The welcome page has a one-minute video tour, and links to the site now show a Rota-OC preview card when shared.' },
+      { kind: 'improved', text: 'The app is called Rota-OC everywhere, including the header and menu.' },
+      { kind: 'improved', text: 'The welcome and sign-in pages load faster: the rest of the app downloads after you sign in.' },
+    ],
+  },
+  {
+    version: '3.11.0', date: '2026-11-26', title: 'New welcome page and sign-in',
+    changes: [
+      { kind: 'new', text: 'Opening the site while signed out now shows a welcome page that explains what Rota-OC does, with a button to sign in.' },
+      { kind: 'new', text: 'The welcome page walks through the seven stages of a rota period as you scroll, from the release notice to the published rota.' },
+      { kind: 'improved', text: 'The sign-in and password pages have a fresh look, with the Rota-OC tagline beside the form.' },
+    ],
+  },
+  {
+    version: '3.10.1', date: '2026-11-26', title: 'ETAP Claim page tidy-up',
+    changes: [
+      { kind: 'improved', text: 'The page is now called "ETAP Claim" everywhere.' },
+      { kind: 'fixed', text: 'Until your ETAP profile is verified, the ETAP Claim page is greyed out and can\'t be used. The notice and its link to your profile stay available.' },
+    ],
+  },
+  {
+    version: '3.10.0', date: '2026-11-25', title: 'Scheduled rota release',
+    changes: [
+      { kind: 'new', text: 'The admin can set a time for a new rota period to open ("Open to officers at"). Officers are told straight away, in the app and by email, when it will open.' },
+      { kind: 'new', text: 'Until then officers see a countdown on the Leave page and cannot enter leave. They get a reminder a day and an hour before, and a notice the moment it opens, when the page unlocks by itself.' },
+      { kind: 'improved', text: 'The admin can move the opening time or open the period right away; officers are told either way. Admins can still enter leave for officers before it opens.' },
+    ],
+  },
+  {
+    version: '3.9.1', date: '2026-11-25', title: 'Database backup upload fix',
+    changes: [
+      { kind: 'fixed', text: 'The nightly database backup now uploads to Cloudflare R2 correctly.' },
+    ],
+  },
+  {
+    version: '3.9.0', date: '2026-11-24', title: 'Nightly database backup',
+    changes: [
+      { kind: 'new', text: 'The rota database is now backed up every night to a private Cloudflare R2 bucket and kept for 30 days, so nothing is lost if the server fails.' },
+    ],
+  },
+  {
+    version: '3.8.1', date: '2026-11-24', title: 'Manual from storage only',
+    changes: [
+      { kind: 'improved', text: 'The user manual is now only the copy a master uploads under All hospitals → Manual. The old copy built into the app is gone, which makes the app download smaller. Until a manual is uploaded, the Help page shows no manual button.' },
+    ],
+  },
+  {
+    version: '3.8.0', date: '2026-11-24', title: 'Help page, reorganised',
+    changes: [
+      { kind: 'improved', text: 'The Rules page is now called Help and is a directory: chapters for rota and leave, on-call work (cases, WhatsApp passover, ETAP), your account and, for admins, running the rota. Jump to any section from the directory, the side list or the search box.' },
+      { kind: 'new', text: 'The Help page now explains the case log, the WhatsApp passover, the ETAP claim and your ETAP profile, and which days count as the weekend in your state.' },
+      { kind: 'fixed', text: '"Developed by Beseri-Tech" no longer shows twice on the Help page.' },
+    ],
+  },
+  {
+    version: '3.7.0', date: '2026-11-24', title: 'WhatsApp passover',
+    changes: [
+      { kind: 'new', text: 'After recording a case you are asked whether to generate the WhatsApp passover in the seniors’ template (referral, S/T, S/B, patient, P/W or C/O, Ix ticked, Dx, Mx, plan, Rx), ready to copy into the department group. The WhatsApp button in the case log opens it again for your own cases.' },
+      { kind: 'new', text: 'An ED referral asks for the zone (green, yellow or red), shown in the passover as e.g. “N/C from ED GREEN ZONE”.' },
+      { kind: 'new', text: 'The case form has Spoken to (S/T), Seen by (S/B), case type (trauma: presented with; non-trauma: complaint of), investigations (Ix) and prescription (Rx). They are in the case log and Excel, not on the ETAP form.' },
+      { kind: 'improved', text: 'Department and case type are now required and come first: the patient and clinical details open once they are chosen. Department is what the ETAP form shows under Catatan. Diagnosis takes several lines, and each field shows an example.' },
+    ],
+  },
+  {
+    version: '3.6.0', date: '2026-11-24', title: 'Patient details for ETAP, state weekends',
+    changes: [
+      { kind: 'new', text: 'The ETAP download now ends with a patient-details attachment for every day over 4 hours: each patient’s time, details, diagnosis, treatment, plan and DSA, with a “Disahkan oleh” signature space. No more screenshots of the response sheet.' },
+      { kind: 'improved', text: 'On the ETAP form a patient can take up to three rows, so longer diagnoses fit; the table continues from page 3 onto page 5.' },
+      { kind: 'improved', text: 'The weekend follows your state’s rest days (e.g. Friday + Saturday) in the rota, leave points and ETAP. Changing a state’s weekend only affects rotas generated afterwards; published rotas and tallies stay as they are.' },
+      { kind: 'improved', text: 'The ETAP button now says which rota it adds from, e.g. “Add my 4 on-call dates from the October rota”.' },
+      { kind: 'new', text: 'The case log Excel download can cover a whole year as well as a month.' },
+    ],
+  },
+  {
+    version: '3.5.0', date: '2026-11-24', title: 'ETAP claim form',
+    changes: [
+      { kind: 'new', text: 'A new ETAP page builds your monthly on-call claim: add your rota dates (or type the days you did), adjust the times to match your punch card, and see each day priced as passive call under or over 4 hours, on a working day or a rest day / public holiday.' },
+      { kind: 'new', text: 'A day counts as over 4 hours when your recorded cases for that on-call date add up to 4 hours or more; those patients fill the form’s table (confidential ones without name and registration number).' },
+      { kind: 'new', text: 'Download the official ETAP form filled in with your verified profile, days, totals and patients, together with the latest surat arahan. Bring your own punch-card copy and bank statement.' },
+      { kind: 'improved', text: 'A day you claim that the published rota gives to someone else is marked, so you can check it before submitting.' },
+      { kind: 'new', text: 'Admins upload the surat arahan (Admin → Surat arahan); masters set each state’s weekly rest days (Fri + Sat in Kedah, Kelantan and Terengganu).' },
+      { kind: 'improved', text: 'The top bar is tidier: your leave pages sit under Leave, and My on-call, Cases and ETAP under On call, so nothing wraps.' },
+    ],
+  },
+  {
+    version: '3.4.0', date: '2026-11-24', title: 'ETAP profile',
+    changes: [
+      { kind: 'new', text: 'Officers have a “My ETAP profile” page (account menu) for the details on the ETAP claim form: IC, jawatan, gred, address, distance, salary number, phones and bank. Only you can see them.' },
+      { kind: 'new', text: 'Verify your profile with your password once it is right. Any later change, including your phone or email, needs a new verification; the ETAP claim form will need a verified profile.' },
+    ],
+  },
+  {
+    version: '3.3.0', date: '2026-11-24', title: 'On-call case log',
+    changes: [
+      { kind: 'new', text: 'Record every patient you see on call on the new Cases page, instead of the Google Form. Pick the on-call date, then whether the patient was seen that day or after midnight; you are the officer in charge, taggers are typed separately, and the DSA on call is always named with their status.' },
+      { kind: 'new', text: 'The case log shows the hospital’s cases by month, with search, an officer filter and an Excel download.' },
+      { kind: 'new', text: 'Admins can import the existing Google Sheet (downloaded as CSV); cases already in the log are skipped.' },
+      { kind: 'improved', text: 'Patient details stay inside the hospital, are never cached by the browser, and every view and download is recorded in the audit log (without the patient’s details).' },
+    ],
+  },
+  {
+    version: '3.2.0', date: '2026-11-24', title: 'One record per person',
+    changes: [
+      { kind: 'improved', text: 'An officer and their sign-in are now one record, managed on Admin → Officers. Adding someone needs their email and invites them straight away; email, role and “can sign in” are changed on the same form. The separate Accounts tab is gone.' },
+      { kind: 'new', text: 'Supervisors are people too: add them on the Officers tab with the Supervisor role. They run the admin pages and are never put on the rota, so they have no on call, excluded or left status: when one leaves, switch off “Can sign in”.' },
+      { kind: 'improved', text: 'Officers who had no sign-in before this update stay on the rota and are marked “Email needed”. Edit each one to add their email and invite them.' },
+      { kind: 'improved', text: 'Each row on the Officers tab can send a new temporary password, and the list can be filtered by role and sign-in.' },
+      { kind: 'improved', text: 'CSV import needs an Email for every row and accepts the Supervisor role. Adding officers by name only is gone.' },
+      { kind: 'improved', text: 'Masters are listed on All hospitals → Masters.' },
+    ],
+  },
+  {
+    version: '3.1.0', date: '2026-11-24', title: 'Clinics page and email switch',
+    changes: [
+      { kind: 'improved', text: 'Clinics and districts now have their own page (Admin → Clinics) instead of a pop-up: pick a state or district on the left, search, and add, rename or remove clinics in a table. It opens on your hospital’s state.' },
+      { kind: 'improved', text: 'The accounts list can be filtered by role and status. Masters see accounts grouped by hospital and can filter by hospital.' },
+      { kind: 'new', text: 'Masters can switch email off or on for the whole app (All hospitals → Settings). While it is off, invites show the temporary password to the admin instead of emailing it. The choice is kept.' },
+      { kind: 'fixed', text: 'A hospital admin can no longer remove a clinic that another hospital’s officers work at.' },
+      { kind: 'improved', text: 'The user manual is the same for every hospital, so it is now uploaded by masters from All hospitals → Manual. Hospital admins no longer see a Manual tab; everyone still reads it from the Rules page.' },
+      { kind: 'improved', text: 'The audit log covers the whole app, so it moved to the masters’ All hospitals page, with a Hospital filter and column. Changes to hospitals, states, districts, clinics and settings show as app-wide.' },
+      { kind: 'new', text: 'Masters can download every hospital’s rota reports from All hospitals → Reports, filtered by hospital. Hospital admins still have their own Reports tab.' },
+    ],
+  },
+  {
+    version: '3.0.0', date: '2026-11-24', title: 'More hospitals',
+    changes: [
+      { kind: 'new', text: 'The app can now run the on-call rota for more than one hospital. Each hospital has its own officers, rota periods, leave, swaps, reports and audit log, and nobody sees another hospital’s data. Everything so far belongs to Hospital Tuanku Fauziah (HTF).' },
+      { kind: 'new', text: 'Public holidays and peak days are now kept per state, so each hospital gets its own state’s holidays.' },
+      { kind: 'new', text: 'A new Master role looks after the whole app: masters add hospitals, states and districts, switch between hospitals from the header, and can do everything a supervisor can in any hospital.' },
+      { kind: 'improved', text: 'When sending feedback you can choose who reads it: your hospital’s admins, or the app team.' },
+      { kind: 'improved', text: 'The header shows which hospital you are in.' },
+      { kind: 'improved', text: 'Everyone is signed out once with this update. Sign in again with your usual email and password.' },
+    ],
+  },
+  {
     version: '2.8.5', date: '2026-11-18', title: 'Lighter server',
     changes: [
       { kind: 'improved', text: 'The server now runs on a smaller, leaner base system, so it starts faster and has less that needs security patching. Nothing changes in how the app looks or works.' },

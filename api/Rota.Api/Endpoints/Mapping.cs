@@ -10,14 +10,15 @@ namespace Rota.Api.Endpoints;
 internal static class Mapping
 {
     public static bool IsEditable(this RotaPeriod p, DateOnly today) =>
-        p.Status == PeriodStatus.Open && (p.LeaveDeadline is null || today <= p.LeaveDeadline);
+        p.Status == PeriodStatus.Open && p.HasOpened(DateTimeOffset.UtcNow) && (p.LeaveDeadline is null || today <= p.LeaveDeadline);
+
+    /// <summary>False while the period is scheduled to open later (<see cref="RotaPeriod.OpensAt"/>).</summary>
+    public static bool HasOpened(this RotaPeriod p, DateTimeOffset now) => p.OpensAt is null || p.OpensAt <= now;
 
     public static PeriodDto ToDto(this RotaPeriod p, DateOnly today) =>
-        new(p.Id, p.Name, p.StartDate, p.EndDate, p.LeaveDeadline, p.Status, p.IsEditable(today), p.PointsBudget, p.SwapDeadline);
+        new(p.Id, p.Name, p.StartDate, p.EndDate, p.LeaveDeadline, p.Status, p.IsEditable(today), p.PointsBudget, p.SwapDeadline, OpensAt: p.OpensAt);
 
     public static TotalsDto ToDto(this PersonTotals t) => new(t.Total, t.Weekday, t.WeekendHoliday);
-
-    public static bool IsWeekend(DateOnly d) => d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
 
     public static IEnumerable<DateOnly> Days(DateOnly start, DateOnly end)
     {

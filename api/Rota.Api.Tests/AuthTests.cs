@@ -18,7 +18,7 @@ public class AuthTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     private static async Task<List<AdminPersonDto>> SeedPeopleAsync(HttpClient admin, int count)
     {
         var names = string.Join("\n", Enumerable.Range(1, count).Select(i => $"Dr Auth {i}"));
-        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names })).EnsureSuccessStatusCode();
+        await ApiFixture.AddPeopleAsync(admin, names);
         return await Read<List<AdminPersonDto>>(await admin.GetAsync("/api/admin/people"));
     }
 
@@ -66,16 +66,16 @@ public class AuthTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     {
         await using var app = fixture.CreateApp();
         var admin = await ApiFixture.AdminClientAsync(app);
-        var person = (await SeedPeopleAsync(admin, 1))[0];
 
-        // An officer account needs an officer; emails are unique.
-        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/accounts",
-            new InviteRequest("a@test.local", AccountRole.Officer, null), ApiFixture.Json)).StatusCode);
-        var invite = await Read<InviteResult>(await admin.PostAsJsonAsync("/api/admin/accounts",
-            new InviteRequest(" A@Test.Local ", AccountRole.Officer, person.Id), ApiFixture.Json));
+        // An officer and their sign-in are one record: adding someone needs an email and invites them; emails are unique.
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/people",
+            new UpsertPersonRequest("Dr A", null), ApiFixture.Json)).StatusCode);
+        var person = await Read<SavePersonResult>(await admin.PostAsJsonAsync("/api/admin/people",
+            new UpsertPersonRequest("Dr A", null, Email: " A@Test.Local "), ApiFixture.Json));
+        var invite = person.Invite!;
         Assert.False(invite.EmailSent);   // no SMTP in tests, so the admin gets the temporary password
-        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/accounts",
-            new InviteRequest("a@test.local", AccountRole.Supervisor, null), ApiFixture.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/people",
+            new UpsertPersonRequest("Dr B", null, Email: "a@test.local", Role: AccountRole.Supervisor), ApiFixture.Json)).StatusCode);
 
         var officer = NewClient(app);
         var me = await Read<MeDto>(await officer.PostAsJsonAsync("/api/auth/login", new { email = "a@test.local", password = invite.TempPassword }));
@@ -121,23 +121,20 @@ public class AuthTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var people = await SeedPeopleAsync(admin, 2);
         var first = await ApiFixture.OfficerClientAsync(app, admin, people[0].Id);
         var second = await ApiFixture.OfficerClientAsync(app, admin, people[1].Id);
-        var accounts = await Read<List<AccountDto>>(await admin.GetAsync("/api/admin/accounts"));
-        var firstAccount = accounts.Single(a => a.PersonId == people[0].Id);
-
-        (await admin.PutAsJsonAsync($"/api/admin/accounts/{firstAccount.Id}",
-            new UpdateAccountRequest(firstAccount.Email, AccountRole.Officer, people[0].Id, Enabled: false), ApiFixture.Json))
+        (await admin.PutAsJsonAsync($"/api/admin/people/{people[0].Id}",
+            new UpsertPersonRequest(people[0].Name, people[0].Code, Email: people[0].Email, Enabled: false), ApiFixture.Json))
             .EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Unauthorized, (await first.GetAsync("/api/periods")).StatusCode);
 
         var p = people[1];
         (await admin.PutAsJsonAsync($"/api/admin/people/{p.Id}",
-            new UpsertPersonRequest(p.Name, p.Code, OfficerStatus.Left, StatusReason: "PINDAH"), ApiFixture.Json)).EnsureSuccessStatusCode();
+            new UpsertPersonRequest(p.Name, p.Code, OfficerStatus.Left, StatusReason: "PINDAH", Email: p.Email), ApiFixture.Json)).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Unauthorized, (await second.GetAsync("/api/periods")).StatusCode);
 
         // The admin can't lock themselves out.
         var me = await Read<MeDto>(await admin.GetAsync("/api/auth/me"));
         Assert.Equal(HttpStatusCode.Conflict, (await admin.PutAsJsonAsync($"/api/admin/accounts/{me.AccountId}",
-            new UpdateAccountRequest(me.Email, AccountRole.Supervisor, null, Enabled: false), ApiFixture.Json)).StatusCode);
+            new MasterRequest("Master", me.Email, Enabled: false), ApiFixture.Json)).StatusCode);
     }
 
     [Fact]

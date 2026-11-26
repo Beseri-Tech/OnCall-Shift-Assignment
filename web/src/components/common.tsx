@@ -1,4 +1,4 @@
-import { Alert, Badge, Card, Center, Group, Loader, Select, Text, ThemeIcon, Title } from '@mantine/core'
+import { Alert, Card, Center, Group, Loader, Select, Text, Title } from '@mantine/core'
 import { IconAlertTriangle, type Icon } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import type { Period, PeriodStatus } from '../api'
@@ -15,10 +15,11 @@ export function ErrorBox({ error }: { error: unknown }) {
   )
 }
 
-const statusColor: Record<PeriodStatus, string> = { Open: 'green', Locked: 'orange', Review: 'violet', Published: 'brand' }
+const statusLabel: Record<PeriodStatus, string> = { Open: 'Open', Locked: 'Locked', Review: 'In review', Published: 'Published' }
 
+/** One quiet style for every period status: neutral chip with a small coloured dot (see .status-badge in styles.css). */
 export function StatusBadge({ status }: { status: PeriodStatus }) {
-  return <Badge color={statusColor[status]} variant="light">{status === 'Review' ? 'In review' : status}</Badge>
+  return <span className={`status-badge status-${status.toLowerCase()}`}><span className="status-dot" />{statusLabel[status]}</span>
 }
 
 export function PeriodSelect({ periods, value, onChange, label = 'Rota period' }: {
@@ -27,7 +28,7 @@ export function PeriodSelect({ periods, value, onChange, label = 'Rota period' }
   return (
     <Select
       label={label}
-      data={periods.map(p => ({ value: p.id, label: `${p.name} · ${p.status}` }))}
+      data={periods.map(p => ({ value: p.id, label: `${p.name} (${statusLabel[p.status]})` }))}
       value={value}
       onChange={onChange}
       allowDeselect={false}
@@ -36,39 +37,33 @@ export function PeriodSelect({ periods, value, onChange, label = 'Rota period' }
   )
 }
 
-/** Page title with an icon tile; controls (filters, pickers) sit on the right and wrap below on small screens. */
-export function PageHeader({ icon: I, title, description, children }: {
-  icon: Icon; title: ReactNode; description?: ReactNode; children?: ReactNode
+/** Page title and optional description; controls (filters, pickers) sit on the right and wrap below on small screens. `icon` is accepted for older callers and not drawn. */
+export function PageHeader({ title, description, children }: {
+  icon?: Icon; title: ReactNode; description?: ReactNode; children?: ReactNode
 }) {
   return (
     <Group justify="space-between" align="flex-end" wrap="wrap" gap="md">
-      <Group gap="md" wrap="nowrap" align="center">
-        <div className="page-icon"><I size={24} stroke={1.8} /></div>
-        <div>
-          <Title order={2} c="brand.9" lh={1.2}>{title}</Title>
-          {description && <Text c="dimmed" size="sm">{description}</Text>}
-        </div>
-      </Group>
+      <div style={{ minWidth: 0 }}>
+        <Title order={2} fw={500} c="var(--ink)">{title}</Title>
+        {description && <Text c="var(--text-2)" fz={16} mt={4}>{description}</Text>}
+      </div>
       {children && <Group align="flex-end" wrap="wrap" gap="sm">{children}</Group>}
     </Group>
   )
 }
 
-/** A number with a coloured icon, e.g. tally counts or points used. */
-export function StatCard({ icon: I, color = 'brand', label, value, hint, children }: {
-  icon: Icon; color?: string; label: string; value?: ReactNode; hint?: ReactNode; children?: ReactNode
+/** A number card: sentence-case label, tabular value, optional hint. `color="red"` tints the value (over a limit); other colours and `icon` are ignored. */
+export function StatCard({ color, label, value, hint, children }: {
+  icon?: Icon; color?: string; label: string; value?: ReactNode; hint?: ReactNode; children?: ReactNode
 }) {
   return (
     <Card className="panel" padding="md" h="100%">
-      <Group gap="sm" wrap="nowrap" align="flex-start">
-        <ThemeIcon size={40} radius="md" variant="light" color={color}><I size={22} stroke={1.8} /></ThemeIcon>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">{label}</Text>
-          {value !== undefined && <Text fw={800} fz={26} lh={1.15}>{value}</Text>}
-          {hint && <Text size="xs" c="dimmed">{hint}</Text>}
-          {children}
-        </div>
-      </Group>
+      <Text fz={14} fw={500} c="var(--text-2)">{label}</Text>
+      {value !== undefined && (
+        <Text fz={28} fw={500} lh={1.2} mt={4} c={color === 'red' ? 'red.8' : 'var(--ink)'} style={{ fontVariantNumeric: 'tabular-nums' }}>{value}</Text>
+      )}
+      {hint && <Text fz={14} c="var(--text-3)" mt={4}>{hint}</Text>}
+      {children}
     </Card>
   )
 }

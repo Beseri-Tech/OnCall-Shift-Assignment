@@ -50,7 +50,7 @@ public static class AdminTallyEndpoints
     private static async Task<List<TallyRowDto>> RowsAsync(RotaDbContext db, CancellationToken ct)
     {
         var totals = await Totals.ForPeopleAsync(db, ct: ct);
-        var people = await db.People.Include(p => p.Clinic).ThenInclude(c => c!.District).OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
+        var people = await db.Officers.Include(p => p.Clinic).ThenInclude(c => c!.District).OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToListAsync(ct);
         return people.Select(p =>
         {
             var t = totals.GetValueOrDefault(p.Id, PersonTotals.Unknown);

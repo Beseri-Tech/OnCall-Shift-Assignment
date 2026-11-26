@@ -17,16 +17,20 @@ public sealed class R2DocumentStorage : IDocumentStorage, IDisposable
         _options = options.Value;
         if (!_options.IsConfigured) return;
 
-        _s3 = new AmazonS3Client(new BasicAWSCredentials(_options.AccessKeyId, _options.SecretAccessKey), new AmazonS3Config
+        _s3 = CreateClient(_options);
+    }
+
+    /// <summary>An S3 client for Cloudflare R2 (shared with the database backup). The caller disposes it.</summary>
+    public static AmazonS3Client CreateClient(R2Options o) =>
+        new(new BasicAWSCredentials(o.AccessKeyId, o.SecretAccessKey), new AmazonS3Config
         {
-            ServiceURL = _options.Endpoint,
+            ServiceURL = o.Endpoint,
             AuthenticationRegion = "auto",
             ForcePathStyle = true,
             // R2 does not support the SDK's newer default checksum headers.
             RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
             ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
         });
-    }
 
     public bool IsEnabled => _s3 is not null;
 

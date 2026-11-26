@@ -50,7 +50,10 @@ builder.Services.Configure<Rota.Api.Storage.R2Options>(builder.Configuration.Get
 builder.Services.AddSingleton<Rota.Api.Storage.IDocumentStorage, Rota.Api.Storage.R2DocumentStorage>();
 builder.Services.AddScoped<Rota.Api.Storage.DocumentService>();
 builder.Services.AddScoped<Rota.Api.Reports.ReportArchive>();
+builder.Services.AddSingleton<PeriodOpener>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PeriodOpener>());   // opens scheduled periods and sends reminders
 builder.Services.AddHostedService<DocumentCleanup>();
+builder.Services.AddHostedService<DatabaseBackup>();
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
@@ -76,7 +79,10 @@ builder.Services.AddAuthorizationBuilder()
         .RequireAuthenticatedUser().RequireAssertion(c => !c.User.MustChangePassword()).Build())
     .AddPolicy(Session.SignedInPolicy, p => p.RequireAuthenticatedUser())
     .AddPolicy(Session.AdminPolicy, p => p.RequireAuthenticatedUser()
-        .RequireRole(nameof(AccountRole.Admin), nameof(AccountRole.Supervisor))
+        .RequireRole(nameof(AccountRole.Admin), nameof(AccountRole.Supervisor), nameof(AccountRole.Master))
+        .RequireAssertion(c => !c.User.MustChangePassword()))
+    .AddPolicy(Session.MasterPolicy, p => p.RequireAuthenticatedUser()
+        .RequireRole(nameof(AccountRole.Master))
         .RequireAssertion(c => !c.User.MustChangePassword()));
 
 builder.Services.AddCors();
@@ -84,6 +90,14 @@ builder.Services.AddCors();
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // Downloads of patient data (case log, ETAP): per account, so a stolen session can't bulk-scrape quickly.
+    o.AddPolicy(CaseEndpoints.DownloadLimit, http => RateLimitPartition.GetFixedWindowLimiter(
+        http.User.AccountId()?.ToString() ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = builder.Configuration.GetValue("Cases:DownloadsPerMinute", 10),
+            Window = TimeSpan.FromMinutes(1),
+        }));
     o.AddPolicy(AuthEndpoints.RateLimit, http => RateLimitPartition.GetFixedWindowLimiter(
         http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions
@@ -141,6 +155,24 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// A master works in one hospital at a time: until they pick one, only the pages that aren't about a hospital answer.
+string[] noFacilityNeeded =
+[
+    "/api/auth", "/api/health", "/api/facilities", "/api/notifications", "/api/feedback", "/api/documents",
+    "/api/admin/facilities", "/api/admin/states", "/api/admin/districts", "/api/admin/clinics", "/api/admin/accounts",
+    "/api/admin/feedback", "/api/admin/audit", "/api/admin/settings", "/api/admin/reports",
+];
+app.Use(async (http, next) =>
+{
+    if (http.User.IsMaster() && http.User.FacilityId() is null && http.Request.Path.StartsWithSegments("/api") &&
+        !noFacilityNeeded.Any(p => http.Request.Path.StartsWithSegments(p)))
+    {
+        await Results.Problem("Pick a hospital first.", statusCode: StatusCodes.Status400BadRequest).ExecuteAsync(http);
+        return;
+    }
+    await next();
+});
+
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 app.MapAuthEndpoints();
 app.MapPublicEndpoints();
@@ -149,6 +181,9 @@ app.MapNotificationEndpoints();
 app.MapFeedbackEndpoints();
 app.MapLeaveRequestEndpoints();
 app.MapDocumentEndpoints();
+app.MapCaseEndpoints();
+app.MapProfileEndpoints();
+app.MapEtapEndpoints();
 app.MapAdminEndpoints();
 
 // Unknown /api routes are 404s; everything else is the React app (which shows the login page itself).
@@ -157,7 +192,7 @@ app.MapFallbackToFile("index.html", staticFiles).AllowAnonymous();
 
 app.Run();
 
-// The first admin comes from config (Admin:Email + Admin:PasswordHash) and is only created while no admin exists,
+// The first master comes from config (Admin:Email + Admin:PasswordHash) and is only created while no master exists,
 // so it can't be used to take over once real accounts are set up.
 static async Task BootstrapAdminAsync(WebApplication app)
 {
@@ -166,23 +201,23 @@ static async Task BootstrapAdminAsync(WebApplication app)
 
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<RotaDbContext>();
-    if (!await db.Database.CanConnectAsync() || await db.Accounts.AnyAsync(a => a.Role != AccountRole.Officer)) return;
+    if (!await db.Database.CanConnectAsync() || await db.People.AnyAsync(a => a.Role == AccountRole.Master)) return;
 
     if (email.Length == 0 || string.IsNullOrEmpty(hash))
     {
-        app.Logger.LogWarning("No admin account yet. Set Admin__Email and Admin__PasswordHash (`dotnet Rota.Api.dll hash-password`) and restart.");
+        app.Logger.LogWarning("No master account yet. Set Admin__Email and Admin__PasswordHash (`dotnet Rota.Api.dll hash-password`) and restart.");
         return;
     }
 
-    if (await db.Accounts.AnyAsync(a => a.Email == email))
+    if (await db.People.IgnoreQueryFilters().AnyAsync(a => a.Email == email))
     {
-        app.Logger.LogWarning("Admin:Email {Email} already belongs to an officer account; no admin was created.", email);
+        app.Logger.LogWarning("Admin:Email {Email} already has an account; no master was created.", email);
         return;
     }
 
-    db.Accounts.Add(new Account { Email = email, PasswordHash = hash, Role = AccountRole.Supervisor });
+    db.People.Add(new Person { Name = "Master", Code = "M0001", Email = email, PasswordHash = hash, Role = AccountRole.Master });
     await db.SaveChangesAsync();
-    app.Logger.LogInformation("Created the first admin account {Email}.", email);
+    app.Logger.LogInformation("Created the first master account {Email}.", email);
 }
 
 static string ReadHidden()

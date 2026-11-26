@@ -47,13 +47,13 @@ public static class AdminImportEndpoints
                 var person = new Person
                 {
                     Name = row.Name, Code = row.Code ?? codes[next++], ClinicId = row.ClinicId, Phone = row.Phone, SortOrder = order + i,
+                    Email = row.Email, Role = row.Role,
                 };
                 db.People.Add(person);
-                if (row.Email is null) continue;
 
-                var invite = AdminAccountEndpoints.Invite(db, mailer, http, row.Email, row.Role, person.Id);
+                var invite = AdminAccountEndpoints.Invite(db, mailer, http, person);
                 invited++;
-                if (invite.TempPassword is { } temp) passwords.Add(new IssuedPasswordDto(row.Name, row.Email, temp));
+                if (invite.TempPassword is { } temp) passwords.Add(new IssuedPasswordDto(row.Name, row.Email!, temp));
             }
 
             Mapping.Log(db, http, "person.import", null, new
@@ -128,7 +128,7 @@ public static class AdminImportEndpoints
 
         var names = (await db.People.Select(p => p.Name).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var codes = (await db.People.Select(p => p.Code).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var emails = (await db.Accounts.Select(a => a.Email).ToListAsync(ct)).ToHashSet();
+        var emails = (await db.People.IgnoreQueryFilters().Select(a => a.Email).ToListAsync(ct)).ToHashSet();
         var clinics = await db.Clinics.Include(c => c.District).ThenInclude(d => d!.State).ToListAsync(ct);
         var states = await db.States.Select(s => s.Name).OrderBy(n => n).ToListAsync(ct);
         var districts = await db.Districts.Include(d => d.State).ToListAsync(ct);
@@ -152,16 +152,15 @@ public static class AdminImportEndpoints
                 else if (!seenCodes.TryAdd(code, r.Line)) Error(r, "code", $"Same code as row {seenCodes[code]}.");
             }
 
-            if (r.Email is { } email)
-            {
-                if (!AdminAccountEndpoints.IsValidEmail(email)) Error(r, "email", $"{email} is not a valid email address.");
-                else if (emails.Contains(email)) Error(r, "email", $"{email} already has an account.");
-                else if (!seenEmails.TryAdd(email, r.Line)) Error(r, "email", $"Same email as row {seenEmails[email]}.");
+            if (r.Email is not { } email) Error(r, "email", "Email is required: it's how they sign in.");
+            else if (!AdminAccountEndpoints.IsValidEmail(email)) Error(r, "email", $"{email} is not a valid email address.");
+            else if (emails.Contains(email)) Error(r, "email", $"{email} is already used by someone else.");
+            else if (!seenEmails.TryAdd(email, r.Line)) Error(r, "email", $"Same email as row {seenEmails[email]}.");
 
-                if (r.RoleText is null || r.RoleText.Equals("officer", StringComparison.OrdinalIgnoreCase)) r.Role = AccountRole.Officer;
-                else if (r.RoleText.Equals("admin", StringComparison.OrdinalIgnoreCase)) r.Role = AccountRole.Admin;
-                else Error(r, "role", $"Role must be Officer or Admin, not {r.RoleText}.");
-            }
+            if (r.RoleText is null || r.RoleText.Equals("officer", StringComparison.OrdinalIgnoreCase)) r.Role = AccountRole.Officer;
+            else if (r.RoleText.Equals("admin", StringComparison.OrdinalIgnoreCase)) r.Role = AccountRole.Admin;
+            else if (r.RoleText.Equals("supervisor", StringComparison.OrdinalIgnoreCase)) r.Role = AccountRole.Supervisor;
+            else Error(r, "role", $"Role must be Officer, Admin or Supervisor, not {r.RoleText}.");
 
             if (r.Phone?.Length > 32) Error(r, "phone", "Phone number is too long (max 32 characters).");
 

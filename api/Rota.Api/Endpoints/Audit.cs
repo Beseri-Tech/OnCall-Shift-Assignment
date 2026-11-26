@@ -19,12 +19,12 @@ internal static class Audit
 
     public static object Period(RotaPeriod p) => new
     {
-        p.Name, p.StartDate, p.EndDate, p.LeaveDeadline, p.PointsBudget, p.Status, p.SwapDeadline,
+        p.Name, p.StartDate, p.EndDate, p.LeaveDeadline, p.PointsBudget, p.Status, p.SwapDeadline, p.OpensAt,
     };
 
-    public static async Task<object> AccountAsync(RotaDbContext db, Account a, CancellationToken ct) => new
+    public static async Task<object> AccountAsync(RotaDbContext db, Person a, CancellationToken ct) => new
     {
-        a.Email, a.Role, Officer = await PersonNameAsync(db, a.PersonId, ct), a.Enabled,
+        a.Name, a.Email, a.Role, a.Enabled,
     };
 
     public static async Task<object> DistrictAsync(RotaDbContext db, District d, CancellationToken ct) => new
@@ -36,6 +36,19 @@ internal static class Audit
     {
         c.Name, District = await db.Districts.Where(d => d.Id == c.DistrictId).Select(d => d.Name).FirstOrDefaultAsync(ct),
     };
+
+    /// <summary>
+    /// Email and officer name of these accounts, in any hospital (a master who acted here belongs to none). A separate query:
+    /// IgnoreQueryFilters inside a bigger query would switch the hospital filter off for all of it.
+    /// </summary>
+    public static async Task<Dictionary<Guid, (string Email, string? Name)>> AccountNamesAsync(RotaDbContext db,
+        IEnumerable<Guid?> ids, CancellationToken ct)
+    {
+        var list = ids.OfType<Guid>().Distinct().ToList();
+        return (await db.People.IgnoreQueryFilters().Where(a => list.Contains(a.Id))
+                .Select(a => new { a.Id, a.Email, Name = a.Name }).ToListAsync(ct))
+            .ToDictionary(a => a.Id, a => (a.Email ?? "", (string?)a.Name));
+    }
 
     public static async Task<string?> PersonNameAsync(RotaDbContext db, Guid? id, CancellationToken ct) =>
         id is { } pid ? await db.People.Where(p => p.Id == pid).Select(p => p.Name).FirstOrDefaultAsync(ct) : null;

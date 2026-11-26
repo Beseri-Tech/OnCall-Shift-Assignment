@@ -10,6 +10,7 @@ namespace Rota.Api.Auth;
 public static class Session
 {
     public const string AdminPolicy = "Admin";
+    public const string MasterPolicy = "Master";
 
     /// <summary>Signed in, even with a temporary password (for /me, change-password and logout).</summary>
     public const string SignedInPolicy = "SignedIn";
@@ -18,27 +19,35 @@ public static class Session
     private const string PersonIdClaim = "pid";
     private const string StampClaim = "stamp";
     private const string MustChangeClaim = "must_change";
+    private const string FacilityIdClaim = "fid";
 
     public static Guid? AccountId(this ClaimsPrincipal user) => GuidClaim(user, AccountIdClaim);
     public static Guid? PersonId(this ClaimsPrincipal user) => GuidClaim(user, PersonIdClaim);
+
+    /// <summary>The hospital the user works in: their own, or the one a master picked (null = none picked).</summary>
+    public static Guid? FacilityId(this ClaimsPrincipal user) => GuidClaim(user, FacilityIdClaim);
+    public static bool IsMaster(this ClaimsPrincipal user) => user.IsInRole(nameof(AccountRole.Master));
     public static bool IsAdmin(this ClaimsPrincipal user) =>
-        user.IsInRole(nameof(AccountRole.Admin)) || user.IsInRole(nameof(AccountRole.Supervisor));
+        user.IsInRole(nameof(AccountRole.Admin)) || user.IsInRole(nameof(AccountRole.Supervisor)) || user.IsMaster();
     public static bool MustChangePassword(this ClaimsPrincipal user) => user.HasClaim(MustChangeClaim, "1");
 
     private static Guid? GuidClaim(ClaimsPrincipal user, string type) =>
         Guid.TryParse(user.FindFirstValue(type), out var id) ? id : null;
 
-    public static Task SignInAsync(HttpContext http, Account a)
+    /// <summary>Signs in; <paramref name="facilityId"/> is the hospital a master works in (ignored for everyone else).</summary>
+    public static Task SignInAsync(HttpContext http, Person a, Guid? facilityId = null)
     {
         var claims = new List<Claim>
         {
             new(AccountIdClaim, a.Id.ToString()),
-            new(ClaimTypes.Name, a.Email),
+            new(ClaimTypes.Name, a.Email ?? ""),
             new(ClaimTypes.Role, a.Role.ToString()),
             new(StampClaim, a.SecurityStamp),
         };
-        if (a.PersonId is { } pid) claims.Add(new(PersonIdClaim, pid.ToString()));
+        // pid: the officer whose leave, shifts and swaps are "mine". Same id as the account; only for people on the rota.
+        if (a.OnRota) claims.Add(new(PersonIdClaim, a.Id.ToString()));
         if (a.MustChangePassword) claims.Add(new(MustChangeClaim, "1"));
+        if ((a.Role == AccountRole.Master ? facilityId : a.FacilityId) is { } fid) claims.Add(new(FacilityIdClaim, fid.ToString()));
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         return http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
@@ -55,9 +64,8 @@ public static class Session
         string? stamp = user?.FindFirstValue(StampClaim);
         var db = ctx.HttpContext.RequestServices.GetRequiredService<RotaDbContext>();
 
-        bool ok = id is not null && await db.Accounts.AnyAsync(a =>
-            a.Id == id && a.Enabled && a.SecurityStamp == stamp &&
-            (a.PersonId == null || a.Person!.Status != OfficerStatus.Left));
+        bool ok = id is not null && await db.People.IgnoreQueryFilters().AnyAsync(a =>
+            a.Id == id && a.Enabled && a.SecurityStamp == stamp && a.Status != OfficerStatus.Left);
         if (!ok)
         {
             ctx.RejectPrincipal();

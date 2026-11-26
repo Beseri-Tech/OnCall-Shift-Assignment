@@ -62,7 +62,7 @@ public class LeaveRequestTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var storage = new FakeStorage();
         await using var app = App(storage);
         var admin = await ApiFixture.AdminClientAsync(app);
-        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names = "Dr One\nDr Two" })).EnsureSuccessStatusCode();
+        await ApiFixture.AddPeopleAsync(admin, "Dr One\nDr Two");
         var people = (await admin.GetFromJsonAsync<List<AdminPersonDto>>("/api/admin/people", ApiFixture.Json))!;
         var officer = await ApiFixture.OfficerClientAsync(app, admin, people[0].Id);
 
@@ -115,7 +115,7 @@ public class LeaveRequestTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var storage = new FakeStorage();
         await using var app = App(storage);
         var admin = await ApiFixture.AdminClientAsync(app);
-        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names = "Dr One\nDr Two" })).EnsureSuccessStatusCode();
+        await ApiFixture.AddPeopleAsync(admin, "Dr One\nDr Two");
         var people = (await admin.GetFromJsonAsync<List<AdminPersonDto>>("/api/admin/people", ApiFixture.Json))!;
         var one = await ApiFixture.OfficerClientAsync(app, admin, people[0].Id);
         var two = await ApiFixture.OfficerClientAsync(app, admin, people[1].Id);
@@ -145,7 +145,7 @@ public class LeaveRequestTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var storage = new FakeStorage();
         await using var app = App(storage, new() { ["R2:RejectedRetentionDays"] = "0", ["R2:CleanupEnabled"] = "false" });
         var admin = await ApiFixture.AdminClientAsync(app);
-        (await admin.PostAsJsonAsync("/api/admin/people/bulk", new { names = "Dr One" })).EnsureSuccessStatusCode();
+        await ApiFixture.AddPeopleAsync(admin, "Dr One");
         var people = (await admin.GetFromJsonAsync<List<AdminPersonDto>>("/api/admin/people", ApiFixture.Json))!;
         var officer = await ApiFixture.OfficerClientAsync(app, admin, people[0].Id);
 

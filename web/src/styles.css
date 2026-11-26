@@ -1,5 +1,23 @@
+/*
+ * Design tokens (use these in page CSS; Mantine props can take var(--ink) etc.)
+ *   --ink #0f2a33     headings, values, primary text      --text-2 #3a4f57  descriptions, labels
+ *   --text-3 #5b7680  meta only (5:1 on white)            --line #d5e0e4    hairlines, card borders
+ *   --surface #eef3f5 quiet fills (chips, hover)          --surface-2 #e6ecef  one step darker
+ *   --app-bg #f3f8fa  page background                     --brand / --brand-dark  the one accent (teal)
+ * Rota colours (the signature, used only for day types): on call = --shift-*, leave = --leave-*,
+ * preferred = --pref-*, public holiday = --holiday-text, confirmed leave = --confirmed-*.
+ * Radii: controls 8, cards 12, panels up to 16. Weights 400/500, 600 at most. Spacing on a 4px grid.
+ * Classes: .panel (hairline card), .hero-card, .status-badge (via <StatusBadge/>), .legend-swatch.
+ * Deprecated: .page-icon (removed), coloured ThemeIcon tiles, uppercase tracked labels.
+ */
 :root {
-  /* Clinical palette: teal = brand / on call, rose = leave, indigo = preferred, emerald = public holiday, amber = peak / warnings. */
+  --ink: #0f2a33;
+  --text-2: #3a4f57;
+  --text-3: #5b7680;
+  --line: #d5e0e4;
+  --surface: #eef3f5;
+  --surface-2: #e6ecef;
+  --accent-light: #22d3ee;
   --app-bg: #f3f8fa;
   --brand: #0e7490;
   --brand-dark: #164e63;
@@ -21,16 +39,21 @@
   --peak-text: #b45309;
   --warn-bg: #fef3c7;
   --warn-border: #f59e0b;
-  --grid-line: #e2e8f0;
+  --grid-line: #d5e0e4;
 }
 
 body {
   background: var(--app-bg);
+  color: var(--ink);
 }
 
 :focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
+}
+
+.app-header :focus-visible {
+  outline-color: #fff;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -43,51 +66,46 @@ body {
 /* ---------------- header ---------------- */
 
 .app-header {
-  height: 60px;
-  background: linear-gradient(100deg, var(--brand-dark), var(--brand) 70%, #0891b2);
-  box-shadow: 0 2px 8px rgb(8 51 68 / 0.25);
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  background: var(--ink);
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgb(255 255 255 / 0.95);
+  display: block;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 6px;
+  white-space: nowrap;
+  gap: 8px;
   padding: 8px 12px;
-  border-radius: 999px;
-  color: rgb(255 255 255 / 0.88);
-  font-weight: 700;
-  font-size: 14px;
+  border-radius: 8px;
+  color: rgb(255 255 255 / 0.75);
+  font-weight: 500;
+  font-size: 15px;
   cursor: pointer;
-  transition: background 150ms, color 150ms;
+  transition: background-color 150ms, color 150ms;
 }
 
 .nav-link:hover {
-  background: rgb(255 255 255 / 0.14);
-  color: white;
+  background: rgb(255 255 255 / 0.06);
+  color: #fff;
 }
 
 .nav-link.active {
-  background: white;
-  color: var(--brand-dark);
-  box-shadow: 0 1px 3px rgb(8 51 68 / 0.25);
+  color: #fff;
+  box-shadow: inset 0 -2px 0 var(--accent-light);
+  border-radius: 8px 8px 0 0;
 }
 
 .brand-link {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
   text-decoration: none;
 }
@@ -96,78 +114,114 @@ body {
   min-width: 0;
 }
 
-/* ---------------- side drawer (phones and tablets) ---------------- */
+/* ---------------- side nav (desktop bar / rail, phone drawer) ---------------- */
 
-.drawer-body {
+.side-nav {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  background: #fff;
+  border-right: 1px solid var(--line);
+  padding: 12px 0 12px 12px;
+  transition: width 150ms;
 }
 
-.drawer-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 12px 12px 16px;
-  min-height: 60px;
-  background: linear-gradient(100deg, var(--brand-dark), var(--brand) 70%, #0891b2);
+.app-main {
+  transition: padding-inline-start 150ms;
+  min-width: 0;
 }
 
-.drawer-link {
+.side-list { padding-right: 12px; }
+
+.side-group { display: flex; flex-direction: column; gap: 2px; }
+
+.side-heading {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+  padding: 12px 10px 4px;
+}
+
+.side-rule { display: none; }
+
+.side-link {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  min-height: 46px; /* comfortable touch target */
-  padding: 10px 12px;
-  border-radius: 10px;
-  color: #334155;
-  font-weight: 600;
+  min-height: 44px; /* touch target on phones */
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--text-2);
+  font-weight: 500;
   font-size: 15px;
   text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 150ms;
 }
 
-.drawer-link:hover {
-  background: #f1f5f9;
-}
+.side-link svg { flex-shrink: 0; }
 
-.drawer-link.active {
+.side-link:hover { background: var(--surface); }
+
+.side-link.active {
   background: var(--brand-soft);
   color: var(--brand-dark);
   box-shadow: inset 3px 0 0 var(--brand);
 }
 
+.side-foot { padding: 8px 12px 0 0; border-top: 1px solid var(--line); margin-top: 8px; }
+
+@media (min-width: 62em) {
+  .side-link { min-height: 36px; }
+  .side-nav.rail { padding-left: 8px; }
+  .side-nav.rail .side-list { padding-right: 8px; }
+  .side-nav.rail .side-foot { padding-right: 8px; }
+  .side-nav.rail .side-heading,
+  .side-nav.rail .side-label { display: none; }
+  .side-nav.rail .side-link { justify-content: center; padding: 0; }
+  .side-nav.rail .side-rule { display: block; margin: 8px 8px; }
+  .side-nav.rail .side-group:first-child .side-rule { display: none; }
+}
+
 /* ---------------- page furniture ---------------- */
 
-.page-icon {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  flex-shrink: 0;
-  border-radius: 14px;
-  color: white;
-  background: linear-gradient(135deg, #06b6d4, var(--brand));
-  box-shadow: 0 4px 12px rgb(14 116 144 / 0.25);
-}
-
-.auth-bg {
-  background:
-    radial-gradient(circle at 15% 10%, rgb(34 211 238 / 0.35), transparent 45%),
-    linear-gradient(160deg, var(--brand-dark), var(--brand) 60%, #0891b2);
-}
-
 .hero-card {
-  color: white;
-  background: linear-gradient(135deg, var(--brand-dark), var(--brand));
-  border: none;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
 }
 
 .panel {
-  border: 1px solid var(--grid-line);
-  box-shadow: 0 1px 3px rgb(15 23 42 / 0.04);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: none;
 }
+
+/* Period status: neutral chip + dot. Open emerald, Locked amber, In review teal, Published ink. */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.status-open .status-dot { background: #059669; }
+.status-locked .status-dot { background: #d97706; }
+.status-review .status-dot { background: var(--brand); }
 
 /* ---------------- month grid ---------------- */
 
@@ -177,42 +231,44 @@ body {
 }
 
 .month-title {
-  font-weight: 700;
-  margin-bottom: 6px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 8px;
 }
 
 .month-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 3px;
+  gap: 4px;
 }
 
 .dow {
   text-align: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  padding-bottom: 2px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+  padding-bottom: 4px;
 }
 
 .day {
   position: relative;
   height: 40px;
-  border-radius: 7px;
+  border-radius: 8px;
   border: 1px solid var(--grid-line);
   background: white;
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
   cursor: pointer;
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  padding: 3px 5px;
-  transition: background 80ms, border-color 80ms;
+  padding: 4px 6px;
+  transition: background-color 150ms, border-color 150ms;
 }
 
-.day:hover:not(.day-disabled) {
+.day:hover:not(.day-disabled):not(.day-readonly) {
   border-color: var(--brand);
 }
 
@@ -228,9 +284,9 @@ body {
   content: 'PH';
   position: absolute;
   right: 4px;
-  top: 3px;
-  font-size: 9px;
-  font-weight: 800;
+  top: 4px;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--holiday-text);
 }
 
@@ -239,19 +295,19 @@ body {
 }
 
 .day-peak::after {
-  content: 'PEAK';
+  content: 'Peak';
   position: absolute;
   right: 4px;
-  top: 3px;
-  font-size: 8px;
-  font-weight: 800;
+  top: 4px;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--peak-text);
 }
 
 /* Leave cap reached: still clickable for preferred days, but leave can't be added. */
 .day-full {
   background: repeating-linear-gradient(135deg, #f1f5f9 0 4px, #e2e8f0 4px 8px);
-  color: #94a3b8;
+  color: var(--text-3);
 }
 
 .day-leave {
@@ -263,7 +319,7 @@ body {
 .day-confirmed,
 .day-confirmed:disabled {
   background: repeating-linear-gradient(135deg, var(--confirmed-bg) 0 6px, #ead5fd 6px 12px);
-  border-color: var(--confirmed-border);
+  border-color: #c9a3f0;
   color: var(--confirmed-text);
   cursor: not-allowed;
 }
@@ -276,33 +332,34 @@ body {
 
 .day-note {
   position: absolute;
-  left: 5px;
+  left: 6px;
   right: 4px;
-  bottom: 2px;
-  font-size: 9px;
-  font-weight: 600;
+  bottom: 3px;
+  font-size: 10px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: left;
 }
 
+/* Today: a teal ring inside the border, over any day colour. */
 .day-today {
-  outline: 2px solid var(--brand);
-  outline-offset: -2px;
+  border-color: var(--brand);
+  box-shadow: inset 0 0 0 1px var(--brand);
 }
 
 .day-blocked,
 .day-blocked:disabled {
   background: repeating-linear-gradient(135deg, #f1f5f9, #f1f5f9 4px, #e2e8f0 4px, #e2e8f0 8px);
-  color: #94a3b8;
+  color: var(--text-3);
   cursor: not-allowed;
 }
 
 .day-disabled {
   background: transparent;
   border-color: transparent;
-  color: #cbd5e1;
+  color: #b4c3c9;
   cursor: default;
 }
 
@@ -316,15 +373,15 @@ body {
   overflow: auto;
   max-height: calc(100vh - 230px);
   border: 1px solid var(--grid-line);
-  border-radius: 16px;
+  border-radius: 12px;
   background: white;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
 }
 
 .sheet {
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Month view: stretch to the full width instead of scrolling sideways. */
@@ -356,15 +413,14 @@ body {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f0f7fa;
-  font-weight: 700;
-  color: var(--brand-dark);
+  background: var(--surface);
+  font-weight: 500;
+  color: var(--text-2);
 }
 
 .sheet .month-head {
   height: 32px;
-  font-size: 13px;
-  letter-spacing: 0.02em;
+  font-size: 14px;
 }
 
 .sheet thead tr:nth-child(2) th {
@@ -379,14 +435,14 @@ body {
 }
 
 .sheet .day-head .dow {
-  font-size: 10px;
-  font-weight: 700;
-  color: #94a3b8;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  padding: 0;
 }
 
 .sheet .day-head .dnum {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .sheet .name-col {
@@ -401,7 +457,8 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
+  font-weight: 500;
+  color: var(--ink);
   box-shadow: 1px 0 0 var(--grid-line);
 }
 
@@ -414,57 +471,58 @@ body {
 }
 
 .sheet .name-col .pcode {
-  font-size: 11px;
-  font-weight: 500;
-  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-3);
 }
 
 .sheet .name-col.empty {
   text-align: center;
-  color: #94a3b8;
-  font-weight: 500;
+  color: var(--text-3);
+  font-weight: 400;
   height: 64px;
 }
 
 .sheet thead .name-col {
   z-index: 3;
-  background: #f0f7fa;
+  background: var(--surface);
+  color: var(--text-2);
 }
 
 .sheet .off-col {
-  font-weight: 800;
+  font-weight: 500;
   color: var(--leave-text);
   background: #fafafa;
 }
 
 .sheet .off-col.zero {
-  color: #cbd5e1;
+  color: var(--text-3);
 }
 
 .sheet thead .off-col {
-  color: var(--brand-dark);
-  background: #f0f7fa;
+  color: var(--text-2);
+  background: var(--surface);
 }
 
-.sheet tbody tr:hover td:not(.cell-leave):not(.cell-pref) {
-  background: #f8fafc;
+.sheet tbody tr:hover td:not(.cell-leave):not(.cell-pref):not(.cell-confirmed) {
+  background: var(--app-bg);
 }
 
 .sheet tfoot td {
   position: sticky;
   bottom: 0;
-  background: #f8fafc;
-  font-weight: 700;
+  background: var(--app-bg);
+  font-weight: 500;
   height: 36px;
-  border-top: 2px solid var(--grid-line);
+  border-top: 1px solid var(--ink);
 }
 
 .sheet .wk {
-  background: #f1f5f9;
+  background: var(--weekend-bg);
 }
 
 .sheet thead .wk {
-  background: #e2e8f0;
+  background: var(--surface-2);
 }
 
 .sheet .ph,
@@ -475,25 +533,25 @@ body {
 .sheet .cell-leave {
   background: var(--leave-bg);
   color: var(--leave-text);
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .sheet .cell-confirmed {
   background: var(--confirmed-bg);
   color: var(--confirmed-text);
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .sheet .cell-pref {
   background: var(--pref-bg);
   color: var(--pref-text);
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .sheet .cell-shift {
   background: var(--shift-bg);
   color: var(--shift-text);
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .sheet .low {
@@ -520,8 +578,28 @@ body {
   border: 1px solid var(--grid-line);
   background: white;
   padding: 4px 6px;
-  font-size: 12px;
+  font-size: 13px;
   text-align: left;
+}
+
+.rota-day .rota-date {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+.rota-day .rota-ph {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.rota-day.holiday .rota-date {
+  color: var(--holiday-text);
 }
 
 .rota-day.day-weekend {
@@ -530,27 +608,40 @@ body {
 
 .rota-day .rota-name {
   overflow-wrap: anywhere;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.25;
   margin-top: 2px;
+  color: var(--ink);
 }
 
 /* A day without a shift in a personal calendar: just the date. */
 .rota-day.empty {
   min-height: 44px;
-  color: #94a3b8;
 }
 
 .rota-day.mine {
   background: var(--shift-bg);
   border-color: var(--shift-border);
+}
+
+.rota-day.mine .rota-name,
+.rota-day.mine .rota-date {
   color: var(--shift-text);
 }
 
 .rota-day.unassigned {
   background: var(--leave-bg);
   border-color: var(--leave-border);
+}
+
+.rota-day.unassigned .rota-name,
+.rota-day.unassigned .rota-date {
   color: var(--leave-text);
+}
+
+.rota-day.holiday .rota-date,
+.rota-day.holiday.mine .rota-date {
+  color: var(--holiday-text);
 }
 
 .rota-day.clickable {
@@ -562,7 +653,17 @@ body {
 }
 
 .rota-day.manual {
-  box-shadow: inset 3px 0 0 #f59e0b;
+  box-shadow: inset 3px 0 0 var(--warn-border);
+}
+
+/* Today: teal ring, like the leave calendar. */
+.rota-day.today {
+  border-color: var(--brand);
+  box-shadow: inset 0 0 0 1px var(--brand);
+}
+
+.rota-day.today.manual {
+  box-shadow: inset 0 0 0 1px var(--brand), inset 3px 0 0 var(--warn-border);
 }
 
 .legend-swatch {
@@ -590,8 +691,8 @@ body {
   align-items: center;
   gap: 12px;
   min-height: 48px;
-  padding: 6px 10px;
-  border-radius: 10px;
+  padding: 4px 12px;
+  border-radius: 8px;
   border: 1px solid var(--grid-line);
   background: white;
 }
@@ -613,7 +714,7 @@ body {
 }
 
 .rota-row.manual {
-  box-shadow: inset 3px 0 0 #f59e0b;
+  box-shadow: inset 3px 0 0 var(--warn-border);
 }
 
 .rota-row.clickable {
@@ -624,29 +725,40 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 34px;
+  width: 36px;
   flex-shrink: 0;
   line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
 
 .rota-row-dow {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.rota-row.mine .rota-row-dow,
+.rota-row.unassigned .rota-row-dow {
+  color: inherit;
 }
 
 .rota-row-num {
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .rota-row-name {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 500;
   overflow-wrap: anywhere;
+}
+
+.rota-row-ph {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--holiday-text);
 }
 
 /* ---------------- phones ---------------- */
@@ -688,7 +800,7 @@ body {
   }
 
   .sheet .name-col .pname {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .sheet-fit {
@@ -731,55 +843,42 @@ body {
   }
 }
 
-.auth-split {
-  display: grid;
-  grid-template-columns: minmax(340px, 5fr) 6fr;
-  min-height: 100vh;
+/* Rules page directory */
+.rules-link { padding: 4px 8px; border-radius: 8px; color: var(--ink); }
+.rules-link:hover { background: var(--surface); }
+.rules-side { padding: 6px 10px; border-left: 2px solid transparent; color: var(--text-2); border-radius: 0 8px 8px 0; }
+.rules-side:hover { background: var(--surface); }
+.rules-side.active { border-left-color: var(--brand); background: var(--brand-soft); color: var(--brand-dark); font-weight: 500; }
+
+/* Quiet data tables (Rota by person, hospitals): hairline rows, calm header, aligned numbers. */
+.rota-table {
+  font-variant-numeric: tabular-nums;
 }
 
-.auth-brand {
-  display: flex;
-  align-items: center;
-  padding: 48px clamp(32px, 5vw, 72px);
-  color: white;
-  background:
-    radial-gradient(circle at 15% 10%, rgb(34 211 238 / 0.35), transparent 45%),
-    linear-gradient(160deg, var(--brand-dark), var(--brand) 60%, #0891b2);
+.rota-table thead th {
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
 }
 
-.auth-brand-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 64px;
-  max-width: 460px;
+.rota-table tbody td {
+  border-bottom: 1px solid var(--line);
 }
 
-.auth-form-side {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  background: var(--mantine-color-body);
+.rota-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
-.brand-mark-lg {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-}
-
-@media (max-width: 800px) {
-  .auth-split { grid-template-columns: 1fr; min-height: 100vh; grid-template-rows: auto 1fr; }
-  .auth-brand { padding: 24px 20px; }
-  .auth-brand-inner { gap: 0; }
-  .auth-brand-copy { display: none; }
-  .auth-form-side { align-items: flex-start; padding: 32px 20px 48px; }
-}
-
-@media (max-width: 800px) {
-  .auth-brand-credit { display: none; }
-}
-
-@media (min-width: 801px) {
-  .auth-form-credit { display: none; }
+/* The signed-in officer's own shift dates. */
+.shift-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--shift-border);
+  background: var(--shift-bg);
+  color: var(--shift-text);
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }

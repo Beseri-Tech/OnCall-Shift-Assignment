@@ -150,6 +150,28 @@ public static class ExcelExports
         return string.Join(", ", parts);
     }
 
+    /// <summary>One sheet: a bold header row and the rows below it (cells as text, so IDs keep leading zeros), frozen header.</summary>
+    public static byte[] Table(string sheet, IReadOnlyList<string> headers, IEnumerable<IReadOnlyList<string?>> rows)
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add(sheet);
+        for (int c = 0; c < headers.Count; c++) ws.Cell(1, c + 1).Value = headers[c];
+        Header(ws.Range(1, 1, 1, headers.Count));
+        int r = 2;
+        foreach (var row in rows)
+        {
+            for (int c = 0; c < row.Count; c++)
+            {
+                ws.Cell(r, c + 1).Style.NumberFormat.Format = "@";
+                ws.Cell(r, c + 1).Value = row[c] ?? "";
+            }
+            r++;
+        }
+        ws.SheetView.FreezeRows(1);
+        ws.Columns().AdjustToContents(1, Math.Min(r, 200), 8, 60);
+        return Save(wb);
+    }
+
     private static void Header(IXLRange range)
     {
         range.Style.Font.Bold = true;

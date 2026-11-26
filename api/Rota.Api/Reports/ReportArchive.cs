@@ -7,9 +7,9 @@ using Rota.Core.Leave;
 namespace Rota.Api.Reports;
 
 public sealed record ArchivedReportDto(Guid DocumentId, Guid RunId, string PeriodName, string FileName, long SizeBytes,
-    DateTimeOffset CreatedAt, string? CreatedBy, bool RunIsPublished);
+    DateTimeOffset CreatedAt, string? CreatedBy, bool RunIsPublished, string? FacilityCode = null);
 
-public sealed record UnarchivedRunDto(Guid RunId, string PeriodName, DateTimeOffset? PublishedAt);
+public sealed record UnarchivedRunDto(Guid RunId, string PeriodName, DateTimeOffset? PublishedAt, string? FacilityCode = null);
 
 public sealed record ReportArchiveDto(bool StorageEnabled, IReadOnlyList<ArchivedReportDto> Reports, IReadOnlyList<UnarchivedRunDto> Unarchived);
 
@@ -25,7 +25,7 @@ public sealed class ReportArchive(RotaDbContext db, IDocumentStorage storage, Le
     public bool Enabled => storage.IsEnabled;
 
     public async Task<string> NameOfAsync(Guid? accountId, CancellationToken ct) =>
-        await db.Accounts.Where(a => a.Id == accountId).Select(a => a.Person != null ? a.Person.Name : a.Email).FirstOrDefaultAsync(ct)
+        await db.People.IgnoreQueryFilters().Where(a => a.Id == accountId).Select(a => a.Name).FirstOrDefaultAsync(ct)
         ?? "Admin";
 
     /// <summary>Builds the report and stores it. Returns null when the rota is gone or not published.</summary>
@@ -48,6 +48,7 @@ public sealed class ReportArchive(RotaDbContext db, IDocumentStorage storage, Le
             ContentType = "application/pdf",
             SizeBytes = pdf.Length,
             UploadedByAccountId = accountId,
+            FacilityId = run.Period.FacilityId,   // the rota's hospital, also when a master saves it from outside one
             ParentType = ParentType,
             ParentId = runId.ToString(),
             CreatedAt = now,
@@ -71,28 +72,33 @@ public sealed class ReportArchive(RotaDbContext db, IDocumentStorage storage, Le
         }
     }
 
-    public async Task<ReportArchiveDto> ListAsync(CancellationToken ct)
+    /// <summary>The current hospital's reports; for a master outside a hospital, every hospital's (or <paramref name="facilityId"/>'s).</summary>
+    public async Task<ReportArchiveDto> ListAsync(Guid? facilityId, CancellationToken ct)
     {
         var docs = await db.Documents.AsNoTracking()
-            .Where(d => d.Kind == DocumentKind.RotaReport && d.Status == DocumentStatus.Available && d.ParentType == ParentType)
+            .Where(d => d.Kind == DocumentKind.RotaReport && d.Status == DocumentStatus.Available && d.ParentType == ParentType
+                && (facilityId == null || d.FacilityId == facilityId))
             .OrderByDescending(d => d.CreatedAt).ToListAsync(ct);
+        var codes = await db.Facilities.ToDictionaryAsync(f => f.Id, f => f.Code, ct);
         var runIds = docs.Select(d => Guid.TryParse(d.ParentId, out var g) ? g : Guid.Empty).Distinct().ToList();
         var runs = await db.Runs.AsNoTracking().Include(r => r.Period).Where(r => runIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, ct);
         var accountIds = docs.Where(d => d.UploadedByAccountId != null).Select(d => d.UploadedByAccountId!.Value).Distinct().ToList();
-        var names = await db.Accounts.AsNoTracking().Where(a => accountIds.Contains(a.Id))
-            .Select(a => new { a.Id, Name = a.Person != null ? a.Person.Name : a.Email }).ToDictionaryAsync(a => a.Id, a => a.Name, ct);
+        var names = await db.People.IgnoreQueryFilters().AsNoTracking().Where(a => accountIds.Contains(a.Id))
+            .Select(a => new { a.Id, Name = a.Name }).ToDictionaryAsync(a => a.Id, a => a.Name, ct);
 
         var reports = docs.Select(d =>
         {
             runs.TryGetValue(Guid.TryParse(d.ParentId, out var g) ? g : Guid.Empty, out var run);
             return new ArchivedReportDto(d.Id, run?.Id ?? Guid.Empty, run?.Period?.Name ?? "Deleted rota", d.FileName, d.SizeBytes,
-                d.CreatedAt, d.UploadedByAccountId is { } a ? names.GetValueOrDefault(a) : null, run?.IsPublished == true);
+                d.CreatedAt, d.UploadedByAccountId is { } a ? names.GetValueOrDefault(a) : null, run?.IsPublished == true,
+                d.FacilityId is { } f ? codes.GetValueOrDefault(f) : null);
         }).ToList();
 
         var archived = reports.Select(r => r.RunId).ToHashSet();
-        var missing = (await db.Runs.AsNoTracking().Include(r => r.Period).Where(r => r.IsPublished).ToListAsync(ct))
+        var missing = (await db.Runs.AsNoTracking().Include(r => r.Period)
+                .Where(r => r.IsPublished && (facilityId == null || r.Period!.FacilityId == facilityId)).ToListAsync(ct))
             .Where(r => !archived.Contains(r.Id))
-            .Select(r => new UnarchivedRunDto(r.Id, r.Period!.Name, r.PublishedAt)).ToList();
+            .Select(r => new UnarchivedRunDto(r.Id, r.Period!.Name, r.PublishedAt, codes.GetValueOrDefault(r.Period.FacilityId))).ToList();
 
         return new ReportArchiveDto(storage.IsEnabled, reports, missing);
     }

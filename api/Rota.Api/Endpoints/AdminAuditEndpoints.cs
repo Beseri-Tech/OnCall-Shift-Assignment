@@ -1,25 +1,29 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Rota.Api.Auth;
 using Rota.Api.Data;
 using Rota.Api.Services;
 
 namespace Rota.Api.Endpoints;
 
-/// <summary>Browse the audit log: who changed what and when, newest first.</summary>
+/// <summary>Browse the audit log: who changed what and when, newest first. App-wide, so masters only.</summary>
 public static class AdminAuditEndpoints
 {
     public const int MaxPageSize = 200;
 
     public static void MapAuditEndpoints(this RouteGroupBuilder admin)
     {
-        var g = admin.MapGroup("/audit").WithTags("Admin audit");
+        var g = admin.MapGroup("/audit").WithTags("Admin audit").RequireAuthorization(Session.MasterPolicy);
 
         // from/to are days in the clinic's time zone, both included. action matches exactly; entity is the kind of thing
-        // (person, clinic, period, run, ...); personId finds changes about one officer.
+        // (person, clinic, period, run, ...); personId finds changes about one officer. facility: a hospital's id, or "none" for
+        // changes outside any hospital (hospitals, masters, settings).
         g.MapGet("/", async (DateOnly? from, DateOnly? to, Guid? accountId, string? action, string? entity, Guid? personId,
-            int? page, int? pageSize, RotaDbContext db, LocalClock clock, CancellationToken ct) =>
+            string? facility, int? page, int? pageSize, RotaDbContext db, LocalClock clock, CancellationToken ct) =>
         {
-            var q = db.ChangeLog.AsNoTracking();
+            var q = db.ChangeLog.IgnoreQueryFilters().AsNoTracking();   // masters only: the facility parameter filters
+            if (facility == "none") q = q.Where(c => c.FacilityId == null);
+            else if (Guid.TryParse(facility, out var fid)) q = q.Where(c => c.FacilityId == fid);
             if (from is { } f) { var start = clock.StartOf(f); q = q.Where(c => c.At >= start); }
             if (to is { } t) { var end = clock.StartOf(t.AddDays(1)); q = q.Where(c => c.At < end); }
             if (accountId is { } a) q = q.Where(c => c.AccountId == a);
@@ -34,26 +38,28 @@ public static class AdminAuditEndpoints
                 .Select(c => new
                 {
                     Log = c,
-                    Actor = db.Accounts.Where(x => x.Id == c.AccountId)
-                        .Select(x => new { x.Email, Name = x.Person != null ? x.Person.Name : null }).FirstOrDefault(),
+                    Facility = db.Facilities.Where(x => x.Id == c.FacilityId).Select(x => x.Code).FirstOrDefault(),
                     PersonName = db.People.Where(x => x.Id == c.PersonId).Select(x => x.Name).FirstOrDefault(),
                 })
                 .ToListAsync(ct);
+            var actors = await Audit.AccountNamesAsync(db, rows.Select(r => r.Log.AccountId), ct);
 
-            var items = rows.Select(r => new AuditEntryDto(
-                r.Log.Id, r.Log.At, r.Log.AccountId, r.Actor?.Email, r.Actor?.Name, r.Log.Action, r.Log.Entity, r.Log.EntityId,
-                r.Log.PersonId, r.PersonName, Parse(r.Log.Detail), Parse(r.Log.Before), Parse(r.Log.After), r.Log.Ip, r.Log.UserAgent))
+            var items = rows.Select(r => (r, Actor: r.Log.AccountId is { } a && actors.TryGetValue(a, out var x) ? x : default))
+                .Select(t => (r: t.r, t.Actor)).Select(t => new AuditEntryDto(
+                t.r.Log.Id, t.r.Log.At, t.r.Log.AccountId, t.Actor.Email, t.Actor.Name, t.r.Log.Action, t.r.Log.Entity, t.r.Log.EntityId,
+                t.r.Log.PersonId, t.r.PersonName, Parse(t.r.Log.Detail), Parse(t.r.Log.Before), Parse(t.r.Log.After), t.r.Log.Ip,
+                t.r.Log.UserAgent, t.r.Facility))
                 .ToList();
             return new AuditPageDto(items, total, number, size);
         });
 
         g.MapGet("/filters", async (RotaDbContext db, CancellationToken ct) =>
         {
-            var actorIds = db.ChangeLog.Where(c => c.AccountId != null).Select(c => c.AccountId!.Value).Distinct();
-            var actors = await db.Accounts.Where(a => actorIds.Contains(a.Id)).OrderBy(a => a.Email)
-                .Select(a => new AuditActorDto(a.Id, a.Email, a.Person != null ? a.Person.Name : null)).ToListAsync(ct);
-            var actions = await db.ChangeLog.Select(c => c.Action).Distinct().OrderBy(x => x).ToListAsync(ct);
-            var entities = await db.ChangeLog.Where(c => c.Entity != null).Select(c => c.Entity!).Distinct().OrderBy(x => x).ToListAsync(ct);
+            var actorIds = await db.ChangeLog.IgnoreQueryFilters().Where(c => c.AccountId != null).Select(c => c.AccountId).Distinct().ToListAsync(ct);
+            var actors = (await Audit.AccountNamesAsync(db, actorIds, ct))
+                .Select(a => new AuditActorDto(a.Key, a.Value.Email, a.Value.Name)).OrderBy(a => a.Email).ToList();
+            var actions = await db.ChangeLog.IgnoreQueryFilters().Select(c => c.Action).Distinct().OrderBy(x => x).ToListAsync(ct);
+            var entities = await db.ChangeLog.IgnoreQueryFilters().Where(c => c.Entity != null).Select(c => c.Entity!).Distinct().OrderBy(x => x).ToListAsync(ct);
             return new AuditFiltersDto(actors, actions, entities);
         });
     }

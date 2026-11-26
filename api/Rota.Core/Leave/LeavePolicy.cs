@@ -1,3 +1,4 @@
+using Rota.Core;
 using System.Globalization;
 
 namespace Rota.Core.Leave;
@@ -27,15 +28,17 @@ public sealed record LeaveLimits(
 public enum DayKind { Weekday, Weekend, Holiday, Peak }
 
 /// <summary>Leave rules for one period: weekend/holiday/peak days cost points, weekdays have a free allowance, busy days fill up.</summary>
+/// <param name="weekendDays">The state's weekly rest days (<see cref="Weekends"/>).</param>
 public sealed class LeavePolicy(
-    LeaveLimits limits, DateOnly start, DateOnly end, IReadOnlySet<DateOnly> holidays, IReadOnlySet<DateOnly> peaks)
+    LeaveLimits limits, DateOnly start, DateOnly end, IReadOnlySet<DateOnly> holidays, IReadOnlySet<DateOnly> peaks,
+    int weekendDays = Weekends.SaturdaySunday)
 {
     public LeaveLimits Limits => limits;
 
     /// <summary>A public holiday on a weekend is a Holiday; peak days only matter on weekdays.</summary>
     public DayKind Kind(DateOnly d) =>
         holidays.Contains(d) ? DayKind.Holiday
-        : d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? DayKind.Weekend
+        : Weekends.Is(d, weekendDays) ? DayKind.Weekend
         : peaks.Contains(d) ? DayKind.Peak
         : DayKind.Weekday;
 

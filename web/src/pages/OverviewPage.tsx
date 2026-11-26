@@ -1,6 +1,6 @@
 import { Alert, Group, Paper, SegmentedControl, Select, Stack, Switch, Text, TextInput } from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
-import { IconInfoCircle, IconLayoutGrid, IconSearch, IconUsers } from '@tabler/icons-react'
+import { IconInfoCircle, IconSearch, IconUsers } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { api } from '../api'
 import { useMe } from '../auth'
@@ -65,7 +65,7 @@ export function OverviewPage() {
 
   return (
     <Stack gap="md">
-      <PageHeader icon={IconLayoutGrid} title="Leave overview"
+      <PageHeader title="Leave overview"
         description="Everyone's leave for the period. The bottom row shows how many people are available each day.">
         <PeriodSelect periods={periods.data} value={periodId} onChange={setPeriodId} />
       </PageHeader>
@@ -79,8 +79,8 @@ export function OverviewPage() {
             <Group justify="space-between" wrap="wrap" gap="sm">
               <Group gap="md" wrap="wrap">
                 <StatusBadge status={data.period.status} />
-                <Text size="sm" fw={700}>{formatLong(data.period.startDate)} – {formatLong(data.period.endDate)}</Text>
-                <Group gap={4}><IconUsers size={16} color="var(--mantine-color-dimmed)" /><Text size="sm" c="dimmed">{total} people</Text></Group>
+                <Text size="sm" fw={500}>{formatLong(data.period.startDate)} – {formatLong(data.period.endDate)}</Text>
+                <Group gap={4}><IconUsers size={16} stroke={1.5} color="var(--text-3)" /><Text size="sm" c="dimmed">{total} people</Text></Group>
                 <TextInput placeholder="Find name or code" aria-label="Find" leftSection={<IconSearch size={16} />}
                   value={search} onChange={e => setSearch(e.currentTarget.value)} w={200} size="sm" />
                 <Switch label="Only with leave" checked={onlyLeave} onChange={e => setOnlyLeave(e.currentTarget.checked)} />
@@ -163,7 +163,7 @@ export function OverviewPage() {
             <Legend bg="var(--leave-bg)" border="var(--leave-border)" label="Leave (letter = note, e.g. A = Annual)" />
             <Legend bg="var(--confirmed-bg)" border="var(--confirmed-border)" label="✓ Confirmed leave (approved)" />
             <Legend bg="var(--pref-bg)" border="var(--pref-border)" label="★ Preferred on-call" />
-            <Legend bg="var(--weekend-bg)" border="#cbd5e1" label="Weekend / public holiday" />
+            <Legend bg="var(--weekend-bg)" border="var(--line)" label="Weekend / public holiday" />
             <Legend bg="var(--warn-bg)" border="var(--warn-border)" label="Under half available" />
             <Legend bg="var(--leave-bg)" border="var(--leave-border)" label="2 or fewer available" />
           </Group>

@@ -1,14 +1,51 @@
 namespace Rota.Api.Data;
 
+/// <summary>
+/// Everyone in the app, with their login: officers and on-call admins (on the rota), supervisors (run a hospital's admin
+/// pages, never on the rota) and masters (every hospital, no hospital of their own).
+/// </summary>
 public sealed class Person
 {
-    /// <summary>Permanent ID; later linked to a personal login.</summary>
     public Guid Id { get; set; } = Guid.CreateVersion7();
 
     /// <summary>Short unique code shown to people (e.g. D001); admin may change it to a staff number.</summary>
     public string Code { get; set; } = "";
 
     public string Name { get; set; } = "";
+
+    /// <summary>The hospital this person belongs to; null only for masters.</summary>
+    public Guid? FacilityId { get; set; }
+
+    public AccountRole Role { get; set; } = AccountRole.Officer;
+
+    /// <summary>Sign-in email, stored lowercase. Required for anyone added or edited; null only for officers from before
+    /// logins and officers were one record, who can't sign in until an admin adds it.</summary>
+    public string? Email { get; set; }
+
+    /// <summary>Null until they have been invited.</summary>
+    public string? PasswordHash { get; set; }
+
+    /// <summary>Can sign in (also needs a password and not being Left).</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Set for invites and admin resets: the temporary password must be replaced at the next login.</summary>
+    public bool MustChangePassword { get; set; }
+    public DateTimeOffset? TempPasswordExpiresAt { get; set; }
+
+    /// <summary>SHA-256 of the emailed reset token; the token itself is never stored.</summary>
+    public string? ResetTokenHash { get; set; }
+    public DateTimeOffset? ResetTokenExpiresAt { get; set; }
+
+    /// <summary>Changes on password change, disable or role change; cookies with an old stamp are rejected.</summary>
+    public string SecurityStamp { get; set; } = Guid.NewGuid().ToString("N");
+
+    public DateTimeOffset? LastLoginAt { get; set; }
+
+    /// <summary>Officers and on-call admins are on the rota; supervisors and masters never are.</summary>
+    public bool OnRota => Role is AccountRole.Officer or AccountRole.Admin;
+
+    public bool IsAdmin => Role is AccountRole.Admin or AccountRole.Supervisor or AccountRole.Master;
+
     public OfficerStatus Status { get; set; } = OfficerStatus.OnCall;
 
     /// <summary>Why they are excluded / left (e.g. CUTI BERSALIN, PINDAH).</summary>
@@ -64,6 +101,12 @@ public sealed class State
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public string Name { get; set; } = "";
 
+    /// <summary>
+    /// The state's weekly rest days (bit n = <see cref="DayOfWeek"/> n): Sat + Sun in most states, Fri + Sat in Kedah, Kelantan and
+    /// Terengganu. Used for the ETAP day type (working day vs rest day).
+    /// </summary>
+    public int WeekendDays { get; set; } = (1 << (int)DayOfWeek.Saturday) | (1 << (int)DayOfWeek.Sunday);
+
     public List<District> Districts { get; set; } = [];
 }
 
@@ -76,6 +119,23 @@ public sealed class District
     public string Name { get; set; } = "";
 
     public List<Clinic> Clinics { get; set; } = [];
+    public List<Facility> Facilities { get; set; } = [];
+}
+
+/// <summary>A hospital that runs its own on-call rota. Officers, periods and (non-master) accounts belong to one.</summary>
+public sealed class Facility
+{
+    /// <summary>Hospital Tuanku Fauziah, Perlis: where all data before multi-facility support belongs.</summary>
+    public static readonly Guid HtfId = Guid.Parse("01999a00-0000-7000-8000-0000000000f1");
+
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public string Name { get; set; } = "";
+
+    /// <summary>Short code shown in the app, e.g. HTF.</summary>
+    public string Code { get; set; } = "";
+
+    public Guid DistrictId { get; set; }
+    public District? District { get; set; }
 }
 
 public sealed class Clinic
@@ -104,41 +164,10 @@ public enum AccountRole
     Officer,
     /// <summary>On-call officer who also runs the admin pages.</summary>
     Admin,
-    /// <summary>Runs the admin pages but is not on the rota (no officer record).</summary>
+    /// <summary>Runs the hospital's admin pages but is never on the rota.</summary>
     Supervisor,
-}
-
-/// <summary>A login. Officers and admins are linked to their officer record; supervisors are not.</summary>
-public sealed class Account
-{
-    public Guid Id { get; set; } = Guid.CreateVersion7();
-
-    /// <summary>Stored lowercase.</summary>
-    public string Email { get; set; } = "";
-
-    public string PasswordHash { get; set; } = "";
-    public AccountRole Role { get; set; }
-
-    public Guid? PersonId { get; set; }
-    public Person? Person { get; set; }
-
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>Set for invites and admin resets: the temporary password must be replaced at the next login.</summary>
-    public bool MustChangePassword { get; set; }
-    public DateTimeOffset? TempPasswordExpiresAt { get; set; }
-
-    /// <summary>SHA-256 of the emailed reset token; the token itself is never stored.</summary>
-    public string? ResetTokenHash { get; set; }
-    public DateTimeOffset? ResetTokenExpiresAt { get; set; }
-
-    /// <summary>Changes on password change, disable or role change; cookies with an old stamp are rejected.</summary>
-    public string SecurityStamp { get; set; } = Guid.NewGuid().ToString("N");
-
-    public DateTimeOffset? LastLoginAt { get; set; }
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-
-    public bool IsAdmin => Role is AccountRole.Admin or AccountRole.Supervisor;
+    /// <summary>Sees and runs every facility; not bound to one and not on any rota.</summary>
+    Master,
 }
 
 public enum PeriodStatus
@@ -164,6 +193,7 @@ public sealed class RotaPeriod
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public string Name { get; set; } = "";
+    public Guid FacilityId { get; set; }
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
 
@@ -175,6 +205,17 @@ public sealed class RotaPeriod
 
     public PeriodStatus Status { get; set; } = PeriodStatus.Open;
 
+    /// <summary>
+    /// When leave entry opens to officers (UTC). null, or a moment already past, means open now. Until then officers see a
+    /// countdown and can't save leave; the admin can still enter leave for them.
+    /// </summary>
+    public DateTimeOffset? OpensAt { get; set; }
+
+    /// <summary>Reminders and the "it's open" notice sent for <see cref="OpensAt"/>; cleared when OpensAt changes.</summary>
+    public DateTimeOffset? DayReminderSentAt { get; set; }
+    public DateTimeOffset? HourReminderSentAt { get; set; }
+    public DateTimeOffset? OpenNoticeSentAt { get; set; }
+
     /// <summary>Leave points per officer; null = automatic (share of weekend/public holiday days).</summary>
     public int? PointsBudget { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -182,9 +223,13 @@ public sealed class RotaPeriod
     public List<RotaRun> Runs { get; set; } = [];
 }
 
-/// <summary>Master list: copied into new periods as <see cref="PeriodDay"/>s; the rota itself uses the period's days.</summary>
+/// <summary>
+/// Master list for one state (state holidays differ): copied into new periods of that state's hospitals as
+/// <see cref="PeriodDay"/>s; the rota itself uses the period's days.
+/// </summary>
 public sealed class PublicHoliday
 {
+    public Guid StateId { get; set; }
     public DateOnly Date { get; set; }
     public string Name { get; set; } = "";
 }
@@ -195,6 +240,7 @@ public sealed class PublicHoliday
 /// </summary>
 public sealed class PeakDay
 {
+    public Guid StateId { get; set; }
     public DateOnly Date { get; set; }
     public string Name { get; set; } = "";
 }
@@ -405,6 +451,9 @@ public sealed class ChangeLog
     public long Id { get; set; }
     public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
 
+    /// <summary>The hospital the change happened in; null for changes outside any (e.g. a master adding a hospital).</summary>
+    public Guid? FacilityId { get; set; }
+
     /// <summary>Who made the change (null for anonymous actions such as a failed password reset).</summary>
     public Guid? AccountId { get; set; }
 
@@ -429,6 +478,159 @@ public sealed class ChangeLog
     public string? UserAgent { get; set; }
 }
 
+/// <summary>An app-wide setting a master changes at runtime (overrides the config default once set).</summary>
+public sealed class AppSetting
+{
+    public string Key { get; set; } = "";
+    public string Value { get; set; } = "";
+}
+
+/// <summary>
+/// One patient seen on call (the "Buku Oncall"): replaces the Google Form. Everyone in the hospital can read the log; the
+/// recorder and admins change it. Patient details never go into URLs, notifications, emails or the audit log.
+/// </summary>
+public sealed class OnCallCase
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid FacilityId { get; set; }
+
+    /// <summary>The on-call officer in charge (the case counts for them, e.g. on their ETAP): by default whoever the rota has on call.</summary>
+    public Guid PersonId { get; set; }
+
+    /// <summary>Who typed it in (usually the officer themself).</summary>
+    public Guid RecordedById { get; set; }
+
+    /// <summary>The on-call shift it belongs to: a case at 02:00 on the 6th is part of the 5th's shift.</summary>
+    public DateOnly OnCallDate { get; set; }
+
+    public DateOnly Date { get; set; }
+    public TimeOnly TimeStart { get; set; }
+
+    /// <summary>Earlier than (or equal to) TimeStart = the next day.</summary>
+    public TimeOnly TimeFinish { get; set; }
+
+    public string PatientName { get; set; } = "";
+
+    /// <summary>MyKad (no dashes), KID, passport or registration number.</summary>
+    public string PatientIdNo { get; set; } = "";
+
+    public string Gender { get; set; } = "";
+    public string? Age { get; set; }
+    public string? Race { get; set; }
+    public string? ReferralSource { get; set; }
+
+    /// <summary>For an ED referral: GREEN, YELLOW or RED zone.</summary>
+    public string? EdZone { get; set; }
+    public string? Department { get; set; }
+    public string? Diagnosis { get; set; }
+    public string? Management { get; set; }
+    public string? Plan { get; set; }
+
+    /// <summary>Who referred and was spoken to (S/T), and who saw the patient (S/B), as typed.</summary>
+    public string? SpokenTo { get; set; }
+    public string? SeenBy { get; set; }
+
+    /// <summary>TRAUMA (written "presented with", P/W) or NON-TRAUMA ("complaint of", C/O).</summary>
+    public string? CaseType { get; set; }
+
+    /// <summary>The P/W or C/O text: what happened / the complaint.</summary>
+    public string? Presentation { get; set; }
+
+    /// <summary>Investigations done (Ix), comma-separated, e.g. "OPG, FBC".</summary>
+    public string? Investigations { get; set; }
+
+    /// <summary>Medicines given (Rx), as typed.</summary>
+    public string? Prescription { get; set; }
+
+    /// <summary>The taggers (housemen / trainees) with the officer, as typed.</summary>
+    public string? Taggers { get; set; }
+
+    /// <summary>The dental surgery assistant on call.</summary>
+    public string? DsaName { get; set; }
+
+    /// <summary>CALLED AND ATTENDED, CALLED BUT FTA, CALLED BUT NO ANSWER or NOT BEEN CALLED.</summary>
+    public string? DsaStatus { get; set; }
+
+    /// <summary>Patient details are confidential: the ETAP form leaves out the name and registration number.</summary>
+    public bool Confidential { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>Removed (kept for the audit trail, never shown).</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>Length of the case; a finish at or before the start runs past midnight.</summary>
+    public int Minutes => Duration(TimeStart, TimeFinish);
+
+    public static int Duration(TimeOnly start, TimeOnly finish)
+    {
+        int m = (int)(finish - start).TotalMinutes;   // TimeOnly subtraction wraps around midnight
+        return m == 0 ? 24 * 60 : m;
+    }
+}
+
+/// <summary>
+/// The personal details an officer's ETAP claim form needs (section A). Only the officer reads or changes it. They verify
+/// it themselves in the app; any later change (including their phone or email) makes it unverified until they verify again,
+/// and the ETAP form can't be made from an unverified profile.
+/// </summary>
+public sealed class OfficerProfile
+{
+    public Guid PersonId { get; set; }
+
+    /// <summary>Full name as in the IC.</summary>
+    public string? FullName { get; set; }
+    public string? IcNo { get; set; }
+    public string? Jawatan { get; set; }
+    public string? Gred { get; set; }
+
+    /// <summary>Gazetted as a specialist on: specialist rates apply.</summary>
+    public DateOnly? TarikhPewartaanPakar { get; set; }
+
+    public string? UnitTempatBertugas { get; set; }
+    public string? AlamatRumah { get; set; }
+    public decimal? JarakKm { get; set; }
+    public string? NoGaji { get; set; }
+    public string? NoTelefonPejabat { get; set; }
+    public string? NoAkaunBank { get; set; }
+    public string? NamaCawanganBank { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? VerifiedAt { get; set; }
+
+    /// <summary>SHA-256 of exactly what was verified (these fields + phone + email): differs as soon as anything changes.</summary>
+    public string? VerifiedHash { get; set; }
+}
+
+/// <summary>A surat arahan uploaded by an admin. An ETAP claim for a month uses the latest one effective by the end of that month.</summary>
+public sealed class SuratArahan
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid FacilityId { get; set; }
+    public Guid DocumentId { get; set; }
+    public DateOnly EffectiveFrom { get; set; }
+
+    /// <summary>The letter's reference number, if any.</summary>
+    public string? Reference { get; set; }
+
+    public Guid? CreatedById { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>An officer's ETAP claim for one month, kept as a draft they come back to. Rows hold what they typed.</summary>
+public sealed class EtapClaim
+{
+    public Guid PersonId { get; set; }
+    public int Year { get; set; }
+    public int Month { get; set; }
+
+    /// <summary>JSON array of <c>EtapRowInput</c>.</summary>
+    public string Rows { get; set; } = "[]";
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public enum FeedbackCategory { Bug, Suggestion, Other }
 
 /// <summary>Feedback about the app from a signed-in user; admins read it and mark it resolved.</summary>
@@ -438,6 +640,9 @@ public sealed class Feedback
 
     /// <summary>Who sent it; null once their account is gone.</summary>
     public Guid? AccountId { get; set; }
+
+    /// <summary>Set when sent to the sender's hospital admins; null = about the app (read by masters).</summary>
+    public Guid? FacilityId { get; set; }
 
     public FeedbackCategory Category { get; set; }
     public string Message { get; set; } = "";
@@ -460,6 +665,8 @@ public enum DocumentKind
     Other,
     /// <summary>The PDF report of a published rota, saved when it is published. Admins only.</summary>
     RotaReport,
+    /// <summary>The hospital's surat arahan (on-call instruction letter): admins upload it, everyone in the hospital reads it.</summary>
+    SuratArahan,
 }
 
 public enum DocumentStatus
@@ -477,6 +684,10 @@ public sealed class DocumentRecord
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public DocumentKind Kind { get; set; }
+
+    /// <summary>The hospital the document belongs to; null for the user manual (shared by all).</summary>
+    public Guid? FacilityId { get; set; }
+
     public DocumentStatus Status { get; set; } = DocumentStatus.Pending;
 
     /// <summary>Server-generated R2 key. Quarantine key while Pending, then a new permanent key once checked.</summary>

@@ -11,21 +11,38 @@ import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { ApiError } from './api'
-import { AdminOnly, Home, RequireLogin } from './components/RouteGuards'
+import { EnvironmentBanner } from './components/EnvironmentBanner'
+import { AdminOnly, Home, OfficerOnly, RequireLogin } from './components/RouteGuards'
 import { Loading } from './components/common'
-import { Layout } from './components/Layout'
 import { ChangePasswordPage, ForgotPasswordPage, LoginPage, ResetPasswordPage } from './pages/AuthPages'
-import { ChangelogPage } from './pages/ChangelogPage'
-import { LeavePage } from './pages/LeavePage'
-import { MyOnCallPage } from './pages/MyOnCallPage'
-import { OverviewPage } from './pages/OverviewPage'
-import { RotaPage } from './pages/RotaPage'
-import { LeaveRequestsPage } from './pages/LeaveRequestsPage'
-import { RulesPage } from './pages/RulesPage'
+import { LandingPage } from './pages/LandingPage'
 
+// Signed-in screens load after sign-in, so the landing and sign-in pages stay light.
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const Layout = lazy(() => import('./components/Layout').then(m => ({ default: m.Layout })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const ChangelogPage = lazy(() => import('./pages/ChangelogPage').then(m => ({ default: m.ChangelogPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const LeavePage = lazy(() => import('./pages/LeavePage').then(m => ({ default: m.LeavePage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const MyOnCallPage = lazy(() => import('./pages/MyOnCallPage').then(m => ({ default: m.MyOnCallPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const OverviewPage = lazy(() => import('./pages/OverviewPage').then(m => ({ default: m.OverviewPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const RotaPage = lazy(() => import('./pages/RotaPage').then(m => ({ default: m.RotaPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const LeaveRequestsPage = lazy(() => import('./pages/LeaveRequestsPage').then(m => ({ default: m.LeaveRequestsPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const HelpPage = lazy(() => import('./pages/HelpPage').then(m => ({ default: m.HelpPage })))
 // Admin screens are only needed by the admin, so they load on demand.
 // oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
 const AdminPage = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const EtapPage = lazy(() => import('./pages/EtapPage').then(m => ({ default: m.EtapPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const CasesPage = lazy(() => import('./pages/CasesPage').then(m => ({ default: m.CasesPage })))
 
 // Clinical teal. Shade 7 is the default so white button text keeps 4.5:1 contrast.
 const theme = createTheme({
@@ -34,12 +51,25 @@ const theme = createTheme({
   },
   primaryColor: 'brand',
   primaryShade: 7,
-  fontFamily: '"Segoe UI", system-ui, -apple-system, Roboto, sans-serif',
-  defaultRadius: 'md',
-  headings: { fontWeight: '700' },
+  fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif",
+  // One step up from Mantine's defaults (12/14/16/18/20): most text uses xs and sm, which read too small.
+  fontSizes: { xs: '13px', sm: '15px', md: '16px', lg: '18px', xl: '20px' },
+  radius: { xs: '4px', sm: '6px', md: '8px', lg: '12px', xl: '16px' },
+  defaultRadius: 'md',   // controls: 8px; Paper/Card: 12px
+  headings: {
+    fontWeight: '500',
+    sizes: {
+      h1: { fontSize: '32px', lineHeight: '1.25' },
+      h2: { fontSize: '27px', lineHeight: '1.25' },
+      h3: { fontSize: '21px', lineHeight: '1.3' },
+      h4: { fontSize: '17px', lineHeight: '1.35' },
+    },
+  },
   components: {
     Paper: { defaultProps: { radius: 'lg' } },
     Card: { defaultProps: { radius: 'lg' } },
+    // Mantine draws badges in tracked capitals; sentence case reads calmer and matches the rest of the app.
+    Badge: { styles: { root: { textTransform: 'none', letterSpacing: 0, fontWeight: 500 } } },
   },
 })
 
@@ -56,31 +86,42 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="light">
+      <EnvironmentBanner />
       <Notifications position="top-right" />
       <ModalsProvider>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
+            {/* Who may open what: see components/RouteGuards.tsx. */}
             <Routes>
+              <Route index element={<LandingPage />} />
               <Route path="login" element={<LoginPage />} />
               <Route path="forgot-password" element={<ForgotPasswordPage />} />
               <Route path="reset-password" element={<ResetPasswordPage />} />
               <Route element={<RequireLogin />}>
                 <Route path="account/password" element={<ChangePasswordPage />} />
-                <Route element={<Layout />}>
-                  <Route index element={<Home />} />
-                  <Route path="my-oncall" element={<MyOnCallPage />} />
-                  <Route path="overview" element={<OverviewPage />} />
-                  <Route path="rota" element={<RotaPage />} />
-                  <Route path="rules" element={<RulesPage />} />
-                  <Route path="changelog" element={<ChangelogPage />} />
-                  <Route path="leave-requests" element={<LeaveRequestsPage />} />
+                <Route element={<Suspense fallback={<Loading />}><Layout /></Suspense>}>
+                  <Route path="home" element={<Home />} />
+                  <Route path="hospitals" element={<Navigate to="/home" replace />} />
+                  <Route path="overview" element={<Suspense fallback={<Loading />}><OverviewPage /></Suspense>} />
+                  <Route path="rota" element={<Suspense fallback={<Loading />}><RotaPage /></Suspense>} />
+                  <Route path="help" element={<Suspense fallback={<Loading />}><HelpPage /></Suspense>} />
+                  <Route path="rules" element={<Navigate to="/help" replace />} />
+                  <Route path="changelog" element={<Suspense fallback={<Loading />}><ChangelogPage /></Suspense>} />
+                  <Route path="cases" element={<Suspense fallback={<Loading />}><CasesPage /></Suspense>} />
+                  <Route element={<OfficerOnly />}>
+                    <Route path="my-leave" element={<Suspense fallback={<Loading />}><LeavePage /></Suspense>} />
+                    <Route path="leave-requests" element={<Suspense fallback={<Loading />}><LeaveRequestsPage /></Suspense>} />
+                    <Route path="my-oncall" element={<Suspense fallback={<Loading />}><MyOnCallPage /></Suspense>} />
+                    <Route path="profile" element={<Suspense fallback={<Loading />}><ProfilePage /></Suspense>} />
+                    <Route path="etap" element={<Suspense fallback={<Loading />}><EtapPage /></Suspense>} />
+                  </Route>
                   <Route element={<AdminOnly />}>
-                    <Route path="leave" element={<LeavePage />} />
+                    <Route path="leave" element={<Suspense fallback={<Loading />}><LeavePage /></Suspense>} />
                     <Route path="admin/*" element={<Suspense fallback={<Loading />}><AdminPage /></Suspense>} />
                   </Route>
-                  <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>
         </QueryClientProvider>

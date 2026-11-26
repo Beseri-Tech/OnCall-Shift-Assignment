@@ -11,7 +11,11 @@ export const toIso = (d: Date) => d.toISOString().slice(0, 10)
 export const addDays = (iso: IsoDate, n: number) => toIso(new Date(toDate(iso).getTime() + n * MS_PER_DAY))
 export const diffDays = (a: IsoDate, b: IsoDate) => Math.round((toDate(b).getTime() - toDate(a).getTime()) / MS_PER_DAY)
 export const dayOfWeek = (iso: IsoDate) => toDate(iso).getUTCDay() // 0 = Sunday
-export const isWeekend = (iso: IsoDate) => [0, 6].includes(dayOfWeek(iso))
+// The hospital's weekly rest days (0 = Sunday ... 6 = Saturday): set by the layout from the signed-in user's hospital.
+// ponytail: module-level, one hospital per tab; pass it down if a page ever shows two hospitals at once.
+let weekendDays: readonly number[] = [0, 6]
+export const setWeekendDays = (days: readonly number[] | null | undefined) => { weekendDays = days?.length ? days : [0, 6] }
+export const isWeekend = (iso: IsoDate) => weekendDays.includes(dayOfWeek(iso))
 export const dayOfMonth = (iso: IsoDate) => Number(iso.slice(8, 10))
 
 export function eachDay(from: IsoDate, to: IsoDate): IsoDate[] {
@@ -72,4 +76,24 @@ export function todayIso(): IsoDate {
   // Local calendar date of the user.
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+const momentFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+
+/** A moment (ISO instant) in the viewer's own time, e.g. "15 Nov 2026, 8:00 pm". */
+export const formatMoment = (iso: string) => momentFmt.format(new Date(iso))
+
+/** True while an ISO instant is still ahead of now. */
+export const isFuture = (iso: string | null | undefined) => !!iso && Date.parse(iso) > Date.now()
+
+/** "2d 3h 14m", "3h 05m" or "42s": the time left until an instant (never negative). */
+export function formatCountdown(iso: string, now = Date.now()) {
+  let s = Math.max(0, Math.floor((Date.parse(iso) - now) / 1000))
+  const d = Math.floor(s / 86400); s -= d * 86400
+  const h = Math.floor(s / 3600); s -= h * 3600
+  const m = Math.floor(s / 60); s -= m * 60
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`
+  if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`
+  return `${s}s`
 }

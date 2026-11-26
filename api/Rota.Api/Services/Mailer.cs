@@ -32,17 +32,47 @@ public sealed class Mailer(IConfiguration config, IHostEnvironment env, IService
 
     public bool IsConfigured => !string.IsNullOrEmpty(Host) || !string.IsNullOrEmpty(PickupDirectory);
 
+    public const string EnabledSetting = "email.enabled";
+
+    // The master's on/off switch, read once from app_settings and kept here (one app instance per database).
+    private bool? _enabled;
+
+    /// <summary>
+    /// Whether email goes out at all. A master can switch it off (e.g. on staging, so testing never emails real people);
+    /// the choice is saved. Until anyone has chosen, Smtp:Enabled decides (default true; staging sets false).
+    /// </summary>
+    public bool IsEnabled(RotaDbContext db) =>
+        _enabled ??= db.Settings.AsNoTracking().FirstOrDefault(s => s.Key == EnabledSetting)?.Value is { } v
+            ? bool.Parse(v) : config.GetValue("Smtp:Enabled", true);
+
+    /// <summary>Saves the switch (with the caller's SaveChanges) and applies it once saved.</summary>
+    public async Task SetEnabledAsync(RotaDbContext db, bool enabled, CancellationToken ct)
+    {
+        var row = await db.Settings.FindAsync([EnabledSetting], ct);
+        if (row is null) db.Settings.Add(new AppSetting { Key = EnabledSetting, Value = enabled.ToString() });
+        else row.Value = enabled.ToString();
+        db.SavedChanges += (_, _) => { _enabled = enabled; if (enabled) _wake.Writer.TryWrite(true); };
+    }
+
+    /// <summary>Configured and switched on: an email queued now will be sent.</summary>
+    public bool CanSend(RotaDbContext db) => IsConfigured && IsEnabled(db);
+
     /// <summary>
     /// Adds the email to <paramref name="db"/>; it goes out after the caller's SaveChanges. Returns false (and queues
     /// nothing) when email isn't configured, so callers can fall back, e.g. show the temporary password.
     /// </summary>
-    public bool Enqueue(RotaDbContext db, string to, EmailContent content, HttpContext http)
+    public bool Enqueue(RotaDbContext db, string to, EmailContent content, HttpContext? http)
     {
         string body = content.Text();
         if (!IsConfigured)
         {
             log.LogWarning("Email to {To} not sent: SMTP is not configured.", to);
             if (env.IsDevelopment()) log.LogInformation("Subject: {Subject}\n{Body}", content.Subject, body);
+            return false;
+        }
+        if (!IsEnabled(db))
+        {
+            log.LogInformation("Email \"{Subject}\" to {To} not sent: email is switched off.", content.Subject, to);
             return false;
         }
         db.OutboxEmails.Add(new OutboxEmail { To = to, Subject = content.Subject, Body = body, Html = content.Html(BaseUrl(http)) });
@@ -77,6 +107,7 @@ public sealed class Mailer(IConfiguration config, IHostEnvironment env, IService
     {
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<RotaDbContext>();
+        if (!IsEnabled(db)) return;   // switched off: anything already queued waits until it's back on
         var spacing = TimeSpan.FromMinutes(1) / MaxPerMinute;
 
         while (!ct.IsCancellationRequested)
@@ -178,7 +209,10 @@ public sealed class Mailer(IConfiguration config, IHostEnvironment env, IService
         };
     }
 
-    /// <summary>Links in emails: App:BaseUrl, else the address the request came in on.</summary>
-    public string BaseUrl(HttpContext http) =>
-        (config["App:BaseUrl"] is { Length: > 0 } url ? url : $"{http.Request.Scheme}://{http.Request.Host}").TrimEnd('/');
+    /// <summary>
+    /// Links in emails: App:BaseUrl, else the address the request came in on. Background work has no request, so it needs
+    /// App:BaseUrl (without it the links are relative).
+    /// </summary>
+    public string BaseUrl(HttpContext? http) =>
+        (config["App:BaseUrl"] is { Length: > 0 } url ? url : http is null ? "" : $"{http.Request.Scheme}://{http.Request.Host}").TrimEnd('/');
 }

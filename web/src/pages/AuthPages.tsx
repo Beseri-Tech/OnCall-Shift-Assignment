@@ -1,44 +1,30 @@
-import { Alert, Anchor, Button, Group, PasswordInput, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core'
+import { Alert, Anchor, Button, PasswordInput, Stack, Text, TextInput } from '@mantine/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { IconArrowsExchange, IconCalendarEvent, IconCircleCheck, IconScale } from '@tabler/icons-react'
+import { IconCircleCheck } from '@tabler/icons-react'
 import { useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { api } from '../api'
-import { MIN_PASSWORD, useMe } from '../auth'
+import { MIN_PASSWORD, safeNext, useMe } from '../auth'
 import { Loading } from '../components/common'
 import { notifyOk } from '../lib'
+import { Wordmark } from './LandingPage'
 
 function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
     <div className="auth-split">
       <aside className="auth-brand">
-        <div className="auth-brand-inner">
-          <Group gap="sm" wrap="nowrap">
-            <div className="brand-mark brand-mark-lg"><img src="/favicon.svg" width={34} height={34} alt="" /></div>
-            <div>
-              <Text fw={800} size="xl" c="white" lh={1.1}>On-Call Rota</Text>
-              <Text size="sm" c="brand.1" lh={1.2}>Dental Officers · Perlis</Text>
-            </div>
-          </Group>
-          <div className="auth-brand-copy">
-            <Title order={2} c="white" fw={800} lh={1.2}>Fair on-call shifts, planned together.</Title>
-            <Stack gap="md" mt="xl">
-              {FEATURES.map(({ icon: Icon, text }) => (
-                <Group key={text} gap="sm" wrap="nowrap" align="flex-start">
-                  <ThemeIcon size={30} radius="md" variant="white" color="brand"><Icon size={18} /></ThemeIcon>
-                  <Text c="brand.0" size="sm" mt={4}>{text}</Text>
-                </Group>
-              ))}
-            </Stack>
-          </div>
-          <Text size="xs" c="brand.2" className="auth-brand-credit">Developed by Beseri-Tech</Text>
+        <Link to="/" className="auth-home" aria-label="Rota-OC home"><Wordmark /></Link>
+        <div className="auth-brand-copy">
+          <h2><span>Fair rotas.</span> <span>Fewer arguments.</span> <span>Done in minutes.</span></h2>
+          <p>Automatic on-call rotas for dental officers.</p>
         </div>
+        <span className="auth-brand-credit">Developed by Beseri-Tech</span>
       </aside>
       <main className="auth-form-side">
-        <Stack w="100%" maw={400} gap="lg">
+        <Stack w="100%" maw={380} gap="xl">
           <div>
-            <Title order={2} c="brand.9">{title}</Title>
-            {subtitle && <Text size="sm" c="dimmed" mt={8}>{subtitle}</Text>}
+            <h1>{title}</h1>
+            {subtitle && <Text c="dimmed" mt={10}>{subtitle}</Text>}
           </div>
           {children}
           <Text size="xs" c="dimmed" ta="center" className="auth-form-credit">Developed by Beseri-Tech</Text>
@@ -47,12 +33,6 @@ function AuthCard({ title, subtitle, children }: { title: string; subtitle?: str
     </div>
   )
 }
-
-const FEATURES = [
-  { icon: IconCalendarEvent, text: 'Enter your leave and preferred days in one place.' },
-  { icon: IconScale, text: 'Points keep the load fair for every officer.' },
-  { icon: IconArrowsExchange, text: 'See the rota and swap shifts with colleagues.' },
-]
 
 export function LoginPage() {
   const qc = useQueryClient()
@@ -66,22 +46,22 @@ export function LoginPage() {
     onSuccess: data => {
       qc.clear()
       qc.setQueryData(['me'], data)
-      navigate(params.get('next') ?? '/', { replace: true })
+      navigate(safeNext(params.get('next')), { replace: true })
     },
   })
 
   if (me.isLoading) return <Loading />
-  if (me.data) return <Navigate to="/" replace />
+  if (me.data) return <Navigate to={safeNext(params.get('next'))} replace />
 
   return (
-    <AuthCard title="Sign in" subtitle="On-Call Rota – enter your leave and see the rota.">
+    <AuthCard title="Sign in" subtitle="Enter your leave, see the rota and swap shifts.">
       <form onSubmit={e => { e.preventDefault(); login.mutate() }}>
         <Stack>
-          <TextInput label="Email" type="email" autoComplete="username" required value={email}
+          <TextInput size="md" label="Email" type="email" autoComplete="username" required value={email}
             onChange={e => setEmail(e.currentTarget.value)} autoFocus />
-          <PasswordInput label="Password" autoComplete="current-password" required value={password}
+          <PasswordInput size="md" label="Password" autoComplete="current-password" required value={password}
             onChange={e => setPassword(e.currentTarget.value)} error={login.error?.message} />
-          <Button type="submit" loading={login.isPending} disabled={!email || !password}>Sign in</Button>
+          <Button type="submit" size="md" loading={login.isPending} disabled={!email || !password}>Sign in</Button>
           <Anchor component={Link} to="/forgot-password" size="sm" ta="center">Forgot password?</Anchor>
         </Stack>
       </form>
@@ -90,8 +70,10 @@ export function LoginPage() {
 }
 
 export function ForgotPasswordPage() {
+  const me = useMe()
   const [email, setEmail] = useState('')
   const send = useMutation({ mutationFn: () => api.auth.forgot(email) })
+  if (me.data) return <Navigate to="/home" replace />
 
   return (
     <AuthCard title="Forgot password" subtitle="We'll email you a link to choose a new password.">
@@ -144,7 +126,7 @@ export function ChangePasswordPage({ forced }: { forced?: boolean }) {
   const [confirm, setConfirm] = useState('')
   const change = useMutation({
     mutationFn: () => api.auth.changePassword(current, password),
-    onSuccess: data => { qc.setQueryData(['me'], data); notifyOk('Password changed.'); navigate('/', { replace: true }) },
+    onSuccess: data => { qc.setQueryData(['me'], data); notifyOk('Password changed.'); navigate('/home', { replace: true }) },
   })
   const logout = useMutation({ mutationFn: api.auth.logout, onSuccess: () => { qc.clear(); navigate('/login') } })
 
@@ -161,7 +143,7 @@ export function ChangePasswordPage({ forced }: { forced?: boolean }) {
       </form>
       {forced
         ? <Anchor component="button" size="sm" ta="center" onClick={() => logout.mutate()}>Sign out</Anchor>
-        : <Anchor component={Link} to="/" size="sm" ta="center">Cancel</Anchor>}
+        : <Anchor component={Link} to="/home" size="sm" ta="center">Cancel</Anchor>}
     </AuthCard>
   )
 }

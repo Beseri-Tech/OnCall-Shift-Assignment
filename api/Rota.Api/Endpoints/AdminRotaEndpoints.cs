@@ -260,7 +260,7 @@ public static class AdminRotaEndpoints
         });
 
         // The saved PDF reports (kept in R2) and the published rotas that don't have one yet.
-        g.MapGet("/reports", async (ReportArchive archive, CancellationToken ct) => await archive.ListAsync(ct));
+        g.MapGet("/reports", async (Guid? facilityId, ReportArchive archive, CancellationToken ct) => await archive.ListAsync(facilityId, ct));
 
         g.MapPost("/runs/{id:guid}/report/archive", async (Guid id, ReportArchive archive, RotaDbContext db, HttpContext http,
             ILogger<ReportArchive> log, CancellationToken ct) =>
@@ -290,7 +290,7 @@ public static class AdminRotaEndpoints
             var period = await db.Periods.FindAsync([id], ct);
             if (period is null) return Results.NotFound();
 
-            var rows = await db.People.Where(p => p.Status == OfficerStatus.OnCall).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
+            var rows = await db.Officers.Where(p => p.Status == OfficerStatus.OnCall).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
                 .Select(p => new LeaveExportRow(p.Name,
                     p.Leave.Where(l => l.Date >= period.StartDate && l.Date <= period.EndDate).Select(l => l.Date).ToList()))
                 .ToListAsync(ct);
@@ -304,7 +304,7 @@ public static class AdminRotaEndpoints
         var holidays = (await Mapping.HolidaysAsync(db, period.Id, ct)).Keys;
 
         var left = await db.PeriodExclusions.Where(x => x.PeriodId == period.Id).Select(x => x.PersonId).ToListAsync(ct);
-        var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id)).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
+        var people = await db.Officers.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id)).OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
             .Select(p => new
             {
                 p.Id, p.Name, p.ExtraShift, p.PreferWeekendHoliday, p.WeekendWeight, p.BlockedWeekdays,
@@ -325,7 +325,8 @@ public static class AdminRotaEndpoints
                 p.PreferWeekendHoliday, p.WeekendWeight, t.Known ? t.WeekendHoliday : null);
         }).ToList();
 
-        return new RotaInput(rotaPeople, period.StartDate, period.EndDate, holidays.ToHashSet(), seed);
+        return new RotaInput(rotaPeople, period.StartDate, period.EndDate, holidays.ToHashSet(), seed,
+            await db.WeekendDaysAsync(period.FacilityId, ct));
     }
 
     private static RunDto ToDto(RotaRun r)

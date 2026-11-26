@@ -16,7 +16,7 @@ public static class PublicEndpoints
         var api = app.MapGroup("/api").WithTags("Public");
 
         api.MapGet("/people", async (RotaDbContext db, CancellationToken ct) =>
-            await db.People.Where(p => p.Status == OfficerStatus.OnCall)
+            await db.Officers.Where(p => p.Status == OfficerStatus.OnCall)
                 .OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
                 .Select(p => new PersonSummaryDto(p.Id, p.Code, p.Name))
                 .ToListAsync(ct));
@@ -173,6 +173,7 @@ public static class PublicEndpoints
             await db.Entry(period).ReloadAsync(ct);
             if (!byAdmin && !period.IsEditable(clock.Today))
                 return Results.Problem(
+                    !period.HasOpened(DateTimeOffset.UtcNow) ? "This period is not open for leave yet." :
                     period.Status == PeriodStatus.Open ? "The leave deadline for this period has passed." : "This period was locked, so leave can no longer be changed. Ask the admin.",
                     statusCode: StatusCodes.Status409Conflict);
 
@@ -227,7 +228,7 @@ public static class PublicEndpoints
 
             var holidays = await Mapping.HolidaysAsync(db, period.Id, ct);
             var left = await db.PeriodExclusions.Where(x => x.PeriodId == period.Id).Select(x => x.PersonId).ToListAsync(ct);
-            var people = await db.People.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id))
+            var people = await db.Officers.Where(p => p.Status == OfficerStatus.OnCall && !left.Contains(p.Id))
                 .OrderBy(p => p.SortOrder).ThenBy(p => p.Name)
                 .Select(p => new
                 {
@@ -248,8 +249,9 @@ public static class PublicEndpoints
             Guid? me = http.User.PersonId();
 
             var onLeave = people.SelectMany(p => p.Leave.Select(l => l.Date)).GroupBy(d => d).ToDictionary(g => g.Key, g => g.Count());
+            int weekendDays = await db.WeekendDaysAsync(period.FacilityId, ct);
             var days = Mapping.Days(period.StartDate, period.EndDate)
-                .Select(d => new OverviewDay(d, Mapping.IsWeekend(d) || holidays.ContainsKey(d), holidays.GetValueOrDefault(d),
+                .Select(d => new OverviewDay(d, Rota.Core.Weekends.Is(d, weekendDays) || holidays.ContainsKey(d), holidays.GetValueOrDefault(d),
                     people.Count - onLeave.GetValueOrDefault(d)))
                 .ToList();
 

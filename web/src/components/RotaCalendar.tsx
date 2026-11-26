@@ -1,7 +1,7 @@
-import { Badge, SimpleGrid, Text } from '@mantine/core'
+import { SimpleGrid, Text } from '@mantine/core'
 import type { IsoDate, RotaDay } from '../api'
 import { usePhone } from '../lib'
-import { addDays, dayOfMonth, dayOfWeek, endOfMonth, formatMonth, isWeekend, monthsBetween } from '../dates'
+import { addDays, dayOfMonth, dayOfWeek, endOfMonth, formatMonth, isWeekend, monthsBetween, todayIso } from '../dates'
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -18,6 +18,7 @@ interface Props {
 /** Month calendars showing who is on call each day. */
 export function RotaCalendar({ days, highlightPersonId, onDayClick, fillMonths, holidays }: Props) {
   const phone = usePhone()
+  const today = todayIso()
   if (days.length === 0) return null
   // A personal calendar only says "On call", which fits a phone's grid; a full rota names someone every day, so phones get a list.
   if (phone && !fillMonths) return <RotaList days={days} highlightPersonId={highlightPersonId} onDayClick={onDayClick} />
@@ -32,7 +33,7 @@ export function RotaCalendar({ days, highlightPersonId, onDayClick, fillMonths, 
 
         return (
           <div key={month}>
-            <Text fw={700} mb={6}>{formatMonth(month)}</Text>
+            <Text fw={500} mb={8}>{formatMonth(month)}</Text>
             <div className="month-grid">
               {DOW.map(d => <div key={d} className="dow">{d}</div>)}
               {cells.map((date, i) => {
@@ -40,14 +41,14 @@ export function RotaCalendar({ days, highlightPersonId, onDayClick, fillMonths, 
                 if (date && !day && fillMonths) {
                   const ph = holidays?.get(date)
                   return (
-                    <div key={date} className={`rota-day empty${isWeekend(date) || ph ? ' day-weekend' : ''}`} title={ph}>
-                      <Text size="xs" fw={700} c={ph ? 'green.8' : 'dimmed'}>{dayOfMonth(date)}{ph ? ' · PH' : ''}</Text>
+                    <div key={date} className={`rota-day empty${isWeekend(date) || ph ? ' day-weekend' : ''}${ph ? ' holiday' : ''}${date === today ? ' today' : ''}`} title={ph}>
+                      <div className="rota-date"><span>{dayOfMonth(date)}</span>{ph && <span className="rota-ph">PH</span>}</div>
                     </div>
                   )
                 }
                 if (!date || !day) return <div key={date ?? `b${i}`} />
 
-                const cls = `rota-day ${dayClasses(day, highlightPersonId, !!onDayClick)}`
+                const cls = `rota-day ${dayClasses(day, highlightPersonId, !!onDayClick)}${date === today ? ' today' : ''}`
 
                 return (
                   <div
@@ -59,9 +60,7 @@ export function RotaCalendar({ days, highlightPersonId, onDayClick, fillMonths, 
                     onKeyDown={e => { if (onDayClick && (e.key === 'Enter' || e.key === ' ')) onDayClick(day) }}
                     title={day.holidayName ?? undefined}
                   >
-                    <Text size="xs" fw={700} c={day.holidayName ? 'green.8' : 'dimmed'}>
-                      {dayOfMonth(date)}{day.holidayName ? ' · PH' : ''}
-                    </Text>
+                    <div className="rota-date"><span>{dayOfMonth(date)}</span>{day.holidayName && <span className="rota-ph">PH</span>}</div>
                     <div className="rota-name">{day.personName ?? 'Unassigned'}</div>
                   </div>
                 )
@@ -76,6 +75,7 @@ export function RotaCalendar({ days, highlightPersonId, onDayClick, fillMonths, 
 
 const dayClasses = (day: RotaDay, highlightPersonId: string | null | undefined, clickable: boolean) => [
   day.isWeekendHoliday && 'day-weekend',
+  day.holidayName && 'holiday',
   !day.personId && 'unassigned',
   highlightPersonId && day.personId === highlightPersonId && 'mine',
   day.isManual && 'manual',
@@ -92,7 +92,7 @@ function RotaList({ days, highlightPersonId, onDayClick }: Pick<Props, 'days' | 
         if (inMonth.length === 0) return null
         return (
           <section key={month} className="rota-list-month">
-            <Text fw={700} mb={6}>{formatMonth(month)}</Text>
+            <Text fw={500} mb={8}>{formatMonth(month)}</Text>
             <div className="rota-list">
               {inMonth.map(day => (
                 <div
@@ -109,9 +109,9 @@ function RotaList({ days, highlightPersonId, onDayClick }: Pick<Props, 'days' | 
                   </div>
                   <div className="rota-row-name">
                     {day.personName ?? 'Unassigned'}
-                    {day.holidayName && <Text size="xs" c="green.8" fw={600} truncate>{day.holidayName}</Text>}
+                    {day.holidayName && <Text size="xs" c="var(--holiday-text)" truncate>{day.holidayName}</Text>}
                   </div>
-                  {day.holidayName && <Badge size="xs" color="green" variant="light">PH</Badge>}
+                  {day.holidayName && <span className="rota-row-ph">PH</span>}
                 </div>
               ))}
             </div>

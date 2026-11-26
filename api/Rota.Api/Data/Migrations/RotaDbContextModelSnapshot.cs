@@ -42,65 +42,20 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("data_protection_keys", (string)null);
                 });
 
-            modelBuilder.Entity("Rota.Api.Data.Account", b =>
+            modelBuilder.Entity("Rota.Api.Data.AppSetting", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(254)
-                        .HasColumnType("character varying(254)");
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTimeOffset?>("LastLoginAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("MustChangePassword")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("PersonId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("ResetTokenExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ResetTokenHash")
+                    b.Property<string>("Key")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<string>("Role")
+                    b.Property<string>("Value")
                         .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
-                    b.Property<string>("SecurityStamp")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                    b.HasKey("Key");
 
-                    b.Property<DateTimeOffset?>("TempPasswordExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Email")
-                        .IsUnique();
-
-                    b.HasIndex("PersonId")
-                        .IsUnique();
-
-                    b.ToTable("accounts", (string)null);
+                    b.ToTable("app_settings", (string)null);
                 });
 
             modelBuilder.Entity("Rota.Api.Data.ChangeLog", b =>
@@ -139,6 +94,9 @@ namespace Rota.Api.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Ip")
                         .HasColumnType("text");
 
@@ -155,6 +113,8 @@ namespace Rota.Api.Data.Migrations
                     b.HasIndex("AccountId", "At");
 
                     b.HasIndex("Entity", "At");
+
+                    b.HasIndex("FacilityId", "At");
 
                     b.HasIndex("PersonId", "At");
 
@@ -243,6 +203,9 @@ namespace Rota.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -285,6 +248,8 @@ namespace Rota.Api.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FacilityId");
+
                     b.HasIndex("ObjectKey")
                         .IsUnique();
 
@@ -297,6 +262,61 @@ namespace Rota.Api.Data.Migrations
                     b.HasIndex("ParentType", "ParentId");
 
                     b.ToTable("documents", (string)null);
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.EtapClaim", b =>
+                {
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Rows")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("PersonId", "Year", "Month");
+
+                    b.ToTable("etap_claims", (string)null);
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.Facility", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("DistrictId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("DistrictId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("facilities", (string)null);
                 });
 
             modelBuilder.Entity("Rota.Api.Data.Feedback", b =>
@@ -318,6 +338,9 @@ namespace Rota.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -338,6 +361,8 @@ namespace Rota.Api.Data.Migrations
                     b.HasIndex("AccountId");
 
                     b.HasIndex("CreatedAt");
+
+                    b.HasIndex("FacilityId");
 
                     b.HasIndex("ResolvedByAccountId");
 
@@ -529,6 +554,206 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("notifications", (string)null);
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.OfficerProfile", b =>
+                {
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AlamatRumah")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<string>("FullName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Gred")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("IcNo")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal?>("JarakKm")
+                        .HasPrecision(7, 1)
+                        .HasColumnType("numeric(7,1)");
+
+                    b.Property<string>("Jawatan")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NamaCawanganBank")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("NoAkaunBank")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("NoGaji")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("NoTelefonPejabat")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateOnly?>("TarikhPewartaanPakar")
+                        .HasColumnType("date");
+
+                    b.Property<string>("UnitTempatBertugas")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VerifiedHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("PersonId");
+
+                    b.ToTable("officer_profiles", (string)null);
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.OnCallCase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Age")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("CaseType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("Confidential")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Department")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Diagnosis")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("DsaName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("DsaStatus")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("EdZone")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<Guid>("FacilityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Gender")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Investigations")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Management")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateOnly>("OnCallDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("PatientIdNo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("PatientName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("PersonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Plan")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Prescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Presentation")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Race")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<Guid>("RecordedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReferralSource")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("SeenBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SpokenTo")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Taggers")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<TimeOnly>("TimeFinish")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly>("TimeStart")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordedById");
+
+                    b.HasIndex("FacilityId", "OnCallDate");
+
+                    b.HasIndex("PersonId", "OnCallDate");
+
+                    b.ToTable("oncall_cases", (string)null);
+                });
+
             modelBuilder.Entity("Rota.Api.Data.OutboxEmail", b =>
                 {
                     b.Property<long>("Id")
@@ -585,6 +810,9 @@ namespace Rota.Api.Data.Migrations
 
             modelBuilder.Entity("Rota.Api.Data.PeakDay", b =>
                 {
+                    b.Property<Guid>("StateId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
@@ -593,7 +821,7 @@ namespace Rota.Api.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.HasKey("Date");
+                    b.HasKey("StateId", "Date");
 
                     b.ToTable("peak_days", (string)null);
                 });
@@ -659,10 +887,26 @@ namespace Rota.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Email")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
                     b.Property<DateOnly?>("ExcludedUntil")
                         .HasColumnType("date");
 
                     b.Property<bool>("ExtraShift")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("MustChangePassword")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -670,12 +914,32 @@ namespace Rota.Api.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("PasswordHash")
+                        .HasColumnType("text");
+
                     b.Property<string>("Phone")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
                     b.Property<bool>("PreferWeekendHoliday")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("ResetTokenExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResetTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("SecurityStamp")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
@@ -695,6 +959,9 @@ namespace Rota.Api.Data.Migrations
                     b.Property<int?>("TallyWeekendHolidayAdjust")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("TempPasswordExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -705,13 +972,19 @@ namespace Rota.Api.Data.Migrations
 
                     b.HasIndex("ClinicId");
 
-                    b.HasIndex("Code")
+                    b.HasIndex("Email")
                         .IsUnique();
 
-                    b.HasIndex("Name")
+                    b.HasIndex("FacilityId", "Code")
                         .IsUnique();
 
-                    b.ToTable("people", (string)null);
+                    b.HasIndex("FacilityId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("people", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_people_facility", "\"Role\" = 'Master' OR \"FacilityId\" IS NOT NULL");
+                        });
                 });
 
             modelBuilder.Entity("Rota.Api.Data.PointGrant", b =>
@@ -751,6 +1024,9 @@ namespace Rota.Api.Data.Migrations
 
             modelBuilder.Entity("Rota.Api.Data.PublicHoliday", b =>
                 {
+                    b.Property<Guid>("StateId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
@@ -759,7 +1035,7 @@ namespace Rota.Api.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.HasKey("Date");
+                    b.HasKey("StateId", "Date");
 
                     b.ToTable("public_holidays", (string)null);
                 });
@@ -773,8 +1049,17 @@ namespace Rota.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("DayReminderSentAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date");
+
+                    b.Property<Guid>("FacilityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("HourReminderSentAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateOnly?>("LeaveDeadline")
                         .HasColumnType("date");
@@ -783,6 +1068,12 @@ namespace Rota.Api.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("OpenNoticeSentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("OpensAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("PointsBudget")
                         .HasColumnType("integer");
@@ -799,6 +1090,8 @@ namespace Rota.Api.Data.Migrations
                         .HasColumnType("date");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FacilityId");
 
                     b.ToTable("rota_periods", (string)null);
                 });
@@ -882,12 +1175,49 @@ namespace Rota.Api.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<int>("WeekendDays")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
                         .IsUnique();
 
                     b.ToTable("states", (string)null);
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.SuratArahan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("FacilityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("FacilityId", "EffectiveFrom");
+
+                    b.ToTable("surat_arahan", (string)null);
                 });
 
             modelBuilder.Entity("Rota.Api.Data.SwapRequest", b =>
@@ -937,16 +1267,6 @@ namespace Rota.Api.Data.Migrations
                     b.ToTable("swap_requests", (string)null);
                 });
 
-            modelBuilder.Entity("Rota.Api.Data.Account", b =>
-                {
-                    b.HasOne("Rota.Api.Data.Person", "Person")
-                        .WithMany()
-                        .HasForeignKey("PersonId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("Person");
-                });
-
             modelBuilder.Entity("Rota.Api.Data.Clinic", b =>
                 {
                     b.HasOne("Rota.Api.Data.District", "District")
@@ -985,20 +1305,45 @@ namespace Rota.Api.Data.Migrations
                         .HasForeignKey("OwnerPersonId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Rota.Api.Data.Account", null)
+                    b.HasOne("Rota.Api.Data.Person", null)
                         .WithMany()
                         .HasForeignKey("UploadedByAccountId")
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.EtapClaim", b =>
+                {
+                    b.HasOne("Rota.Api.Data.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.Facility", b =>
+                {
+                    b.HasOne("Rota.Api.Data.District", "District")
+                        .WithMany("Facilities")
+                        .HasForeignKey("DistrictId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("District");
+                });
+
             modelBuilder.Entity("Rota.Api.Data.Feedback", b =>
                 {
-                    b.HasOne("Rota.Api.Data.Account", null)
+                    b.HasOne("Rota.Api.Data.Person", null)
                         .WithMany()
                         .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Rota.Api.Data.Account", null)
+                    b.HasOne("Rota.Api.Data.Facility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Rota.Api.Data.Person", null)
                         .WithMany()
                         .HasForeignKey("ResolvedByAccountId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -1047,9 +1392,48 @@ namespace Rota.Api.Data.Migrations
 
             modelBuilder.Entity("Rota.Api.Data.Notification", b =>
                 {
-                    b.HasOne("Rota.Api.Data.Account", null)
+                    b.HasOne("Rota.Api.Data.Person", null)
                         .WithMany()
                         .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.OfficerProfile", b =>
+                {
+                    b.HasOne("Rota.Api.Data.Person", null)
+                        .WithOne()
+                        .HasForeignKey("Rota.Api.Data.OfficerProfile", "PersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.OnCallCase", b =>
+                {
+                    b.HasOne("Rota.Api.Data.Facility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Rota.Api.Data.Person", null)
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Rota.Api.Data.Person", null)
+                        .WithMany()
+                        .HasForeignKey("RecordedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.PeakDay", b =>
+                {
+                    b.HasOne("Rota.Api.Data.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -1085,6 +1469,11 @@ namespace Rota.Api.Data.Migrations
                         .HasForeignKey("ClinicId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Rota.Api.Data.Facility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Clinic");
                 });
 
@@ -1109,6 +1498,24 @@ namespace Rota.Api.Data.Migrations
                         .WithMany("PreferredDates")
                         .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.PublicHoliday", b =>
+                {
+                    b.HasOne("Rota.Api.Data.State", null)
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Rota.Api.Data.RotaPeriod", b =>
+                {
+                    b.HasOne("Rota.Api.Data.Facility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -1139,6 +1546,21 @@ namespace Rota.Api.Data.Migrations
                     b.Navigation("Person");
                 });
 
+            modelBuilder.Entity("Rota.Api.Data.SuratArahan", b =>
+                {
+                    b.HasOne("Rota.Api.Data.DocumentRecord", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Rota.Api.Data.Facility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Rota.Api.Data.SwapRequest", b =>
                 {
                     b.HasOne("Rota.Api.Data.Person", null)
@@ -1163,6 +1585,8 @@ namespace Rota.Api.Data.Migrations
             modelBuilder.Entity("Rota.Api.Data.District", b =>
                 {
                     b.Navigation("Clinics");
+
+                    b.Navigation("Facilities");
                 });
 
             modelBuilder.Entity("Rota.Api.Data.LeaveRequest", b =>

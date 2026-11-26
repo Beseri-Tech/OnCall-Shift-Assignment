@@ -153,5 +153,12 @@ public class LeavePolicyTests
         // A public holiday on a weekend earns the holiday reward, not both.
         Assert.Equal(3, ShiftRewardPolicy.For(limits, [new DateOnly(2026, 10, 10)], holidays, peaks).Points);
         Assert.Equal(ShiftReward.None, ShiftRewardPolicy.For(limits, [], holidays, peaks));
+        // A Friday + Saturday state (Kedah, Kelantan, Terengganu): Friday is the weekend, Sunday an ordinary day.
+        int friSat = (1 << (int)DayOfWeek.Friday) | (1 << (int)DayOfWeek.Saturday);
+        var none = new HashSet<DateOnly>();
+        var kedah = ShiftRewardPolicy.For(limits, [new DateOnly(2026, 10, 16), new DateOnly(2026, 10, 18)], none, none, friSat);
+        Assert.Equal((1, 2), (kedah.Weekends, kedah.Points));
+        Assert.Equal(DayKind.Weekend, new LeavePolicy(limits, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), none, none, friSat)
+            .Kind(new DateOnly(2026, 10, 16)));
     }
 }

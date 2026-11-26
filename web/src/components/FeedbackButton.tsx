@@ -4,6 +4,7 @@ import { IconMessage2 } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useLocation } from 'react-router'
 import { api, type FeedbackCategory } from '../api'
+import { useMe } from '../auth'
 import { notifyError, notifyOk, usePhone } from '../lib'
 
 const MAX = 2000
@@ -19,25 +20,31 @@ export function FeedbackButton({ onClick }: { onClick: () => void }) {
   return (
     <Tooltip label="Send feedback" withinPortal>
       <UnstyledButton className="nav-link" aria-label="Send feedback" onClick={onClick}>
-        <IconMessage2 size={20} stroke={1.8} />
+        <IconMessage2 size={20} stroke={1.75} />
       </UnstyledButton>
     </Tooltip>
   )
 }
 
-/** Anyone signed in can send feedback to the admins. The current page is sent along with it. */
+/**
+ * Anyone signed in can send feedback, either to their hospital's admins or about the app itself (read by the masters, who
+ * look after the app). The current page is sent along with it.
+ */
 export function FeedbackModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const qc = useQueryClient()
   const { pathname } = useLocation()
   const phone = usePhone()
   const [category, setCategory] = useState<FeedbackCategory>('Bug')
   const [message, setMessage] = useState('')
+  const hospital = useMe().data?.facility ?? null
+  const [to, setTo] = useState<'hospital' | 'app'>('hospital')
+  const toHospital = !!hospital && to === 'hospital'
 
   const close = onClose
   const send = useMutation({
-    mutationFn: () => api.sendFeedback(category, message.trim(), pathname),
+    mutationFn: () => api.sendFeedback(category, message.trim(), pathname, toHospital),
     onSuccess: () => {
-      notifyOk('The admins will read it soon.', 'Thanks for your feedback')
+      notifyOk(toHospital ? 'Your hospital admins will read it soon.' : 'The app team will read it soon.', 'Thanks for your feedback')
       qc.invalidateQueries({ queryKey: ['admin', 'feedback'] })
       qc.invalidateQueries({ queryKey: ['notifications'] })
       setMessage('')
@@ -55,6 +62,18 @@ export function FeedbackModal({ opened, onClose }: { opened: boolean; onClose: (
       <Modal opened={opened} onClose={close} title="Send feedback" size="lg" fullScreen={phone}>
         <form onSubmit={e => { e.preventDefault(); if (message.trim() && !tooLong) send.mutate() }}>
           <Stack gap="md">
+            {hospital && (
+              <Stack gap={4}>
+                <Text fw={500} size="sm">Send to</Text>
+                <SegmentedControl fullWidth value={to} onChange={v => setTo(v as 'hospital' | 'app')} data={[
+                  { value: 'hospital', label: `${hospital.code} admins` },
+                  { value: 'app', label: 'App team' },
+                ]} />
+                <Text size="xs" c="dimmed">
+                  {toHospital ? `About the rota or leave at ${hospital.name}.` : 'About the app itself: a bug, an idea, something confusing.'}
+                </Text>
+              </Stack>
+            )}
             <SegmentedControl fullWidth value={category} onChange={v => setCategory(v as FeedbackCategory)}
               data={CATEGORIES.map(c => ({ value: c.value, label: c.label }))} />
             <Textarea label="Your feedback" description={hint} autosize minRows={4} maxRows={12} data-autofocus
