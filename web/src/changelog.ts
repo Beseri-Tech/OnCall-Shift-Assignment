@@ -12,6 +12,22 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.12.0', date: '2026-11-26', title: 'Video tour, one name and a faster start',
+    changes: [
+      { kind: 'new', text: 'The welcome page has a one-minute video tour, and links to the site now show a Rota-OC preview card when shared.' },
+      { kind: 'improved', text: 'The app is called Rota-OC everywhere, including the header and menu.' },
+      { kind: 'improved', text: 'The welcome and sign-in pages load faster: the rest of the app downloads after you sign in.' },
+    ],
+  },
+  {
+    version: '3.11.0', date: '2026-11-26', title: 'New welcome page and sign-in',
+    changes: [
+      { kind: 'new', text: 'Opening the site while signed out now shows a welcome page that explains what Rota-OC does, with a button to sign in.' },
+      { kind: 'new', text: 'The welcome page walks through the seven stages of a rota period as you scroll, from the release notice to the published rota.' },
+      { kind: 'improved', text: 'The sign-in and password pages have a fresh look, with the Rota-OC tagline beside the form.' },
+    ],
+  },
+  {
     version: '3.10.1', date: '2026-11-26', title: 'ETAP Claim page tidy-up',
     changes: [
       { kind: 'improved', text: 'The page is now called "ETAP Claim" everywhere.' },
