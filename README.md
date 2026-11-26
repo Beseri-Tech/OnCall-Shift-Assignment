@@ -8,18 +8,18 @@ The original WinForms desktop app lives on the [`legacy`](../../tree/legacy) bra
 
 ## What it does
 
-1. **Hospitals, officers and accounts.** The app runs the rota for more than one hospital; each has its own officers, periods, leave, swaps, reports and audit log, and nobody sees another hospital's data. Officers are organised as state → district → clinic → officer. An admin adds an officer and invites them by email in one step, or imports many from a CSV file. Roles: **Officer**, **Admin** (an officer who also runs the admin pages), **Supervisor** and **Master** (looks after the whole app and every hospital). Everything needs sign-in.
-2. **Leave.** Officers mark leave and preferred on-call days until the period's deadline, within the leave limits (points for weekends, public holidays and peak days, a weekday allowance and a per-day cap). Points show as CL / EX / RW badges. Officers can request leave with a supporting document.
+1. **Hospitals, officers and accounts.** The app runs the rota for more than one hospital; each has its own officers, periods, leave, swaps, reports and audit log, and nobody sees another hospital's data. Officers are organised as state → district → clinic → officer. An admin adds an officer and invites them by email in one step, or imports many from a CSV file. Roles: **Officer**, **Admin** (an officer who also runs the admin pages), **Supervisor** and **Master** (looks after the whole app and every hospital). Everything needs sign-in; signed-out visitors see a welcome page with a video tour. Pages are listed in a collapsible side menu (Leave, On call, Rota, Admin, Help), which becomes a menu button on phones.
+2. **Leave.** Officers mark leave and preferred on-call days until the period's deadline, within the leave limits (points for weekends, public holidays and peak days, a weekday allowance and a per-day cap). Points show as CL / EX / RW badges. Officers can request leave with a supporting document. An admin can set a time for a period to open ("Open to officers at"): officers are notified, get reminders and see a countdown, and leave unlocks by itself at that time.
 3. **Confirmed leave.** Admins record approved absences (for example an overseas trip) with several date ranges. They include the officer's CR (cuti rehat) days and cost 33% of what the days would have cost in points.
 4. **Rewards.** Busy-day shifts earn points for the next rota: public holiday +3, weekend +2, peak day +1. Each state sets which days are its weekend.
 5. **The rota.** Admins lock leave and generate a draft rota with weekend and public-holiday shifts balanced and back-to-back shifts avoided. Generator notes explain each choice. Admins override days (with warnings for leave clashes), send the draft for review, and **publish**. Published shifts count in each officer's tally.
 6. **Swaps.** Officers swap a shift with a colleague, who accepts or declines.
 7. **Cases and passover.** Officers record their on-call cases in a case log (exportable to Excel by month or year) and can generate the WhatsApp passover in the department's template.
-8. **ETAP.** Officers keep an ETAP profile and download the ETAP claim form for their on-call dates, with the patient-details attachment for days over 4 hours.
+8. **ETAP.** Officers keep an ETAP profile and download the ETAP claim form for their on-call dates, with the patient-details attachment for days over 4 hours. The ETAP Claim page stays greyed out until the officer's ETAP profile is verified.
 9. **Reports.** Publishing saves a PDF report (assignments, reasons, swaps, overrides, officer totals). Admins download them from the Reports tab, masters from all hospitals. Timetable, tally and leave export to Excel.
 10. **Help.** The Help page is a directory of how everything works, with search and the user manual (uploaded by a master and stored in R2).
 11. **Feedback, audit and email.** Anyone can send feedback from the header. Important actions go to an audit log. Masters can switch email off for the whole app.
-12. **Changelog.** The footer shows the app version and links to the Changelog page.
+12. **Changelog.** The footer shows the app version and links to the Changelog page. The database is backed up every night to R2 and kept for 30 days (see below).
 
 ## Run with Docker
 
