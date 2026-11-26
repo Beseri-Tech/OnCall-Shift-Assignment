@@ -371,3 +371,6 @@ web/dist/
 
 # Development emails (Smtp:PickupDirectory)
 .mail/
+
+# taste-skill checker working files
+.taste-skill/

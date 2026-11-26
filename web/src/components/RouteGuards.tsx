@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router'
 import { isAdmin, useMe } from '../auth'
 import { ChangePasswordPage } from '../pages/AuthPages'
+import { LandingPage } from '../pages/LandingPage'
 import { LeavePage } from '../pages/LeavePage'
 import { Loading } from './common'
 
@@ -9,6 +10,7 @@ export function RequireLogin() {
   const me = useMe()
   const location = useLocation()
   if (me.isLoading) return <Loading />
+  if (!me.data && location.pathname === '/') return <LandingPage />
   if (!me.data) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />
   if (me.data.mustChangePassword) return <ChangePasswordPage forced />
   return <Outlet />
