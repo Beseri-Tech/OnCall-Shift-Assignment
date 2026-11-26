@@ -36,15 +36,25 @@ export function EtapPage() {
   const ym = month.slice(0, 7)
   const claim = useQuery({ queryKey: ['etap', ym], queryFn: () => api.etap.get(ym), enabled: !!me?.personId, gcTime: 0 })
   if (!me?.personId) return <Navigate to="/" replace />
+  const locked = claim.data ? !claim.data.profileVerified : false
 
   return (
     <Stack gap="md">
-      <PageHeader icon={IconReceipt2} title="ETAP claim"
+      <PageHeader icon={IconReceipt2} title="ETAP Claim"
         description="Your on-call claim for a month: list the days you were on call, check them against the rota and your cases, then download the filled-in ETAP form." />
-      <Group>
-        <MonthPickerInput value={month} onChange={m => m && setMonth(m as string)} valueFormat="MMMM YYYY" w={180} />
-      </Group>
-      {claim.isLoading ? <Loading /> : claim.error ? <ErrorBox error={claim.error} /> : <Claim key={ym} month={ym} claim={claim.data!} />}
+      {locked && (
+        <Alert color="orange" variant="light" icon={<IconAlertTriangle size={18} />}>
+          The ETAP form uses your profile, which isn't verified. <Anchor component={Link} to="/profile">Complete and verify your ETAP profile</Anchor> to use this page.
+        </Alert>
+      )}
+      {/* While the profile isn't verified, the page below the notice is greyed out and can't be used (inert blocks mouse, keyboard and screen readers). */}
+      <Stack gap="md" inert={locked || undefined} aria-disabled={locked || undefined}
+        style={locked ? { opacity: 0.45, filter: 'grayscale(1)', userSelect: 'none' } : undefined}>
+        <Group>
+          <MonthPickerInput value={month} onChange={m => m && setMonth(m as string)} valueFormat="MMMM YYYY" w={180} />
+        </Group>
+        {claim.isLoading ? <Loading /> : claim.error ? <ErrorBox error={claim.error} /> : <Claim key={ym} month={ym} claim={claim.data!} />}
+      </Stack>
     </Stack>
   )
 }
@@ -68,12 +78,6 @@ function Claim({ month, claim }: { month: string; claim: EtapClaim }) {
 
   return (
     <Stack gap="md">
-      {!claim.profileVerified && (
-        <Alert color="orange" variant="light" icon={<IconAlertTriangle size={18} />}>
-          The ETAP form uses your profile, which isn't verified. <Anchor component={Link} to="/profile">Complete and verify your ETAP profile</Anchor> to download the form.
-        </Alert>
-      )}
-
       <Paper className="panel" p="lg">
         <Stack gap="sm">
           <Group justify="space-between" wrap="wrap">

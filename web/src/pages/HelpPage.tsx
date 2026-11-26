@@ -352,12 +352,12 @@ export function HelpPage() {
       ),
     },
     {
-      id: 'etap', chapter: 'oncall', icon: IconReceipt2, title: 'ETAP claim', blurb: 'Your monthly on-call claim, filled in for you',
+      id: 'etap', chapter: 'oncall', icon: IconReceipt2, title: 'ETAP Claim', blurb: 'Your monthly on-call claim, filled in for you',
       keywords: 'ETAP claim form passive call 4 hours rest day public holiday surat arahan punch card bank',
       body: (
         <>
           <Text size="sm">
-            <Anchor inherit component={Link} to="/etap">ETAP claim</Anchor> (under <b>On call</b>) builds your claim for a month and fills in the official form.
+            <Anchor inherit component={Link} to="/etap">ETAP Claim</Anchor> (under <b>On call</b>) builds your claim for a month and fills in the official form.
             You need a <b>verified ETAP profile</b> first (next section).
           </Text>
           <List type="ordered" spacing={6} size="sm">

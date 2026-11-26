@@ -58,7 +58,7 @@ export function Layout() {
       ? { label: 'On call', icon: IconCalendarCheck, items: [
           { to: '/my-oncall', label: 'My on-call', icon: IconCalendarCheck, end: false },
           { to: '/cases', label: 'Cases', icon: IconStethoscope, end: false },
-          { to: '/etap', label: 'ETAP claim', icon: IconReceipt2, end: false },
+          { to: '/etap', label: 'ETAP Claim', icon: IconReceipt2, end: false },
         ] }
       : { to: '/cases', label: 'Cases', icon: IconStethoscope, end: false },
     { to: '/overview', label: 'Overview', icon: IconLayoutGrid, end: false },
