@@ -1,4 +1,4 @@
-import { IconArrowsExchange, IconBell, IconCalendarEvent, IconCheck, IconClipboardList, IconClock, IconLock, IconMail, IconPlayerPause, IconPlayerPlay, IconReceipt } from '@tabler/icons-react'
+import { IconArrowsExchange, IconBell, IconCalendarEvent, IconCheck, IconClipboardList, IconClock, IconLock, IconMail, IconPlayerPause, IconPlayerPlay, IconReceipt, IconX } from '@tabler/icons-react'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { APP_VERSION } from '../changelog'
@@ -76,19 +76,55 @@ function useInView<T extends HTMLElement>() {
   return [ref, seen] as const
 }
 
+/** True while the element is on screen. */
+function useOnScreen<T extends HTMLElement>() {
+  const ref = useRef<T>(null)
+  const [on, setOn] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(([e]) => setOn(e.isIntersecting))
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+  return [ref, on] as const
+}
+
+/** The launch video in a native dialog: Escape or the close button ends it. */
+function TourButton() {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const video = useRef<HTMLVideoElement>(null)
+  const open = () => { dialog.current?.showModal(); video.current?.play().catch(() => {}) }
+  const close = () => dialog.current?.close()
+  return (
+    <>
+      <button type="button" className="lp-tour" onClick={open}>
+        <span className="lp-tour-icon"><IconPlayerPlay size={18} /></span>
+        Watch the 1-minute tour
+      </button>
+      <dialog ref={dialog} className="lp-dialog" aria-label="Rota-OC tour video"
+        onClose={() => video.current?.pause()} onClick={e => { if (e.target === dialog.current) close() }}>
+        <button type="button" className="lp-dialog-close" onClick={close} aria-label="Close the tour"><IconX size={20} /></button>
+        <video ref={video} src="/media/rota-oc-tour.mp4" poster="/media/rota-oc-tour-poster.jpg" controls playsInline preload="none" />
+      </dialog>
+    </>
+  )
+}
+
 /** Hero collage: three sets of app pieces, one every 2.8 s, with a pause button. Holds set one under reduced motion. */
 function Collage() {
+  const [ref, onScreen] = useOnScreen<HTMLDivElement>()
   const [set, setSet] = useState(0)
   const [paused, setPaused] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches)
   useEffect(() => {
-    if (paused) return
+    if (paused || !onScreen) return
     const t = setInterval(() => setSet(s => (s + 1) % 3), 2800)
     return () => clearInterval(t)
-  }, [paused])
+  }, [paused, onScreen])
   const on = (i: number) => `lp-set${set === i ? ' is-on' : ''}`
 
   return (
-    <div className="lp-collage" role="img" aria-label="Rota-OC screens: an officer's leave and points, the admin publishing a balanced rota, and an ETAP claim with the case log">
+    <div ref={ref} className="lp-collage" role="img" aria-label="Rota-OC screens: an officer's leave and points, the admin publishing a balanced rota, and an ETAP claim with the case log">
       <div className={on(0)} aria-hidden="true">
         <div className="lp-piece" style={{ left: '4%', top: '5%', width: '62%' }}>
           <b className="lp-piece-title">Your leave, December</b>
@@ -170,25 +206,25 @@ function Countdown() {
 }
 
 // The stages of one rota period, as the app runs them, each with the screen it shows.
-const STAGES: { title: string; text: string; screen: ReactNode }[] = [
-  { title: 'Rota release announced', text: 'Officers are told by app and email when the next period opens.', screen: <>
+const STAGES: { title: string; text: string; sr: string; screen: ReactNode }[] = [
+  { title: 'Rota release announced', text: 'Officers are told by app and email when the next period opens.', sr: 'The app shows a notice that the January rota opens on 1 December at 09:00, an email sent to 14 officers, and reminders set.', screen: <>
     <b className="lp-scr-title">Notifications</b>
     <span className="lp-piece lp-toast lp-pop"><IconBell size={18} /><span>January rota opens 1 Dec at 09:00.</span></span>
     <span className="lp-piece lp-toast lp-pop lp-d2"><IconMail size={18} /><span>Email sent to 14 officers.</span></span>
     <span className="lp-piece lp-toast lp-pop lp-d3"><IconCalendarEvent size={18} /><span>Reminders set for a day and an hour before.</span></span>
   </> },
-  { title: 'Rota period opens', text: 'A countdown runs on the Leave page, and the page unlocks on time.', screen: <>
+  { title: 'Rota period opens', text: 'A countdown runs on the Leave page, and the page unlocks on time.', sr: 'The Leave page counts down to opening, with the day-before reminder sent and the hour-before reminder still to come.', screen: <>
     <b className="lp-scr-title">January leave opens in</b>
     <Countdown />
     <span className="lp-check lp-pop lp-d2"><IconCheck size={14} />Reminder a day before, sent</span>
     <span className="lp-check lp-check-wait lp-pop lp-d3"><IconClock size={14} />Reminder an hour before</span>
   </> },
-  { title: 'Leave entered for the rota', text: 'Officers pick leave and preferred days, each paid from the same points allowance.', screen: <>
+  { title: 'Leave entered for the rota', text: 'Officers pick leave and preferred days, each paid from the same points allowance.', sr: "An officer's January calendar shows leave and preferred days, with 7 of 12 points left.", screen: <>
     <b className="lp-scr-title">Your leave, January</b>
     <RotaPreview days={14} lead={4} leaveOnly animate />
     <span className="lp-piece lp-pop lp-d3 lp-points-row"><span>7 of 12 points left</span><span className="lp-bar"><i className="lp-bar-grow" style={{ width: '58%' }} /></span></span>
   </> },
-  { title: 'Leave locked for the rota', text: 'The admin locks leave, so the draft works from fixed dates.', screen: <>
+  { title: 'Leave locked for the rota', text: 'The admin locks leave, so the draft works from fixed dates.', sr: 'January leave is locked for 14 officers, with 23 leave days and 11 preferred days.', screen: <>
     <span className="lp-big-icon lp-pop"><IconLock size={32} stroke={1.5} /></span>
     <b className="lp-scr-title lp-center">January leave locked</b>
     <span className="lp-piece lp-pop lp-d2">
@@ -197,12 +233,12 @@ const STAGES: { title: string; text: string; screen: ReactNode }[] = [
       <span className="lp-row"><span>Preferred days</span><span>11</span></span>
     </span>
   </> },
-  { title: 'Draft rota generated', text: 'One click spreads weekends, public holidays and peak days evenly across everyone.', screen: <>
+  { title: 'Draft rota generated', text: 'One click spreads weekends, public holidays and peak days evenly across everyone.', sr: 'The draft January rota fills in day by day, balanced across 14 officers.', screen: <>
     <b className="lp-scr-title">Draft, January 2027</b>
     <RotaPreview days={21} lead={4} animate />
     <span className="lp-tag lp-pop lp-d4">Balanced across 14 officers</span>
   </> },
-  { title: 'Rota review and swaps', text: 'The admin adjusts any day, and officers swap shifts with a colleague in two taps.', screen: <>
+  { title: 'Rota review and swaps', text: 'The admin adjusts any day, and officers swap shifts with a colleague in two taps.', sr: 'Farid asks to swap 12 January for 19 January; the swap is accepted and both rotas update.', screen: <>
     <b className="lp-scr-title">Swap request</b>
     <span className="lp-piece lp-pop">
       <span>Farid asks to swap 12 Jan for your 19 Jan.</span>
@@ -210,7 +246,7 @@ const STAGES: { title: string; text: string; screen: ReactNode }[] = [
     </span>
     <span className="lp-piece lp-toast lp-late"><IconArrowsExchange size={18} /><span>Swap done. Both rotas are updated.</span></span>
   </> },
-  { title: 'Rota published', text: 'Everyone is notified the moment it goes live, and every later change stays on record.', screen: <>
+  { title: 'Rota published', text: 'Everyone is notified the moment it goes live, and every later change stays on record.', sr: 'The January rota is published, sent to 14 officers by app and email, and later changes go to the audit log.', screen: <>
     <span className="lp-big-icon lp-big-icon-on lp-pop"><IconCheck size={36} stroke={2} /></span>
     <b className="lp-scr-title lp-center">January rota published</b>
     <span className="lp-piece lp-toast lp-pop lp-d2"><IconBell size={18} /><span>Sent to 14 officers by app and email.</span></span>
@@ -221,6 +257,8 @@ const STAGES: { title: string; text: string; screen: ReactNode }[] = [
 /** The stages scroll past on the left while a pinned app screen shows the one in the middle of the view. */
 function Journey() {
   const [active, setActive] = useState(0)
+  const [pinRef, pinOnScreen] = useOnScreen<HTMLDivElement>()
+  const go = (i: number) => items.current[i]?.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   const items = useRef<(HTMLLIElement | null)[]>([])
   useEffect(() => {
     const io = new IntersectionObserver(entries => {
@@ -231,22 +269,23 @@ function Journey() {
   }, [])
   return (
     <div className="lp-journey" style={{ '--p': (active + 1) / STAGES.length } as CSSProperties}>
-      <div className="lp-journey-pin">
+      <div ref={pinRef} className="lp-journey-pin">
         <div className="lp-journey-screen" data-ui aria-hidden="true">
           <div className="lp-app-bar">
-            <span className="lp-app-brand"><img src="/favicon.svg" width={22} height={22} alt="" />On-Call Rota</span>
+            <span className="lp-app-brand"><img src="/favicon.svg" width={22} height={22} alt="" />Rota-OC</span>
             <span className="lp-journey-step">Stage {active + 1} of {STAGES.length}</span>
           </div>
-          <div key={active} className="lp-journey-body">{STAGES[active].screen}</div>
+          <div key={active} className="lp-journey-body">{pinOnScreen && STAGES[active].screen}</div>
         </div>
       </div>
       <ol className="lp-journey-list">
         {STAGES.map((st, i) => (
           <li key={st.title} data-i={i} ref={el => { items.current[i] = el }} className={i === active ? 'is-on' : i < active ? 'is-done' : ''}>
-            <span className="lp-journey-num">{i + 1}</span>
+            <button type="button" className="lp-journey-num" onClick={() => go(i)} aria-label={`Go to stage ${i + 1}: ${st.title}`} aria-current={i === active ? 'step' : undefined}>{i + 1}</button>
             <div>
               <h3>{st.title}</h3>
               <p>{st.text}</p>
+              <p className="lp-sr">{st.sr}</p>
             </div>
           </li>
         ))}
@@ -298,6 +337,7 @@ export function LandingPage() {
             <div className="lp-hero-text">
               <h1 id="hero-h">Automatic on-call rotas for dental officers</h1>
               <p>Rota-OC builds a fair on-call schedule from each officer's leave and preferred days, balances weekends and public holidays, and takes each month from release to published rota in 7 stages.</p>
+              <TourButton />
             </div>
             <Collage />
           </div>
@@ -309,7 +349,7 @@ export function LandingPage() {
             <h2 id="rota-h">The month rota, balanced by points. <span className="lp-muted">Everyone sees the same page.</span></h2>
             <div ref={rotaRef} className="lp-app app-frame" data-ui data-anim={rotaSeen ? "in" : "wait"} aria-hidden="true">
               <div className="lp-app-bar">
-                <span className="lp-app-brand"><img src="/favicon.svg" width={22} height={22} alt="" />On-Call Rota</span>
+                <span className="lp-app-brand"><img src="/favicon.svg" width={22} height={22} alt="" />Rota-OC</span>
                 <span className="lp-app-tabs"><span>Leave</span><span className="on">Rota</span><span>My On-Call</span><span>Cases</span><span>ETAP Claim</span></span>
               </div>
               <div className="lp-app-body">

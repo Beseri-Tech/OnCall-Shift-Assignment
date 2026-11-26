@@ -1,9 +1,11 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import { isAdmin, useMe } from '../auth'
 import { ChangePasswordPage } from '../pages/AuthPages'
 import { LandingPage } from '../pages/LandingPage'
-import { LeavePage } from '../pages/LeavePage'
 import { Loading } from './common'
+
+const LeavePage = lazy(() => import('../pages/LeavePage').then(m => ({ default: m.LeavePage })))
 
 /** Signed in with a real password, or off to /login (remembering where they were going). */
 export function RequireLogin() {
@@ -24,5 +26,5 @@ export function AdminOnly() {
 /** Officers land on their leave; supervisors (not on the rota) on the overview. */
 export function Home() {
   const me = useMe()
-  return me.data?.personId ? <LeavePage /> : <Navigate to="/overview" replace />
+  return me.data?.personId ? <Suspense fallback={<Loading />}><LeavePage /></Suspense> : <Navigate to="/overview" replace />
 }

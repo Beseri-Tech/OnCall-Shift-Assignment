@@ -16,7 +16,10 @@ export const CHANGELOG: Release[] = [
     changes: [
       { kind: 'new', text: 'Opening the site while signed out now shows a welcome page that explains what Rota-OC does, with a button to sign in.' },
       { kind: 'new', text: 'The welcome page walks through the seven stages of a rota period as you scroll, from the release notice to the published rota.' },
+      { kind: 'new', text: 'The welcome page has a one-minute video tour, and links to the site now show a Rota-OC preview card when shared.' },
       { kind: 'improved', text: 'The sign-in and password pages have a fresh look, with the Rota-OC tagline beside the form.' },
+      { kind: 'improved', text: 'The app is called Rota-OC everywhere, including the header and menu.' },
+      { kind: 'improved', text: 'The welcome and sign-in pages load faster: the rest of the app downloads after you sign in.' },
     ],
   },
   {

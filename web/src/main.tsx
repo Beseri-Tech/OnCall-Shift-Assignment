@@ -14,16 +14,25 @@ import { ApiError } from './api'
 import { EnvironmentBanner } from './components/EnvironmentBanner'
 import { AdminOnly, Home, RequireLogin } from './components/RouteGuards'
 import { Loading } from './components/common'
-import { Layout } from './components/Layout'
 import { ChangePasswordPage, ForgotPasswordPage, LoginPage, ResetPasswordPage } from './pages/AuthPages'
-import { ChangelogPage } from './pages/ChangelogPage'
-import { LeavePage } from './pages/LeavePage'
-import { MyOnCallPage } from './pages/MyOnCallPage'
-import { OverviewPage } from './pages/OverviewPage'
-import { RotaPage } from './pages/RotaPage'
-import { LeaveRequestsPage } from './pages/LeaveRequestsPage'
-import { HelpPage } from './pages/HelpPage'
 
+// Signed-in screens load after sign-in, so the landing and sign-in pages stay light.
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const Layout = lazy(() => import('./components/Layout').then(m => ({ default: m.Layout })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const ChangelogPage = lazy(() => import('./pages/ChangelogPage').then(m => ({ default: m.ChangelogPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const LeavePage = lazy(() => import('./pages/LeavePage').then(m => ({ default: m.LeavePage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const MyOnCallPage = lazy(() => import('./pages/MyOnCallPage').then(m => ({ default: m.MyOnCallPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const OverviewPage = lazy(() => import('./pages/OverviewPage').then(m => ({ default: m.OverviewPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const RotaPage = lazy(() => import('./pages/RotaPage').then(m => ({ default: m.RotaPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const LeaveRequestsPage = lazy(() => import('./pages/LeaveRequestsPage').then(m => ({ default: m.LeaveRequestsPage })))
+// oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
+const HelpPage = lazy(() => import('./pages/HelpPage').then(m => ({ default: m.HelpPage })))
 // Admin screens are only needed by the admin, so they load on demand.
 // oxlint-disable-next-line react/only-export-components -- entry file, not hot-reloaded
 const AdminPage = lazy(() => import('./pages/admin/AdminPage').then(m => ({ default: m.AdminPage })))
@@ -74,20 +83,20 @@ createRoot(document.getElementById('root')!).render(
               <Route path="reset-password" element={<ResetPasswordPage />} />
               <Route element={<RequireLogin />}>
                 <Route path="account/password" element={<ChangePasswordPage />} />
-                <Route element={<Layout />}>
+                <Route element={<Suspense fallback={<Loading />}><Layout /></Suspense>}>
                   <Route index element={<Home />} />
-                  <Route path="my-oncall" element={<MyOnCallPage />} />
-                  <Route path="overview" element={<OverviewPage />} />
-                  <Route path="rota" element={<RotaPage />} />
-                  <Route path="help" element={<HelpPage />} />
+                  <Route path="my-oncall" element={<Suspense fallback={<Loading />}><MyOnCallPage /></Suspense>} />
+                  <Route path="overview" element={<Suspense fallback={<Loading />}><OverviewPage /></Suspense>} />
+                  <Route path="rota" element={<Suspense fallback={<Loading />}><RotaPage /></Suspense>} />
+                  <Route path="help" element={<Suspense fallback={<Loading />}><HelpPage /></Suspense>} />
                   <Route path="rules" element={<Navigate to="/help" replace />} />
-                  <Route path="changelog" element={<ChangelogPage />} />
-                  <Route path="leave-requests" element={<LeaveRequestsPage />} />
+                  <Route path="changelog" element={<Suspense fallback={<Loading />}><ChangelogPage /></Suspense>} />
+                  <Route path="leave-requests" element={<Suspense fallback={<Loading />}><LeaveRequestsPage /></Suspense>} />
                   <Route path="cases" element={<Suspense fallback={<Loading />}><CasesPage /></Suspense>} />
                   <Route path="profile" element={<Suspense fallback={<Loading />}><ProfilePage /></Suspense>} />
                   <Route path="etap" element={<Suspense fallback={<Loading />}><EtapPage /></Suspense>} />
                   <Route element={<AdminOnly />}>
-                    <Route path="leave" element={<LeavePage />} />
+                    <Route path="leave" element={<Suspense fallback={<Loading />}><LeavePage /></Suspense>} />
                     <Route path="admin/*" element={<Suspense fallback={<Loading />}><AdminPage /></Suspense>} />
                   </Route>
                   <Route path="*" element={<Navigate to="/" replace />} />

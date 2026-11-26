@@ -77,7 +77,7 @@ export function Layout() {
               <Link to="/" className="brand-link">
                 <div className="brand-mark"><img src="/favicon.svg" width={26} height={26} alt="" /></div>
                 <div className="brand-text">
-                  <Text fw={800} size="lg" c="white" lh={1.1} truncate>On-Call Rota</Text>
+                  <Text fw={800} size="lg" c="white" lh={1.1} truncate>Rota-OC</Text>
                   <Text size="xs" c="brand.1" lh={1.1} truncate visibleFrom="lg">{subtitle}</Text>
                 </div>
               </Link>
@@ -141,7 +141,7 @@ export function Layout() {
           <Group gap={10} wrap="nowrap" miw={0}>
             <div className="brand-mark"><img src="/favicon.svg" width={26} height={26} alt="" /></div>
             <div style={{ minWidth: 0 }}>
-              <Text fw={800} c="white" lh={1.1}>On-Call Rota</Text>
+              <Text fw={800} c="white" lh={1.1}>Rota-OC</Text>
               <Text size="xs" c="brand.1" lh={1.2}>{subtitle}</Text>
             </div>
           </Group>
@@ -201,7 +201,7 @@ export function Layout() {
       </Container>
       <Container size="xl" w="100%" pb="md" px={{ base: 'sm', sm: 'md' }}>
         <Text component={Link} to="/changelog" size="xs" c="dimmed" ta="center" display="block" td="none">
-          On-Call Rota v{APP_VERSION} · What's new
+          Rota-OC v{APP_VERSION} · What's new
         </Text>
         <Text size="xs" c="dimmed" ta="center" mt={4}>Developed by Beseri-Tech</Text>
       </Container>
