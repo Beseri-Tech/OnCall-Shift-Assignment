@@ -2,7 +2,7 @@ import { ActionIcon, Alert, Badge, Button, FileInput, Group, Paper, Select, Stac
 import { DatePickerInput } from '@mantine/dates'
 import { modals } from '@mantine/modals'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconFileText, IconPaperclip, IconPlaneDeparture, IconPlus, IconSend, IconTrash } from '@tabler/icons-react'
+import { IconFileText, IconPaperclip, IconPlus, IconSend, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
 import { api, kindLabel, LEAVE_KINDS, openDocument, type LeaveKind, type LeaveRequestRange, type LeaveRequestStatus } from '../api'
 import { ErrorBox, Loading, PageHeader } from '../components/common'
@@ -14,7 +14,7 @@ const MAX_BYTES = 20 * 1024 * 1024
 interface Draft { dates: [string | null, string | null]; kind: LeaveKind; reason: string; file: File | null }
 const blank = (): Draft => ({ dates: [null, null], kind: 'Trip', reason: '', file: null })
 
-const STATUS_COLOR: Record<LeaveRequestStatus, string> = { Pending: 'yellow', Approved: 'teal', Rejected: 'red', Cancelled: 'gray', Removed: 'gray' }
+const STATUS_COLOR: Record<LeaveRequestStatus, string> = { Pending: 'yellow', Approved: 'green', Rejected: 'red', Cancelled: 'gray', Removed: 'gray' }
 
 /** Officers ask for confirmed leave (trip, CR, relief duty): several date ranges, a reason and an optional document for each. */
 export function LeaveRequestsPage() {
@@ -43,11 +43,11 @@ export function LeaveRequestsPage() {
 
   return (
     <Stack gap="md">
-      <PageHeader icon={IconPlaneDeparture} title="Request confirmed leave"
+      <PageHeader title="Request confirmed leave"
         description="For leave the department has approved or assigned: a trip, your CR days, or relief duty at another clinic." />
 
-      <Paper withBorder p="md">
-        <Text size="sm" c="dimmed" mb="sm">
+      <Paper className="panel" p="lg">
+        <Text size="sm" c="var(--text-2)" mb="md">
           Add each period you are away as its own date range with its reason. A document (PDF, JPG, PNG or DOCX, up to 20 MB) is optional.
           Include your CR (cuti rehat) days, since you can't be on call on your official off day. The admin approves or rejects each
           range; once approved you won't be put on call on those days.
@@ -57,7 +57,7 @@ export function LeaveRequestsPage() {
             <Paper key={i} withBorder p="sm" radius="md">
               <Stack gap="xs">
                 <Group justify="space-between" wrap="nowrap">
-                  <Text fw={600} size="sm">{drafts.length > 1 ? `Date range ${i + 1}` : 'Date range'}</Text>
+                  <Text fw={500} size="sm">{drafts.length > 1 ? `Date range ${i + 1}` : 'Date range'}</Text>
                   {drafts.length > 1 && (
                     <Tooltip label="Remove this range">
                       <ActionIcon variant="subtle" color="red" aria-label="Remove this range"
@@ -92,8 +92,8 @@ export function LeaveRequestsPage() {
         </Stack>
       </Paper>
 
-      <Paper withBorder p="md">
-        <Title order={4} mb="xs">My requests and confirmed leave</Title>
+      <Paper className="panel" p="lg">
+        <Title order={4} mb="sm">My requests and confirmed leave</Title>
         {mine.isLoading ? <Loading /> : mine.error ? <ErrorBox error={mine.error} /> : (mine.data ?? []).length === 0 ? (
           <Text size="sm" c="dimmed">You haven't sent any requests yet.</Text>
         ) : (
@@ -120,21 +120,21 @@ function MyRow({ r, onCancel }: { r: LeaveRequestRange; onCancel: () => void }) 
       <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
         <Stack gap={2} style={{ minWidth: 0 }}>
           <Group gap="xs">
-            <Text size="sm" fw={600}>{formatRange([r.startDate, r.endDate])}</Text>
-            <Text size="xs" c="dimmed">{days} day{days === 1 ? '' : 's'}</Text>
-            <Badge variant="light" size="sm">{kindLabel(r.kind)}</Badge>
-            <Badge color={STATUS_COLOR[r.status]} size="sm">{r.status}</Badge>
+            <Text size="sm" fw={500} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatRange([r.startDate, r.endDate])}</Text>
+            <Text size="xs" c="var(--text-3)" style={{ fontVariantNumeric: 'tabular-nums' }}>{days} day{days === 1 ? '' : 's'}</Text>
+            <Badge variant="light" color="gray" size="sm">{kindLabel(r.kind)}</Badge>
+            <Badge color={STATUS_COLOR[r.status]} variant="light" size="sm">{r.status}</Badge>
           </Group>
           <Text size="sm">{r.reason}</Text>
           {r.documentId && r.documentName && (
-            <Text size="xs" c="blue" style={{ cursor: 'pointer' }} onClick={() => openDocument(r.documentId!).catch(e => notifyError(e))}>
+            <Text size="xs" c="var(--brand)" style={{ cursor: 'pointer' }} onClick={() => openDocument(r.documentId!).catch(e => notifyError(e))}>
               <IconFileText size={12} style={{ verticalAlign: -1 }} /> {r.documentName}
             </Text>
           )}
           <Text size="xs" c="dimmed">
             {r.addedByAdmin ? <>Added by the admin {formatLong(r.submittedAt.slice(0, 10))}</> : <>Sent {formatLong(r.submittedAt.slice(0, 10))}</>}
-            {r.status === 'Removed' && <> · the admin removed this leave</>}
-            {!r.addedByAdmin && r.status !== 'Removed' && r.decidedAt && r.status !== 'Cancelled' && <> · {r.status.toLowerCase()} {formatLong(r.decidedAt.slice(0, 10))}{r.decidedBy ? ` by ${r.decidedBy}` : ''}</>}
+            {r.status === 'Removed' && <>, the admin removed this leave</>}
+            {!r.addedByAdmin && r.status !== 'Removed' && r.decidedAt && r.status !== 'Cancelled' && <>, {r.status.toLowerCase()} {formatLong(r.decidedAt.slice(0, 10))}{r.decidedBy ? ` by ${r.decidedBy}` : ''}</>}
           </Text>
           {r.decisionNote && <Alert color={r.status === 'Rejected' ? 'red' : 'gray'} p="xs" mt={4}><Text size="sm">{r.decisionNote}</Text></Alert>}
         </Stack>

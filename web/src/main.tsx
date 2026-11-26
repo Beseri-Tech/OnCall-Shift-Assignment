@@ -51,12 +51,25 @@ const theme = createTheme({
   },
   primaryColor: 'brand',
   primaryShade: 7,
-  fontFamily: '"Segoe UI", system-ui, -apple-system, Roboto, sans-serif',
-  defaultRadius: 'md',
-  headings: { fontWeight: '700' },
+  fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif",
+  // One step up from Mantine's defaults (12/14/16/18/20): most text uses xs and sm, which read too small.
+  fontSizes: { xs: '13px', sm: '15px', md: '16px', lg: '18px', xl: '20px' },
+  radius: { xs: '4px', sm: '6px', md: '8px', lg: '12px', xl: '16px' },
+  defaultRadius: 'md',   // controls: 8px; Paper/Card: 12px
+  headings: {
+    fontWeight: '500',
+    sizes: {
+      h1: { fontSize: '32px', lineHeight: '1.25' },
+      h2: { fontSize: '27px', lineHeight: '1.25' },
+      h3: { fontSize: '21px', lineHeight: '1.3' },
+      h4: { fontSize: '17px', lineHeight: '1.35' },
+    },
+  },
   components: {
     Paper: { defaultProps: { radius: 'lg' } },
     Card: { defaultProps: { radius: 'lg' } },
+    // Mantine draws badges in tracked capitals; sentence case reads calmer and matches the rest of the app.
+    Badge: { styles: { root: { textTransform: 'none', letterSpacing: 0, fontWeight: 500 } } },
   },
 })
 

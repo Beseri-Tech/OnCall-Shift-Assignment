@@ -12,7 +12,7 @@ export function FacilitySwitcher({ w = 200 }: { w?: number | string }) {
   return (
     <Select size="xs" w={w} aria-label="Hospital" placeholder="All hospitals" allowDeselect={false}
       leftSection={<IconBuildingHospital size={14} />} value={me?.facility?.id ?? ''} disabled={switchTo.isPending}
-      data={[{ value: '', label: 'All hospitals' }, ...(facilities.data ?? []).map(f => ({ value: f.id, label: `${f.code} · ${f.name}` }))]}
+      data={[{ value: '', label: 'All hospitals' }, ...(facilities.data ?? []).map(f => ({ value: f.id, label: `${f.code}, ${f.name}` }))]}
       onChange={v => v !== (me?.facility?.id ?? '') && switchTo.mutate(v || null)} />
   )
 }

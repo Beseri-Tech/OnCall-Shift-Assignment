@@ -43,10 +43,10 @@ export function ReportsTab({ allHospitals = false }: { allHospitals?: boolean })
           </Text>
           {allHospitals && (
             <Select label="Hospital" placeholder="All hospitals" clearable searchable w={280} value={facilityId} onChange={setFacilityId}
-              data={(facilities.data ?? []).map(f => ({ value: f.id, label: `${f.code} · ${f.name}` }))} />
+              data={(facilities.data ?? []).map(f => ({ value: f.id, label: `${f.code}, ${f.name}` }))} />
           )}
           {!data.storageEnabled && (
-            <Alert color="orange" variant="light">Document storage (Cloudflare R2) isn't set up, so reports can't be saved yet.</Alert>
+            <Alert color="yellow" variant="light">Document storage (Cloudflare R2) isn't set up, so reports can't be saved yet.</Alert>
           )}
         </Stack>
       </Paper>
@@ -54,14 +54,14 @@ export function ReportsTab({ allHospitals = false }: { allHospitals?: boolean })
       {data.unarchived.length > 0 && (
         <Paper className="panel" p="lg">
           <Stack gap="sm">
-            <Text fw={600}>Published, no saved report yet</Text>
+            <Text fw={500}>Published, no saved report yet</Text>
             {data.unarchived.map(u => (
               <Group key={u.runId} justify="space-between" wrap="wrap">
                 <Text size="sm">
-                  {allHospitals && u.facilityCode && <Badge size="sm" variant="light" mr={6}>{u.facilityCode}</Badge>}
-                  {u.periodName}{u.publishedAt && ` · published ${when(u.publishedAt)}`}
+                  {allHospitals && u.facilityCode && <Badge size="sm" variant="light" color="gray" mr={6}>{u.facilityCode}</Badge>}
+                  {u.periodName}{u.publishedAt && `, published ${when(u.publishedAt)}`}
                 </Text>
-                {allHospitals ? <Text size="xs" c="dimmed">Open the hospital to save it</Text> : <Button size="xs" variant="light" leftSection={<IconCloudUpload size={14} />} disabled={!data.storageEnabled}
+                {allHospitals ? <Text size="xs" c="dimmed">Open the hospital to save it</Text> : <Button size="xs" variant="default" leftSection={<IconCloudUpload size={14} />} disabled={!data.storageEnabled}
                   loading={save.isPending && save.variables === u.runId} onClick={() => save.mutate(u.runId)}>Save report now</Button>}
               </Group>
             ))}
@@ -74,18 +74,18 @@ export function ReportsTab({ allHospitals = false }: { allHospitals?: boolean })
           <Alert icon={<IconFileText size={18} />} color="gray" variant="light">No reports saved yet. One is saved each time you publish a rota.</Alert>
         ) : (
           <Table.ScrollContainer minWidth={560}>
-            <Table verticalSpacing="sm">
+            <Table verticalSpacing="sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
               <Table.Thead>
-                <Table.Tr>{allHospitals && <Table.Th>Hospital</Table.Th>}<Table.Th>Rota</Table.Th><Table.Th>Saved</Table.Th><Table.Th>By</Table.Th><Table.Th>Size</Table.Th><Table.Th /></Table.Tr>
+                <Table.Tr>{allHospitals && <Table.Th fw={500} c="var(--text-2)">Hospital</Table.Th>}<Table.Th fw={500} c="var(--text-2)">Rota</Table.Th><Table.Th fw={500} c="var(--text-2)">Saved</Table.Th><Table.Th fw={500} c="var(--text-2)">By</Table.Th><Table.Th ta="right" fw={500} c="var(--text-2)">Size</Table.Th><Table.Th /></Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {data.reports.map(r => (
                   <Table.Tr key={r.documentId}>
-                    {allHospitals && <Table.Td>{r.facilityCode ? <Badge variant="light" size="sm">{r.facilityCode}</Badge> : '-'}</Table.Td>}
-                    <Table.Td><Text fw={600} size="sm">{r.periodName}</Text><Text size="xs" c="dimmed">{r.runIsPublished ? 'Currently published' : 'Not published now'}</Text></Table.Td>
+                    {allHospitals && <Table.Td>{r.facilityCode ? <Badge variant="light" color="gray" size="sm">{r.facilityCode}</Badge> : '-'}</Table.Td>}
+                    <Table.Td><Text fw={500} size="sm">{r.periodName}</Text><Text size="xs" c="dimmed">{r.runIsPublished ? 'Currently published' : 'Not published now'}</Text></Table.Td>
                     <Table.Td><Text size="sm">{when(r.createdAt)}</Text></Table.Td>
                     <Table.Td><Text size="sm">{r.createdBy ?? '-'}</Text></Table.Td>
-                    <Table.Td><Text size="sm">{kb(r.sizeBytes)}</Text></Table.Td>
+                    <Table.Td ta="right"><Text size="sm">{kb(r.sizeBytes)}</Text></Table.Td>
                     <Table.Td>
                       <Button size="xs" variant="default" leftSection={<IconDownload size={14} />}
                         onClick={() => downloadDocument(r.documentId).catch(notifyError)}>Download</Button>

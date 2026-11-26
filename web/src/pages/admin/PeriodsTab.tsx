@@ -54,7 +54,7 @@ function Periods() {
   if (periods.error) return <ErrorBox error={periods.error} />
 
   return (
-    <Paper withBorder p="md">
+    <Paper className="panel" p="md">
       <Group justify="space-between" mb="sm">
         <Title order={4}>Rota periods</Title>
         <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing({ id: null, value: nextPeriod(periods.data!) })}>
@@ -65,20 +65,20 @@ function Periods() {
         People can enter leave while a period is <b>Open</b> (until its deadline). Lock it to freeze leave, then generate the rota.
       </Text>
       <Table.ScrollContainer minWidth={560}>
-      <Table highlightOnHover>
+      <Table highlightOnHover style={{ fontVariantNumeric: 'tabular-nums' }}>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Name</Table.Th>
-            <Table.Th>Dates</Table.Th>
-            <Table.Th>Deadline</Table.Th>
-            <Table.Th>Status</Table.Th>
+            <Table.Th fw={500} c="var(--text-2)">Name</Table.Th>
+            <Table.Th fw={500} c="var(--text-2)">Dates</Table.Th>
+            <Table.Th fw={500} c="var(--text-2)">Deadline</Table.Th>
+            <Table.Th fw={500} c="var(--text-2)">Status</Table.Th>
             <Table.Th />
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
           {periods.data!.map(p => (
             <Table.Tr key={p.id}>
-              <Table.Td fw={600}>{p.name}</Table.Td>
+              <Table.Td fw={500}>{p.name}</Table.Td>
               <Table.Td>{formatLong(p.startDate)} – {formatLong(p.endDate)}</Table.Td>
               <Table.Td c={p.leaveDeadline && p.leaveDeadline < todayIso() ? 'red' : undefined}>
                 {p.leaveDeadline ? formatLong(p.leaveDeadline) : '–'}
@@ -86,7 +86,7 @@ function Periods() {
               <Table.Td>
                 <Group gap={6}>
                   <StatusBadge status={p.status} />
-                  {isFuture(p.opensAt) && <Badge color="blue" variant="light">Opens {formatMoment(p.opensAt!)}</Badge>}
+                  {isFuture(p.opensAt) && <Badge color="gray" variant="light">Opens {formatMoment(p.opensAt!)}</Badge>}
                 </Group>
               </Table.Td>
               <Table.Td>
@@ -105,7 +105,7 @@ function Periods() {
                       </Menu.Item>
                     )}
                     <Menu.Item leftSection={<IconCalendarEvent size={16} />} onClick={() => setDaysFor(p)}>
-                      Holidays & peak days
+                      Holidays and peak days
                     </Menu.Item>
                     <Menu.Item leftSection={<IconCoins size={16} />} onClick={() => setPointsFor(p)}>Leave points</Menu.Item>
                     <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={api.admin.exports.leave(p.id)}>
@@ -156,14 +156,14 @@ function PointsModal({ period, onClose }: { period: Period; onClose: () => void 
             * Reduced for confirmed leave by the share of the period it covers (hover for details).
           </Text>
           <Table.ScrollContainer minWidth={700}>
-            <Table striped verticalSpacing={4}>
+            <Table verticalSpacing={4} style={{ fontVariantNumeric: 'tabular-nums' }}>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Officer</Table.Th>
-                  <Table.Th ta="center">Points used</Table.Th>
-                  <Table.Th ta="center">Weekdays</Table.Th>
-                  <Table.Th>Extra points</Table.Th>
-                  <Table.Th>Reason</Table.Th>
+                  <Table.Th fw={500} c="var(--text-2)">Officer</Table.Th>
+                  <Table.Th ta="right" fw={500} c="var(--text-2)">Points used</Table.Th>
+                  <Table.Th ta="right" fw={500} c="var(--text-2)">Weekdays</Table.Th>
+                  <Table.Th fw={500} c="var(--text-2)">Extra points</Table.Th>
+                  <Table.Th fw={500} c="var(--text-2)">Reason</Table.Th>
                   <Table.Th />
                 </Table.Tr>
               </Table.Thead>
@@ -196,11 +196,11 @@ function PointsRowEditor({ periodId, row }: { periodId: string; row: PointsRow }
 
   return (
     <Table.Tr>
-      <Table.Td fw={600}>{row.name} <Text span size="xs" c="dimmed">{row.code}</Text></Table.Td>
-      <Table.Td ta="center" c={row.pointsUsed > total ? 'red' : undefined} title={[rewardNote, deduction].filter(Boolean).join(' · ') || undefined}>
+      <Table.Td fw={500}>{row.name} <Text span size="xs" c="dimmed">{row.code}</Text></Table.Td>
+      <Table.Td ta="right" c={row.pointsUsed > total ? 'red' : undefined} title={[rewardNote, deduction].filter(Boolean).join('. ') || undefined}>
         {row.pointsUsed} / {total}{(deduction || rewardNote) && ' *'}
       </Table.Td>
-      <Table.Td ta="center" c={row.weekdaysUsed > allowance ? 'red' : undefined} title={deduction}>
+      <Table.Td ta="right" c={row.weekdaysUsed > allowance ? 'red' : undefined} title={deduction}>
         {row.weekdaysUsed} / {allowance}{deduction && ' *'}
       </Table.Td>
       <Table.Td w={110}><NumberInput size="xs" min={0} max={100} value={extra} onChange={v => setExtra(Number(v) || 0)} /></Table.Td>
@@ -271,7 +271,7 @@ function PeriodModal({ editing, onClose, onSaved }: {
               <Group gap="xs" component="span" display="inline-flex">
                 <span>Dates</span>
                 {totalDays !== null && (
-                  <Badge size="sm" variant="light" aria-live="polite">{totalDays} {totalDays === 1 ? 'day' : 'days'}</Badge>
+                  <Badge size="sm" variant="light" color="gray" aria-live="polite">{totalDays} {totalDays === 1 ? 'day' : 'days'}</Badge>
                 )}
               </Group>
             }
@@ -371,14 +371,14 @@ function Holidays() {
   if (holidays.error) return <ErrorBox error={holidays.error} />
 
   return (
-    <Paper withBorder p="md">
+    <Paper className="panel" p="md">
       <Group justify="space-between" mb="sm">
         <Title order={4}>Public holidays (master list)</Title>
         <Button variant="default" leftSection={<IconCalendarPlus size={16} />} onClick={() => setBulkOpen(true)}>Add several</Button>
       </Group>
       <Text size="sm" c="dimmed" mb="sm">
         Public holidays count as weekend shifts when balancing the rota. New periods start with the holidays in their dates;
-        to change one period, use its menu → <b>Holidays & peak days</b>.
+        to change one period, use its menu → <b>Holidays and peak days</b>.
       </Text>
       <Group align="flex-end" mb="md" wrap="wrap">
         <DatePickerInput label="Date" value={date} onChange={d => setDate(d as string | null)} valueFormat="D MMM YYYY" w={160} clearable />
@@ -392,7 +392,7 @@ function Holidays() {
               <Table.Td w={170}>{formatWeekday(h.date)} {h.date.slice(0, 4)}</Table.Td>
               <Table.Td>{h.name}</Table.Td>
               <Table.Td w={40}>
-                <ActionIcon variant="subtle" color="red" aria-label="Delete" onClick={() => remove.mutate(h.date)}>
+                <ActionIcon variant="subtle" color="gray" aria-label="Delete" onClick={() => remove.mutate(h.date)}>
                   <IconTrash size={16} />
                 </ActionIcon>
               </Table.Td>
@@ -429,7 +429,7 @@ function PeakDays() {
   if (peaks.error) return <ErrorBox error={peaks.error} />
 
   return (
-    <Paper withBorder p="md">
+    <Paper className="panel" p="md">
       <Title order={4} mb="sm">Peak days (master list)</Title>
       <Text size="sm" c="dimmed" mb="sm">
         Weekdays many people want off, like the eve of Raya. Leave on them costs a point, like a weekend.
@@ -447,7 +447,7 @@ function PeakDays() {
               <Table.Td w={170}>{formatWeekday(h.date)} {h.date.slice(0, 4)}</Table.Td>
               <Table.Td>{h.name}</Table.Td>
               <Table.Td w={40}>
-                <ActionIcon variant="subtle" color="red" aria-label="Delete" onClick={() => remove.mutate(h.date)}>
+                <ActionIcon variant="subtle" color="gray" aria-label="Delete" onClick={() => remove.mutate(h.date)}>
                   <IconTrash size={16} />
                 </ActionIcon>
               </Table.Td>
@@ -492,7 +492,7 @@ function PeriodDaysModal({ period, onClose }: { period: Period; onClose: () => v
   })
 
   return (
-    <Modal opened onClose={onClose} size="lg" title={`Holidays & peak days: ${period.name}`}>
+    <Modal opened onClose={onClose} size="lg" title={`Holidays and peak days: ${period.name}`}>
       <Text size="sm" c="dimmed" mb="sm">
         Only this period uses these days; the master lists and other periods stay as they are.
         Rota drafts made before a change keep the old days, so generate a new draft afterwards.
@@ -514,13 +514,13 @@ function PeriodDaysModal({ period, onClose }: { period: Period; onClose: () => v
                 <Table.Tr key={`${d.kind}-${d.date}`}>
                   <Table.Td w={150}>{formatWeekday(d.date)}</Table.Td>
                   <Table.Td w={160}>
-                    <Badge variant="light" color={d.kind === 'Holiday' ? 'red' : 'orange'}>
+                    <Badge variant="light" color={d.kind === 'Holiday' ? 'green' : 'gray'}>
                       {d.kind === 'Holiday' ? 'Public holiday' : 'Peak day'}
                     </Badge>
                   </Table.Td>
                   <Table.Td>{d.name}</Table.Td>
                   <Table.Td w={40}>
-                    <ActionIcon variant="subtle" color="red" aria-label="Delete" onClick={() => remove.mutate(d)}>
+                    <ActionIcon variant="subtle" color="gray" aria-label="Delete" onClick={() => remove.mutate(d)}>
                       <IconTrash size={16} />
                     </ActionIcon>
                   </Table.Td>

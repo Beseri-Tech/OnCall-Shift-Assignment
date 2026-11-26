@@ -28,7 +28,7 @@ const blank: UpsertPerson = {
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 const STATUS_LABEL: Record<OfficerStatus, string> = { OnCall: 'On call', Excluded: 'Excluded', Left: 'Left' }
-const STATUS_COLOR: Record<OfficerStatus, string> = { OnCall: 'green', Excluded: 'orange', Left: 'gray' }
+const STATUS_COLOR: Record<OfficerStatus, string> = { OnCall: 'green', Excluded: 'yellow', Left: 'gray' }
 
 type StatusFilter = OfficerStatus | 'All'
 
@@ -183,13 +183,13 @@ export function PeopleTab() {
       </Group>
 
       {needEmail > 0 && (
-        <Paper withBorder p="sm" bg="var(--mantine-color-orange-0)">
+        <Paper className="panel" p="sm" bg="var(--warn-bg)" style={{ borderColor: 'var(--warn-border)' }}>
           <Group justify="space-between" wrap="wrap">
             <Text size="sm">
               <b>{needEmail} {needEmail === 1 ? 'officer has' : 'officers have'} no email yet</b>, so they can’t sign in.
               They stay on the rota; edit each one to add their email and invite them.
             </Text>
-            <Button size="compact-sm" variant="light" color="orange" onClick={() => { setAccount('email'); setStatus('All') }}>Show them</Button>
+            <Button size="compact-sm" variant="default" onClick={() => { setAccount('email'); setStatus('All') }}>Show them</Button>
           </Group>
         </Paper>
       )}
@@ -213,18 +213,18 @@ export function PeopleTab() {
         <Text size="sm" c="dimmed">{rows.length} of {people.data!.length} shown</Text>
       </Group>
 
-      <Paper withBorder>
+      <Paper className="panel">
         <Table.ScrollContainer minWidth={900}>
-          <Table striped highlightOnHover verticalSpacing={6}>
+          <Table highlightOnHover verticalSpacing={6} style={{ fontVariantNumeric: 'tabular-nums' }}>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Code</Table.Th>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Clinic</Table.Th>
-                <Table.Th>Sign-in</Table.Th>
-                <Table.Th>Phone</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>Flags</Table.Th>
+                <Table.Th fw={500} c="var(--text-2)">Code</Table.Th>
+                <Table.Th fw={500} c="var(--text-2)">Name</Table.Th>
+                <Table.Th fw={500} c="var(--text-2)">Clinic</Table.Th>
+                <Table.Th fw={500} c="var(--text-2)">Sign-in</Table.Th>
+                <Table.Th fw={500} c="var(--text-2)">Phone</Table.Th>
+                <Table.Th fw={500} c="var(--text-2)">Status</Table.Th>
+                <Table.Th fw={500} c="var(--text-2)">Flags</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -234,12 +234,12 @@ export function PeopleTab() {
               )}
               {rows.map(p => (
                 <Table.Tr key={p.id} opacity={p.status === 'Left' ? 0.55 : 1}>
-                  <Table.Td><Badge variant="outline" color="gray">{p.code}</Badge></Table.Td>
+                  <Table.Td><Text size="sm" c="var(--text-2)">{p.code}</Text></Table.Td>
                   <Table.Td>
-                    <Text fw={600} size="sm">{p.name}</Text>
+                    <Text fw={500} size="sm">{p.name}</Text>
                     {p.role !== 'Officer' && (
-                      <Badge size="xs" variant="light" color={p.role === 'Supervisor' ? 'grape' : 'violet'}>
-                        {p.role === 'Supervisor' ? 'Supervisor · not on rota' : 'Admin'}
+                      <Badge size="xs" variant="light" color="gray">
+                        {p.role === 'Supervisor' ? 'Supervisor, not on rota' : 'Admin'}
                       </Badge>
                     )}
                   </Table.Td>
@@ -254,9 +254,9 @@ export function PeopleTab() {
                           <Text size="sm">{p.email}</Text>
                           {!p.enabled ? <Badge size="xs" color="gray" variant="light">Disabled</Badge>
                             : !p.invited ? <Badge size="xs" color="gray" variant="light">Not invited</Badge>
-                            : p.invitePending && <Badge size="xs" color="orange" variant="light">Invited</Badge>}
+                            : p.invitePending && <Badge size="xs" color="yellow" variant="light">Invited</Badge>}
                         </>
-                      : <Badge size="sm" color="orange" variant="light">Email needed</Badge>}
+                      : <Badge size="sm" color="yellow" variant="light">Email needed</Badge>}
                   </Table.Td>
                   <Table.Td>
                     {p.phone ? <Anchor href={`tel:${p.phone}`} size="sm">{p.phone}</Anchor> : <Text span c="dimmed">–</Text>}
@@ -266,7 +266,7 @@ export function PeopleTab() {
                     <Badge color={STATUS_COLOR[p.status]} variant="light">{STATUS_LABEL[p.status]}</Badge>
                     {p.statusReason && <Text size="xs">{p.statusReason}</Text>}
                     {p.excludedUntil && (
-                      <Text size="xs" c={p.excludedUntil <= today ? 'red' : 'dimmed'} fw={p.excludedUntil <= today ? 600 : undefined}>
+                      <Text size="xs" c={p.excludedUntil <= today ? 'red' : 'dimmed'} fw={p.excludedUntil <= today ? 500 : undefined}>
                         {p.excludedUntil <= today ? 'Due back ' : 'Until '}{formatLong(p.excludedUntil)}
                       </Text>
                     )}
@@ -274,12 +274,12 @@ export function PeopleTab() {
                   </Table.Td>
                   <Table.Td>
                     <Group gap={4}>
-                      {p.preferWeekendHoliday && <Badge color="green" variant="light">Prefers weekends</Badge>}
-                      {p.extraShift && <Badge color="violet" variant="light">Extra</Badge>}
-                      {p.weekendWeight > 1 && <Badge variant="light">Weight {p.weekendWeight}</Badge>}
+                      {p.preferWeekendHoliday && <Badge variant="light" styles={{ root: { background: 'var(--pref-bg)', color: 'var(--pref-text)' } }}>Prefers weekends</Badge>}
+                      {p.extraShift && <Badge color="gray" variant="light">Extra</Badge>}
+                      {p.weekendWeight > 1 && <Badge color="gray" variant="light">Weight {p.weekendWeight}</Badge>}
                       {p.blockedWeekdays.length > 0 && (
                         <Tooltip label={p.blockedReason ?? 'Never on call on these days'} withArrow>
-                          <Badge color="red" variant="light">No {p.blockedWeekdays.map(d => WEEKDAYS[d].slice(0, 3)).join(', ')}</Badge>
+                          <Badge color="gray" variant="light">No {p.blockedWeekdays.map(d => WEEKDAYS[d].slice(0, 3)).join(', ')}</Badge>
                         </Tooltip>
                       )}
                     </Group>
@@ -305,7 +305,7 @@ export function PeopleTab() {
                       {!onRota(p.role) ? null : p.status === 'OnCall' ? (
                         <>
                           <Tooltip label="Exclude for a while (e.g. maternity leave)">
-                            <ActionIcon variant="subtle" color="orange" aria-label="Exclude"
+                            <ActionIcon variant="subtle" color="gray" aria-label="Exclude"
                               onClick={() => setChanging({ person: p, to: 'Excluded' })}>
                               <IconPlayerPause size={18} />
                             </ActionIcon>
@@ -319,7 +319,7 @@ export function PeopleTab() {
                         </>
                       ) : (
                         <Tooltip label="Put back on call">
-                          <ActionIcon variant="subtle" color="green" aria-label="Put back on call"
+                          <ActionIcon variant="subtle" color="gray" aria-label="Put back on call"
                             loading={backOnCall.isPending && backOnCall.variables?.id === p.id}
                             onClick={() => backOnCall.mutate(p)}>
                             <IconUserCheck size={18} />
@@ -329,7 +329,7 @@ export function PeopleTab() {
                       <ActionIcon variant="subtle" aria-label="Edit" onClick={() => setEditing({ person: p, value: toUpsert(p) })}>
                         <IconEdit size={18} />
                       </ActionIcon>
-                      <ActionIcon variant="subtle" color="red" aria-label="Delete" onClick={() => modals.openConfirmModal({
+                      <ActionIcon variant="subtle" color="gray" aria-label="Delete" onClick={() => modals.openConfirmModal({
                         title: `Delete ${p.name}?`,
                         children: <Text size="sm">Only for mistakes – this also removes their sign-in and leave. If they moved out, use "Mark as left" so their history is kept.</Text>,
                         labels: { confirm: 'Delete', cancel: 'Cancel' },
@@ -415,7 +415,7 @@ function StatusModal({ person, to, onClose, onSaved }: {
           {save.error && <Text c="red" size="sm">{save.error.message}</Text>}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancel</Button>
-            <Button type="submit" color={to === 'Left' ? 'gray' : 'orange'} loading={save.isPending} disabled={!reason?.trim()}>
+            <Button type="submit" color={to === 'Left' ? 'red' : undefined} loading={save.isPending} disabled={!reason?.trim()}>
               {to === 'Left' ? 'Mark as left' : 'Exclude'}
             </Button>
           </Group>

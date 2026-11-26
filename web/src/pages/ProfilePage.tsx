@@ -4,7 +4,7 @@ import {
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconAlertTriangle, IconCircleCheck, IconId, IconLock, IconShieldCheck } from '@tabler/icons-react'
+import { IconAlertTriangle, IconCircleCheck, IconLock, IconShieldCheck } from '@tabler/icons-react'
 import { useState } from 'react'
 import { Navigate } from 'react-router'
 import { api, type EtapProfile, type ProfileInput } from '../api'
@@ -62,7 +62,7 @@ function ProfileForm({ profile }: { profile: EtapProfile }) {
 
   return (
     <Stack gap="md">
-      <PageHeader icon={IconId} title="My ETAP profile"
+      <PageHeader title="My ETAP profile"
         description="Your details for the ETAP claim form (section A). Only you can see them. Verify them once they're right; any change needs a new verification." />
       {profile.verified
         ? <Alert color="green" variant="light" icon={<IconCircleCheck size={18} />}>Verified{profile.verifiedAt && ` on ${new Date(profile.verifiedAt).toLocaleDateString('en-GB', { dateStyle: 'medium' })}`}. You can use ETAP.</Alert>
@@ -125,7 +125,7 @@ function ProfileForm({ profile }: { profile: EtapProfile }) {
 
 
             <Group justify="space-between">
-              <Group gap={6}><IconLock size={14} /><Text size="xs" c="dimmed">Only you can see these details.</Text></Group>
+              <Group gap={6}><IconLock size={14} stroke={1.5} color="var(--text-2)" /><Text size="xs" c="var(--text-3)">Only you can see these details.</Text></Group>
               <Group>
                 <Button type="submit" variant={dirty ? 'filled' : 'default'} loading={save.isPending} disabled={!dirty}>Save</Button>
                 <Button leftSection={<IconShieldCheck size={16} />} disabled={dirty || profile.missing.length > 0 || profile.verified}

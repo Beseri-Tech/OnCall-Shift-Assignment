@@ -5,7 +5,7 @@ import { DatePickerInput, MonthPickerInput, TimeInput } from '@mantine/dates'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconAlertTriangle, IconCalendarPlus, IconCheck, IconDeviceFloppy, IconFileDownload, IconFileText, IconPlus,
-  IconReceipt2, IconTrash,
+  IconTrash,
 } from '@tabler/icons-react'
 import { useState } from 'react'
 import { Link, Navigate } from 'react-router'
@@ -18,8 +18,8 @@ import { notifyError, notifyOk, usePhone } from '../lib'
 const hm = (t: string) => t.slice(0, 5)
 const hours = (m: number) => `${Math.floor(m / 60)}h${m % 60 ? ` ${String(m % 60).padStart(2, '0')}m` : ''}`
 const CATEGORY: Record<string, { label: string; color: string }> = {
-  '2a': { label: '≥ 4 h · working day', color: 'teal' }, '2b': { label: '≥ 4 h · rest/holiday', color: 'teal' },
-  '3a': { label: '< 4 h · working day', color: 'gray' }, '3b': { label: '< 4 h · rest/holiday', color: 'gray' },
+  '2a': { label: '≥ 4 h, working day', color: 'gray' }, '2b': { label: '≥ 4 h, rest/holiday', color: 'gray' },
+  '3a': { label: '< 4 h, working day', color: 'gray' }, '3b': { label: '< 4 h, rest/holiday', color: 'gray' },
 }
 
 /** What the officer edits for one row: the on-call date, start time, end time and whether it ends the next day. */
@@ -40,7 +40,7 @@ export function EtapPage() {
 
   return (
     <Stack gap="md">
-      <PageHeader icon={IconReceipt2} title="ETAP Claim"
+      <PageHeader title="ETAP Claim"
         description="Your on-call claim for a month: list the days you were on call, check them against the rota and your cases, then download the filled-in ETAP form." />
       {locked && (
         <Alert color="orange" variant="light" icon={<IconAlertTriangle size={18} />}>
@@ -125,8 +125,8 @@ function Claim({ month, claim }: { month: string; claim: EtapClaim }) {
                           <Checkbox size="xs" label="next day" checked={r.nextDay} onChange={e => set(i, { nextDay: e.currentTarget.checked })} />
                         </Group>
                       </Table.Td>
-                      <Table.Td>{c ? <Text size="sm">{c.caseCount} · {hours(c.caseMinutes)}</Text> : <Text size="xs" c="dimmed">save to see</Text>}</Table.Td>
-                      <Table.Td>{c && <Badge variant="light" color={CATEGORY[c.category].color}>{c.category} · {CATEGORY[c.category].label}</Badge>}</Table.Td>
+                      <Table.Td>{c ? <Text size="sm">{c.caseCount}, {hours(c.caseMinutes)}</Text> : <Text size="xs" c="dimmed">save to see</Text>}</Table.Td>
+                      <Table.Td>{c && <Badge variant="light" color={CATEGORY[c.category].color}>{c.category}, {CATEGORY[c.category].label}</Badge>}</Table.Td>
                       <Table.Td>
                         {c && (c.inRota ? <Badge variant="light" color="green" leftSection={<IconCheck size={12} />}>Yours</Badge> : (
                           <Tooltip label={`The published rota has ${c.rotaOfficer?.name ?? 'nobody'} on call that date`}>
@@ -155,20 +155,20 @@ function Claim({ month, claim }: { month: string; claim: EtapClaim }) {
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <Paper className="panel" p="lg">
           <Stack gap="xs">
-            <Title order={4}>Section C {claim.specialist && <Badge ml={6} variant="light">Specialist rates</Badge>}</Title>
+            <Title order={4}>Section C {claim.specialist && <Badge ml={6} variant="light" color="gray">Specialist rates</Badge>}</Title>
             <Table verticalSpacing={4}>
               <Table.Tbody>
                 {claim.lines.map(l => (
                   <Table.Tr key={l.category}>
-                    <Table.Td><Text size="sm"><b>{l.category}</b> {l.label}</Text></Table.Td>
-                    <Table.Td ta="right"><Text size="sm">{l.days} × {l.rate}</Text></Table.Td>
-                    <Table.Td ta="right"><Text size="sm" fw={600}>RM {l.amount.toLocaleString()}</Text></Table.Td>
+                    <Table.Td><Text size="sm"><Text span fw={500}>{l.category}</Text> {l.label}</Text></Table.Td>
+                    <Table.Td ta="right"><Text size="sm" style={{ fontVariantNumeric: 'tabular-nums' }}>{l.days} × {l.rate}</Text></Table.Td>
+                    <Table.Td ta="right"><Text size="sm" fw={500} style={{ fontVariantNumeric: 'tabular-nums' }}>RM {l.amount.toLocaleString()}</Text></Table.Td>
                   </Table.Tr>
                 ))}
                 <Table.Tr>
-                  <Table.Td><Text fw={700}>Jumlah tuntutan</Text></Table.Td>
-                  <Table.Td ta="right"><Text fw={700}>{claim.totalDays} days</Text></Table.Td>
-                  <Table.Td ta="right"><Text fw={700}>RM {claim.totalAmount.toLocaleString()}</Text></Table.Td>
+                  <Table.Td><Text fw={500}>Jumlah tuntutan</Text></Table.Td>
+                  <Table.Td ta="right"><Text fw={500} style={{ fontVariantNumeric: 'tabular-nums' }}>{claim.totalDays} days</Text></Table.Td>
+                  <Table.Td ta="right"><Text fw={500} style={{ fontVariantNumeric: 'tabular-nums' }}>RM {claim.totalAmount.toLocaleString()}</Text></Table.Td>
                 </Table.Tr>
               </Table.Tbody>
             </Table>
@@ -192,7 +192,7 @@ function Claim({ month, claim }: { month: string; claim: EtapClaim }) {
                 Surat arahan{claim.suratArahan.reference && ` ${claim.suratArahan.reference}`} (from {formatLong(claim.suratArahan.effectiveFrom)})
               </Button>
             ) : <Alert color="gray" variant="light" py={6}>No surat arahan uploaded yet: ask your admin.</Alert>}
-            <Text size="sm" fw={600} mt="xs">Also bring yourself:</Text>
+            <Text size="sm" fw={500} mt="xs">Also bring yourself:</Text>
             <List size="sm" spacing={2}>
               <List.Item>A copy of your punch card (kad perakam waktu)</List.Item>
               <List.Item>Your bank statement (and IC copy, for your first claim)</List.Item>

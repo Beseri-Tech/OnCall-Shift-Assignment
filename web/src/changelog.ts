@@ -12,6 +12,16 @@ export type Release = { version: string; date: string; title: string; changes: C
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.14.0', date: '2026-11-26', title: 'A calmer, clearer look',
+    changes: [
+      { kind: 'improved', text: 'The whole app has a new look that matches the welcome and sign-in pages: the same typeface, slightly larger text, a plain dark header, and quieter colours so the rota colours stand out.' },
+      { kind: 'improved', text: 'All pages are now listed in a menu down the left side, grouped by Leave, On call, Rota and Admin, instead of hidden in drop-down menus. Collapse it to icons with the button at its bottom; it stays the way you left it. On phones the same menu opens from the menu button.' },
+      { kind: 'improved', text: 'The month calendar is easier to read: clearer day numbers, today marked in teal, and public holidays and weekends visible at a glance.' },
+      { kind: 'improved', text: 'My On-Call shows your next shift with the date set large, and period status (open, locked, in review, published) looks the same on every page.' },
+      { kind: 'improved', text: 'After you record a case, the New case form starts fresh for the next patient. The shift, taggers and DSA are still filled in.' },
+    ],
+  },
+  {
     version: '3.13.0', date: '2026-11-26', title: 'The app now starts at /home',
     changes: [
       { kind: 'improved', text: 'The main Rota-OC address always shows the welcome page. After you sign in, the app opens at /home, which takes you to your leave (officers) or the overview (supervisors). On the welcome page, Open Rota-OC takes you back into the app.' },

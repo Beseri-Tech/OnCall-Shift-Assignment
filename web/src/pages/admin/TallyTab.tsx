@@ -13,8 +13,8 @@ type Edit = { weekday: number; weekendHoliday: number }
 
 function SortHead({ by, label, sort, onSort }: { by: Sort; label: string; sort: Sort; onSort: (s: Sort) => void }) {
   return (
-    <UnstyledButton onClick={() => onSort(by)} fw={700} fz="sm" c={sort === by ? 'brand' : undefined}>
-      <Group gap={4} wrap="nowrap" justify="center" style={{ whiteSpace: 'nowrap' }}>{label}<IconArrowsSort size={14} /></Group>
+    <UnstyledButton onClick={() => onSort(by)} fw={500} fz="sm" c={sort === by ? 'brand' : 'var(--text-2)'}>
+      <Group gap={4} wrap="nowrap" justify="flex-end" style={{ whiteSpace: 'nowrap' }}>{label}<IconArrowsSort size={14} stroke={1.5} /></Group>
     </UnstyledButton>
   )
 }
@@ -95,19 +95,19 @@ export function TallyTab() {
 
       <Text size="sm" c="dimmed">
         Shifts done so far. Publishing a rota adds its shifts automatically; edit a number to correct it or to enter history from
-        before the app. Officers marked "not set" count as the group average for weekend balancing.
+        before the app. Officers marked "Not set" count as the group average for weekend balancing.
       </Text>
 
-      <Paper withBorder>
+      <Paper className="panel">
         <Table.ScrollContainer minWidth={760}>
-          <Table striped highlightOnHover verticalSpacing={6}>
+          <Table highlightOnHover verticalSpacing={6} style={{ fontVariantNumeric: 'tabular-nums' }}>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th><SortHead by="name" label="Officer" sort={sort} onSort={setSort} /></Table.Th>
-                <Table.Th>Clinic</Table.Th>
-                <Table.Th ta="center" w={130}>Weekday</Table.Th>
-                <Table.Th ta="center" w={160}><SortHead by="weekendHoliday" label="Weekend / PH" sort={sort} onSort={setSort} /></Table.Th>
-                <Table.Th ta="center" w={110}><SortHead by="total" label="Total" sort={sort} onSort={setSort} /></Table.Th>
+                <Table.Th fw={500} c="var(--text-2)">Clinic</Table.Th>
+                <Table.Th ta="right" w={130} fw={500} c="var(--text-2)">Weekday</Table.Th>
+                <Table.Th ta="right" w={160}><SortHead by="weekendHoliday" label="Weekend and PH" sort={sort} onSort={setSort} /></Table.Th>
+                <Table.Th ta="right" w={110}><SortHead by="total" label="Total" sort={sort} onSort={setSort} /></Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -120,11 +120,11 @@ export function TallyTab() {
                 return (
                   <Table.Tr key={r.personId} bg={changed ? 'yellow.0' : undefined} opacity={r.status === 'Left' ? 0.6 : 1}>
                     <Table.Td>
-                      <Text fw={600} size="sm">{r.name}</Text>
+                      <Text fw={500} size="sm">{r.name}</Text>
                       <Group gap={6}>
                         <Text size="xs" c="dimmed">{r.code}</Text>
                         {r.status !== 'OnCall' && <Badge size="xs" color="gray" variant="light">{r.status}</Badge>}
-                        {!r.known && !changed && <Badge size="xs" color="orange" variant="light">not set</Badge>}
+                        {!r.known && !changed && <Badge size="xs" color="yellow" variant="light">Not set</Badge>}
                       </Group>
                     </Table.Td>
                     <Table.Td>
@@ -138,13 +138,13 @@ export function TallyTab() {
                       </>
                     ) : (
                       <>
-                        <Table.Td ta="center">{r.weekday}</Table.Td>
-                        <Table.Td ta="center">{r.weekendHoliday}</Table.Td>
+                        <Table.Td ta="right">{r.weekday}</Table.Td>
+                        <Table.Td ta="right">{r.weekendHoliday}</Table.Td>
                       </>
                     )}
-                    <Table.Td ta="center">
+                    <Table.Td ta="right">
                       <Tooltip label={`${r.publishedWeekday + r.publishedWeekendHoliday} from published rotas, ${r.total - r.publishedWeekday - r.publishedWeekendHoliday} entered by admin`}>
-                        <Text span fw={800}>{v.weekday + v.weekendHoliday}</Text>
+                        <Text span fw={500}>{v.weekday + v.weekendHoliday}</Text>
                       </Tooltip>
                     </Table.Td>
                   </Table.Tr>
@@ -154,9 +154,9 @@ export function TallyTab() {
             <Table.Tfoot>
               <Table.Tr>
                 <Table.Th colSpan={2}>{rows.length} officers</Table.Th>
-                <Table.Th ta="center">{sums.weekday}</Table.Th>
-                <Table.Th ta="center">{sums.weekend}</Table.Th>
-                <Table.Th ta="center">{sums.weekday + sums.weekend}</Table.Th>
+                <Table.Th ta="right">{sums.weekday}</Table.Th>
+                <Table.Th ta="right">{sums.weekend}</Table.Th>
+                <Table.Th ta="right">{sums.weekday + sums.weekend}</Table.Th>
               </Table.Tr>
             </Table.Tfoot>
           </Table>

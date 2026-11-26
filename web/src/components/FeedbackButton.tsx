@@ -20,7 +20,7 @@ export function FeedbackButton({ onClick }: { onClick: () => void }) {
   return (
     <Tooltip label="Send feedback" withinPortal>
       <UnstyledButton className="nav-link" aria-label="Send feedback" onClick={onClick}>
-        <IconMessage2 size={20} stroke={1.8} />
+        <IconMessage2 size={20} stroke={1.75} />
       </UnstyledButton>
     </Tooltip>
   )

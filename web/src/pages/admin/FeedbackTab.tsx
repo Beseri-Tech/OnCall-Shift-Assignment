@@ -10,7 +10,7 @@ const PAGE_SIZE = 25
 
 const CATEGORY: Record<FeedbackCategory, { label: string; color: string }> = {
   Bug: { label: 'Problem', color: 'red' },
-  Suggestion: { label: 'Idea', color: 'violet' },
+  Suggestion: { label: 'Idea', color: 'gray' },
   Other: { label: 'Other', color: 'gray' },
 }
 
@@ -28,23 +28,23 @@ function Item({ f }: { f: Feedback }) {
   const c = CATEGORY[f.category]
 
   return (
-    <Card withBorder padding="md" opacity={f.resolvedAt ? 0.7 : 1}>
+    <Card className="panel" padding="md" opacity={f.resolvedAt ? 0.7 : 1}>
       <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md">
         <Stack gap={6} style={{ minWidth: 0, flex: 1 }}>
           <Group gap="xs" wrap="wrap">
             <Badge variant="light" color={c.color}>{c.label}</Badge>
-            {f.resolvedAt && <Badge variant="light" color="teal">Resolved</Badge>}
-            <Text size="sm" fw={600}>{f.senderName ?? f.senderEmail ?? 'Deleted account'}</Text>
+            {f.resolvedAt && <Badge variant="light" color="green">Resolved</Badge>}
+            <Text size="sm" fw={500}>{f.senderName ?? f.senderEmail ?? 'Deleted account'}</Text>
             {f.senderName && <Text size="xs" c="dimmed">{f.senderEmail}</Text>}
           </Group>
           <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{f.message}</Text>
           <Text size="xs" c="dimmed">
             {whenFmt.format(new Date(f.createdAt))}
-            {f.page && <> · on <Code fz="xs">{f.page}</Code></>}
-            {f.resolvedAt && ` · resolved ${whenFmt.format(new Date(f.resolvedAt))}${f.resolvedByEmail ? ` by ${f.resolvedByEmail}` : ''}`}
+            {f.page && <>, on <Code fz="xs">{f.page}</Code></>}
+            {f.resolvedAt && `. Resolved ${whenFmt.format(new Date(f.resolvedAt))}${f.resolvedByEmail ? ` by ${f.resolvedByEmail}` : ''}`}
           </Text>
         </Stack>
-        <Button size="xs" variant={f.resolvedAt ? 'subtle' : 'light'} loading={toggle.isPending} onClick={() => toggle.mutate()}
+        <Button size="xs" variant={f.resolvedAt ? 'subtle' : 'default'} loading={toggle.isPending} onClick={() => toggle.mutate()}
           leftSection={f.resolvedAt ? <IconArrowBackUp size={14} /> : <IconCheck size={14} />}>
           {f.resolvedAt ? 'Reopen' : 'Mark resolved'}
         </Button>
@@ -89,7 +89,7 @@ export function FeedbackTab() {
       {list.isLoading ? <Loading /> : (
         <Stack gap="sm" opacity={list.isPlaceholderData ? 0.6 : 1}>
           {list.data?.items.length === 0 && (
-            <Text c="dimmed" ta="center" py="lg">{status === 'open' ? 'No open feedback. All caught up.' : 'No feedback matches.'}</Text>
+            <Text c="dimmed" ta="center" py="lg">{status === 'open' ? 'No open feedback.' : 'No feedback matches.'}</Text>
           )}
           {list.data?.items.map(f => <Item key={f.id} f={f} />)}
         </Stack>
